@@ -10,7 +10,7 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:setup-remote": "tsx scripts/setup-vercel-db.ts"
+    "db:setup-remote": "npx tsx scripts/setup-vercel-db.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

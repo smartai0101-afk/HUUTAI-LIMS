@@ -1,28 +1,20 @@
 /**
  * Push schema + seed to remote Turso DB.
  *
- * Prerequisites:
- *   1. Create database at https://turso.tech
- *   2. Set env (PowerShell example):
- *        $env:TURSO_DATABASE_URL="libsql://xxx.turso.io"
- *        $env:TURSO_AUTH_TOKEN="..."
- *        $env:DATABASE_URL="libsql://xxx.turso.io?authToken=..."
- *        $env:SESSION_SECRET="your-secret-min-32-chars"
- *   3. Run: npx tsx scripts/setup-vercel-db.ts
+ * Prisma CLI only accepts file: for sqlite provider — schema is applied via
+ * `prisma migrate diff` SQL + @libsql/client, then seed uses lib/db (Turso adapter).
+ *
+ * Prerequisites: TURSO_DATABASE_URL + TURSO_AUTH_TOKEN in .env
+ * Run: npx tsx scripts/setup-vercel-db.ts
  */
 import { execSync } from "node:child_process";
+import { createClient } from "@libsql/client";
 import { isRemoteDatabase } from "../lib/db";
 
 function requireRemoteEnv() {
-  if (!process.env.DATABASE_URL?.startsWith("libsql://") && process.env.TURSO_DATABASE_URL) {
-    const token = encodeURIComponent(process.env.TURSO_AUTH_TOKEN ?? "");
-    process.env.DATABASE_URL = `${process.env.TURSO_DATABASE_URL}?authToken=${token}`;
-  }
-
   if (!isRemoteDatabase()) {
     console.error(
-      "Missing Turso config. Set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN,",
-      "or DATABASE_URL=libsql://...?authToken=...",
+      "Missing Turso config. Set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN in .env",
     );
     process.exit(1);
   }
@@ -31,12 +23,44 @@ function requireRemoteEnv() {
   }
 }
 
-requireRemoteEnv();
+async function main() {
+  requireRemoteEnv();
 
-console.log("Pushing schema to remote database...");
-execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
+  const url = process.env.TURSO_DATABASE_URL!.trim();
+  const authToken = process.env.TURSO_AUTH_TOKEN!.trim();
 
-console.log("Seeding remote database...");
-execSync("npx tsx prisma/seed.ts", { stdio: "inherit" });
+  console.log("Generating schema SQL from prisma/schema.prisma...");
+  const sql = execSync(
+    "npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script",
+    {
+      encoding: "utf-8",
+      env: { ...process.env, DATABASE_URL: "file:./dev.db" },
+    },
+  ).trim();
 
-console.log("Done. Set the same env vars on Vercel and redeploy.");
+  if (!sql) {
+    console.error("No SQL generated — check prisma/schema.prisma");
+    process.exit(1);
+  }
+
+  console.log("Applying schema to Turso...");
+  const client = createClient({ url, authToken });
+  try {
+    await client.executeMultiple(sql);
+  } finally {
+    client.close();
+  }
+
+  console.log("Seeding remote database...");
+  execSync("npx tsx prisma/seed.ts", {
+    stdio: "inherit",
+    env: process.env,
+  });
+
+  console.log("Done. Set TURSO_* + SESSION_SECRET on Vercel and redeploy.");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

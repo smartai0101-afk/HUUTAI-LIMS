@@ -1,6 +1,6 @@
 # Lab Inventory LIMS — HANDOFF
 
-> **Cập nhật:** 2026-06-25 (Auth/RBAC · Phân quyền sidebar · Turso/Vercel)  
+> **Cập nhật:** 2026-06-25 (Vercel env + redeploy · Mobile scroll UX · Sidebar mobile scroll · Upload prod chưa fix)  
 > **Mục đích:** Dùng file này để mở chat mới — **không scan toàn repo**. Chỉ đọc file liên quan trực tiếp.
 
 ---
@@ -23,8 +23,10 @@
 | **Module Thiết bị** (`/equipment/*`) | ✅ HC inline · BT/SC UX · Phụ kiện · upload đa file · subtitle EN · Dashboard gọn · **Lý lịch gallery ảnh + carousel** |
 | **Lý lịch thiết bị** (`/equipment/history`) | ✅ Chọn sự kiện timeline → gallery ảnh (nguồn gốc + upload) · carousel prev/next · PDF link riêng |
 | **Authentication & RBAC** | ✅ Login/logout · JWT session · middleware · **23 quyền theo sidebar** · Admin UI |
-| **Deploy Vercel** | 🟡 Cần **Turso** + env trên Vercel — xem § Deploy Vercel |
-| **Sidebar navigation** | ✅ 3 nhóm collapsible: **Hoá chất - Chuẩn - Chủng** (11) · **Thiết bị** (9) · **Quản trị** (3) |
+| **Session / Sidebar auth** | ✅ Fix sidebar trống (JWT↔DB lệch) · fix cookie crash layout · stale → `/login?reason=session` |
+| **Deploy Vercel** | 🟡 Env + redeploy `huutai-lims-m929` **xong** — QA login prod pending · xem § Deploy · [`DEPLOY.md`](DEPLOY.md) |
+| **Sidebar navigation** | ✅ 3 nhóm collapsible · **mobile drawer vuốt cuộn dọc** (`TouchVerticalScroll`) |
+| **Mobile UX (bảng + filter)** | ✅ `TouchHorizontalScroll` · `FilterChipBar` · `DataTable` sticky cột |
 
 **Menu vật tư** (nhóm **Hoá chất - Chuẩn - Chủng**, thứ tự gốc): Dashboard · Nhập kho · Hoá chất/Chuẩn/Chủng gốc · pha chế · Thống kê · Nhật ký · Báo cáo.  
 **Route `/containers`** giữ URL, label menu **“Thống kê”**. **Nhập kho** → `/stock-in`.
@@ -34,7 +36,8 @@
 | Môi trường | URL |
 |------------|-----|
 | **Local dev** | http://localhost:3000 |
-| **Vercel (prod)** | https://huutai-lims-m929.vercel.app — login cần Turso + env (§ Deploy Vercel) |
+| **Vercel (prod)** | https://huutai-lims-m929.vercel.app — env Turso đã set · **Redeploy 2026-06-25** · QA login pending |
+| **Vercel (alt)** | https://huutai-lims.vercel.app — project `huutai/huutai-lims` (có env riêng, không phải URL chính user dùng) |
 
 ### Trạng thái Next.js
 
@@ -67,11 +70,12 @@
 ### Trạng thái Database
 
 - **Local:** SQLite — `prisma/dev.db` · `DATABASE_URL="file:./dev.db"`
-- **Production (Vercel):** **Turso (libSQL)** — SQLite file local **không** chạy trên Vercel serverless
-- **`.env` local:** `SESSION_SECRET`, `SESSION_MAX_AGE` — xem [`.env.example`](.env.example)
+- **Production (Turso):** `libsql://huutai-lims-smartai0101-afk.aws-ap-northeast-1.turso.io` — **schema + seed đã chạy** (`npm run db:setup-remote` OK)
+- **`.env` local:** `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` — token **không** commit; xem [`.env.example`](.env.example)
 - **Optional:** `ALLOW_FIFO_WITHOUT_LOT=true` — FIFO khi **không** chọn lot (mặc định: false)
-- **Seed:** `npx tsx prisma/seed.ts` hoặc `npm run db:seed`
-- **Remote setup:** `npm run db:setup-remote` (push schema + seed lên Turso)
+- **Seed local:** `npx tsx prisma/seed.ts` hoặc `npm run db:seed`
+- **Remote setup:** `npm run db:setup-remote` — dùng `prisma migrate diff` + `@libsql/client` (Prisma CLI không push trực tiếp `libsql://`)
+- **Kiểm tra env trước deploy:** `powershell -ExecutionPolicy Bypass -File scripts/deploy-check.ps1`
 
 ### Module đang hoạt động
 
@@ -98,9 +102,13 @@
 | **Usage log chưa chọn lot** | 🟡 | FIFO (nếu policy cho phép) |
 | **Chưa UI InventoryTransaction / Staff** | 🟡 | Phase 3 |
 | **Catalog CRUD sửa `quantity` trực tiếp** | 🟡 | Có thể lệch khi đã có StockLot |
-| **Chưa commit** | 🟡 | Auth/RBAC + phân quyền sidebar + Turso — chờ user yêu cầu |
-| **Vercel login lỗi 500** | 🟡 | Chưa set Turso + `SESSION_SECRET` trên Vercel — xem § Deploy Vercel |
+| **Chưa commit** | 🟡 | Mobile scroll + sidebar scroll + Vercel env script — chờ user yêu cầu |
+| **Upload COA/file trên Vercel** | 🔴 | Ghi `public/uploads/*` — filesystem read-only → **500 khi đính kèm** · cần Vercel Blob / S3 |
+| **Vercel prod login** | 🟡 | Env `TURSO_*` + `SESSION_SECRET` đã set trên `huutai-lims-m929` · **QA login chưa xác nhận user** |
+| **Turso token rotate** | 🟡 | Token mới đã paste chat + set Vercel · nên rotate lại sau go-live |
 | **Non-equipment actions chưa session guard** | 🟡 | Catalog/stock-in/usage-log vẫn không check session server-side (chỉ middleware route) |
+| Sidebar trống (JWT stale) | 🟢 | Fix session — `getSessionUser` read-only · middleware xóa cookie `/login?reason=session` |
+| Cookie crash layout Next.js 16 | 🟢 | Không gọi `clearSessionCookie()` trong layout/`getSessionUser` |
 | Dev server treo port 3000 / EPERM generate | 🟡 | `taskkill /F /IM node.exe` → `npx prisma generate` → `npm run dev` |
 | Prisma stale client (Turbopack) | 🟢 | Fix `lib/db.ts` Proxy; restart dev nếu vẫn lỗi `findMany` undefined |
 | DetailDrawer che ModalShell | 🟢 | Đã fix — `DetailDrawer` `z-[70]`, `ModalShell` `z-[80]`, `ConfirmDialog` `z-[90]` |
@@ -110,7 +118,59 @@
 
 ## 2. Completed Work
 
-### Phiên này (2026-06-25) — Auth/RBAC + Phân quyền sidebar + Turso/Vercel
+### Phiên này (2026-06-25) — Vercel deploy · Mobile scroll UX · Sidebar mobile scroll
+
+#### Deploy Vercel + Turso (project `huutai-lims-m929`) ✅ (code + env)
+
+- **Nguyên nhân login fail:** project `huutai-lims-m929` **thiếu** `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (chỉ có `DATABASE_URL` local)
+- ✅ Token Turso mới → cập nhật `.env` local
+- ✅ Vercel CLI link `huutai/huutai-lims-m929` · set env Production + Preview: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SESSION_SECRET`
+- ✅ `npx vercel --prod` — deploy OK
+- ✅ Script tiện ích: [`scripts/set-vercel-turso-env.ps1`](scripts/set-vercel-turso-env.ps1)
+- ⏳ **QA user:** login `smartai0101@gmail.com` / `Admin@123456` trên https://huutai-lims-m929.vercel.app
+
+**Lưu ý:** Có 2 project Vercel — `huutai-lims-m929` (prod user) vs `huutai-lims` — đừng nhầm khi set env.
+
+#### Mobile swipe scroll — bảng + filter ✅
+
+- ✅ [`components/TouchHorizontalScroll.tsx`](components/TouchHorizontalScroll.tsx) — scroll ngang + fade mép (mobile)
+- ✅ [`components/FilterChipBar.tsx`](components/FilterChipBar.tsx) — filter chips vuốt ngang + snap
+- ✅ [`components/DataTable.tsx`](components/DataTable.tsx) — bọc `TouchHorizontalScroll` · `stickyLeadingColumns` (default 1, catalog dùng 2)
+- ✅ [`app/globals.css`](app/globals.css) — `.touch-scroll-x`, `.touch-scroll-y`, `.scrollbar-hide`
+- ✅ Filter migrated: `StandardsClient`, `ChemicalsClient`, `MicrobialStrainsClient`, `ModuleCrudClient`, 8+ equipment clients
+
+#### Sidebar mobile — vuốt cuộn menu chính ✅
+
+- ✅ [`components/TouchVerticalScroll.tsx`](components/TouchVerticalScroll.tsx) — scroll dọc + fade trên/dưới (`fadeClassName="from-slate-950"`)
+- ✅ [`components/Sidebar.tsx`](components/Sidebar.tsx) — shell `flex h-full min-h-0 flex-col` · nav trong `TouchVerticalScroll` · desktop `flex` · mobile drawer scroll · lock `body overflow` khi menu mở
+
+#### Phát hiện — Upload file trên Vercel 🔴 (chưa fix)
+
+- COA / equipment file ghi [`lib/coa-upload.ts`](lib/coa-upload.ts) → `public/uploads/*` — **không chạy trên Vercel** (read-only FS)
+- Local dev OK · prod → server error 500 khi đính kèm file
+- **Fix phiên sau:** Vercel Blob hoặc S3/R2 · refactor `coa-upload.ts` + `equipment-upload.ts`
+
+### Phiên trước (2026-06-25) — Session/Sidebar fix · Turso seed · Deploy docs
+
+#### Fix sidebar trống (JWT ↔ DB lệch) ✅
+
+- **Triệu chứng:** Sidebar trống · Topbar "User" / "Viewer" giả · middleware cho vào app nhưng `SessionProvider` nhận `null`
+- **Nguyên nhân:** Cookie JWT hợp lệ nhưng user không còn trong DB (sau reset/seed)
+- ✅ [`lib/auth/session.ts`](lib/auth/session.ts) — `getSessionUser()` **read-only** (không `clearSessionCookie` trong layout — Next.js 16 cấm)
+- ✅ [`lib/auth/public-paths.ts`](lib/auth/public-paths.ts) — `/login`, `/access-denied`
+- ✅ [`middleware.ts`](middleware.ts) — `x-pathname`; xóa cookie `/login?reason=session` (chặn redirect loop)
+- ✅ [`app/layout.tsx`](app/layout.tsx) — redirect protected → `/login?reason=session`
+- ✅ [`components/SessionProvider.tsx`](components/SessionProvider.tsx) — `role: null` khi chưa auth
+- ✅ [`components/auth/LoginForm.tsx`](components/auth/LoginForm.tsx) — banner phiên hết hạn
+
+#### Deploy Turso + tài liệu ✅
+
+- ✅ [`DEPLOY.md`](DEPLOY.md) · [`scripts/deploy-check.ps1`](scripts/deploy-check.ps1)
+- ✅ [`scripts/setup-vercel-db.ts`](scripts/setup-vercel-db.ts) — `prisma migrate diff` + `@libsql/client` (Prisma CLI không push `libsql://`)
+- ✅ Turso **seeded:** `libsql://huutai-lims-smartai0101-afk.aws-ap-northeast-1.turso.io`
+- ✅ Vercel env + redeploy — xem § Completed Work phiên này
+
+### Phiên trước (2026-06-25) — Auth/RBAC + Phân quyền sidebar + Turso/Vercel
 
 #### Authentication & RBAC ✅
 
@@ -136,8 +196,8 @@
 - ✅ `@libsql/client` + `@prisma/adapter-libsql` — [`lib/db.ts`](lib/db.ts) auto Turso khi có env
 - ✅ JWT tách [`lib/auth/jwt.ts`](lib/auth/jwt.ts) — middleware không load Prisma
 - ✅ Login try/catch — message rõ khi thiếu DB/SESSION_SECRET
-- ✅ `npm run db:setup-remote` · [`.env.example`](.env.example)
-- ⏳ **User cần:** tạo Turso DB · set env Vercel · chạy `db:setup-remote` · redeploy
+- ✅ `npm run db:setup-remote` · [`.env.example`](.env.example) · [`DEPLOY.md`](DEPLOY.md)
+- ✅ Turso DB tạo + seed (phiên session fix) — còn **Vercel env + Redeploy**
 
 ### Phiên trước (2026-06-25) — Lý lịch gallery + QA E2E Thiết bị
 
@@ -589,12 +649,45 @@ npx prisma generate
 
 ## 8. Pending Tasks
 
-### Ưu tiên 0 — Deploy Vercel + Turso 🟡 (phiên tiếp theo)
+### Ưu tiên 0 — Deploy Vercel + Turso 🟡
 
-- [ ] Tạo database tại https://turso.tech
-- [ ] Local: set `TURSO_*` + `DATABASE_URL=libsql://...?authToken=...` → `npm run db:setup-remote`
-- [ ] Vercel env: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` (≥32 chars)
-- [ ] Redeploy · QA login prod `smartai0101@gmail.com` / `Admin@123456`
+- [x] Tạo database Turso — `huutai-lims-smartai0101-afk` (ap-northeast-1)
+- [x] Local `.env`: `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` + `SESSION_SECRET`
+- [x] `npm run db:setup-remote` — schema + seed OK
+- [x] **Vercel env** `huutai-lims-m929`: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` (Production + Preview)
+- [x] **Redeploy** project `huutai-lims-m929` (2026-06-25)
+- [ ] **QA login prod** `smartai0101@gmail.com` / `Admin@123456` · sidebar 3 nhóm · CRUD không file
+- [ ] Rotate Turso token (token đã lộ chat) → token mới → `.env` + Vercel + redeploy
+
+**Env Vercel** (đã set — rotate token khi cần):
+
+| Biến | Giá trị |
+|------|---------|
+| `TURSO_DATABASE_URL` | `libsql://huutai-lims-smartai0101-afk.aws-ap-northeast-1.turso.io` |
+| `TURSO_AUTH_TOKEN` | (trong `.env` local — **không commit**) |
+| `SESSION_SECRET` | (trong `.env` local) |
+
+**Redeploy nhanh:** `npx vercel link --project huutai-lims-m929` → `npx vercel --prod`
+
+### Ưu tiên 0 — Upload file production (Vercel) 🔴
+
+- [ ] Chọn storage: **Vercel Blob** (khuyến nghị) hoặc S3/R2
+- [ ] Refactor [`lib/coa-upload.ts`](lib/coa-upload.ts) + [`lib/equipment-upload.ts`](lib/equipment-upload.ts) — upload cloud, lưu URL vào DB
+- [ ] Env Vercel: `BLOB_READ_WRITE_TOKEN` (nếu dùng Blob)
+- [ ] QA: đính kèm COA trên `/standards` prod · upload thiết bị prod
+
+### Ưu tiên 1 — Mobile UX QA 🟡
+
+- [x] Bảng vuốt ngang + filter chips (`TouchHorizontalScroll`, `FilterChipBar`, `DataTable`)
+- [x] Sidebar mobile vuốt dọc menu (`TouchVerticalScroll`)
+- [ ] QA thiết bị thật / DevTools 375px: `/standards` vuốt bảng + filter · menu hamburger vuốt tới Quản trị
+- [ ] (Tuỳ chọn) Migrate filter chips còn lại: `ContainersClient`, `StatisticsClient`, `UsageLogsClient`, `PreparedChemicalsClient`, `PreparedStandardsClient`
+
+### Ưu tiên 0 — Session / Sidebar QA (local)
+
+- [ ] Login Admin local → sidebar đủ 3 nhóm · Topbar "System Admin"
+- [ ] Cookie stale: vào `/` với JWT cũ → redirect `/login?reason=session` + banner (không crash cookie)
+- [ ] Login Viewer `viewer@demo.local` / `Demo@123456` → sidebar vật tư + thiết bị (không Quản trị)
 
 ### Ưu tiên 0 — Authentication & RBAC ✅ (đã implement)
 
@@ -777,21 +870,21 @@ npm run dev
 ## 10. Recommended Next Prompt
 
 ```
-Đọc HANDOFF.md (§ Deploy Vercel).
-Hoàn tất Turso + env Vercel, QA login production.
-Hoặc: QA browser E2E Thiết bị · QA pha chế/lot · QA nhập kho.
+Đọc HANDOFF.md + DEPLOY.md.
+Hoàn tất Vercel env + Redeploy → QA login production.
+Rotate Turso token nếu chưa làm.
+Hoặc: QA session/sidebar local · QA Auth/RBAC · QA E2E vật tư/thiết bị.
 Chỉ đọc file liên quan — không scan toàn repo.
 ```
 
-**Turso setup nhanh:**
+**Turso (đã setup — re-seed nếu cần):**
 
 ```powershell
-$env:TURSO_DATABASE_URL="libsql://YOUR-DB.turso.io"
-$env:TURSO_AUTH_TOKEN="YOUR_TOKEN"
-$env:DATABASE_URL="libsql://YOUR-DB.turso.io?authToken=YOUR_TOKEN"
-$env:SESSION_SECRET="random-32-chars-minimum"
+powershell -ExecutionPolicy Bypass -File scripts/deploy-check.ps1
 npm run db:setup-remote
 ```
+
+**Vercel env tối thiểu:** `TURSO_DATABASE_URL` · `TURSO_AUTH_TOKEN` · `SESSION_SECRET` → Redeploy.
 
 **Admin seed:** `smartai0101@gmail.com` / `Admin@123456`
 
@@ -999,6 +1092,10 @@ npm run build
 
 SQLite `file:./dev.db` **không** chạy trên Vercel. Production dùng **Turso** (libSQL).
 
+**Turso DB hiện tại:** `libsql://huutai-lims-smartai0101-afk.aws-ap-northeast-1.turso.io` — đã `db:setup-remote`.
+
+**Hướng dẫn đầy đủ:** [`DEPLOY.md`](DEPLOY.md)
+
 ### Env Vercel (Settings → Environment Variables)
 
 | Biến | Bắt buộc | Ghi chú |
@@ -1011,11 +1108,13 @@ SQLite `file:./dev.db` **không** chạy trên Vercel. Production dùng **Turso*
 ### Setup DB remote (một lần, từ local)
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy-check.ps1
 npm run db:setup-remote
-# hoặc: npx tsx scripts/setup-vercel-db.ts
 ```
 
-Script: `prisma db push` + `prisma/seed.ts` lên Turso.
+Script: `prisma migrate diff --from-empty` → SQL apply qua `@libsql/client` → `prisma/seed.ts` (runtime qua `lib/db` + `TURSO_*`).
+
+**Lưu ý:** `prisma db push` với `libsql://` **không** hoạt động (P1012 — sqlite provider cần `file:`). Dùng script trên, không push trực tiếp.
 
 ### Runtime
 
@@ -1025,11 +1124,12 @@ Script: `prisma db push` + `prisma/seed.ts` lên Turso.
 
 | Triệu chứng | Nguyên nhân | Fix |
 |-------------|-------------|-----|
-| Vercel "server error" khi login | Không có DB / chưa seed | Turso + `db:setup-remote` |
+| Vercel "server error" khi login | Thiếu `TURSO_*` trên project đúng | Set env `huutai-lims-m929` (không nhầm `huutai-lims`) + redeploy |
+| Upload COA/file 500 trên prod | Ghi `public/uploads/*` — FS read-only | Vercel Blob / S3 · refactor `coa-upload.ts` |
 | "SESSION_SECRET must be set" | Thiếu env | Set trên Vercel, redeploy |
-| Login OK local, fail prod | Chỉ có `dev.db` local | Turso + env Vercel |
+| Login OK local, fail prod | Chỉ có `dev.db` local / thiếu Turso env | Turso + env Vercel |
 
-**File:** [`.env.example`](.env.example), [`scripts/setup-vercel-db.ts`](scripts/setup-vercel-db.ts)
+**File:** [`.env.example`](.env.example), [`DEPLOY.md`](DEPLOY.md), [`scripts/setup-vercel-db.ts`](scripts/setup-vercel-db.ts), [`scripts/deploy-check.ps1`](scripts/deploy-check.ps1)
 
 ---
 
@@ -1038,7 +1138,7 @@ Script: `prisma db push` + `prisma/seed.ts` lên Turso.
 - Đọc **HANDOFF.md** trước khi code
 - **Không** scan toàn bộ repo
 - Chỉ đọc file liên quan trực tiếp task
-- **Không** revert: **Sidebar vật tư**, **EQUIPMENT_SUBTITLE**, **Dashboard TB bỏ chi phí**, **HC UX**, **BT/SC log UX**, **Phụ kiện catalog fields**, **DetailDrawer z-index**, **Lý lịch gallery carousel** — trừ khi user yêu cầu
+- **Không** revert: **Session/sidebar fix**, **DEPLOY.md**, **setup-vercel-db libsql flow**, **Sidebar vật tư**, **EQUIPMENT_SUBTITLE**, **Dashboard TB bỏ chi phí**, **HC UX**, **BT/SC log UX**, **Phụ kiện catalog fields**, **DetailDrawer z-index**, **Lý lịch gallery carousel**, **Mobile scroll UX** (`TouchHorizontalScroll`, `FilterChipBar`, `DataTable`, `TouchVerticalScroll`, `Sidebar` flex shell) — trừ khi user yêu cầu
 - Không commit trừ khi user yêu cầu
 - Sau mỗi task: báo file sửa + `npx tsc --noEmit`
 
@@ -1046,20 +1146,43 @@ Script: `prisma db push` + `prisma/seed.ts` lên Turso.
 
 ## Ghi chú phiên làm việc
 
-- **Phiên kết thúc (2026-06-25):** **Auth/RBAC** (login, middleware, SessionProvider, Admin UI) · **23 quyền sidebar** (`nav-permissions.ts`) · **Turso adapter** cho Vercel · `tsc` + `build` pass · **chưa commit**
-- **Vercel prod:** https://huutai-lims-m929.vercel.app — login **chưa** chạy cho đến khi user setup Turso + env
-- **Ưu tiên phiên sau:** Hoàn tất **Turso + Vercel env** · QA login prod · QA Auth manual · QA E2E vật tư/thiết bị
+- **Phiên kết thúc (2026-06-25):** **Vercel env + redeploy** `huutai-lims-m929` · **Mobile scroll** (bảng + filter) · **Sidebar mobile scroll** · phát hiện **upload prod broken** · **chưa commit**
+- **Vercel prod:** https://huutai-lims-m929.vercel.app (env Turso OK · QA login user pending)
+- **Turso:** `huutai-lims-smartai0101-afk.aws-ap-northeast-1.turso.io` — seed OK
+- **Ưu tiên phiên sau:** (1) QA login prod · (2) **Vercel Blob upload** COA + equipment · (3) rotate Turso token · (4) QA mobile 375px · (5) QA Auth/RBAC
 
-### File đọc trước (phiên sau — Vercel / QA)
+### File đọc trước (phiên sau)
 
 | Mục đích | File |
 |----------|------|
-| Bàn giao | `HANDOFF.md` § Deploy Vercel |
-| DB prod | `lib/db.ts`, `.env.example`, `scripts/setup-vercel-db.ts` |
-| Auth | `lib/auth/nav-permissions.ts`, `lib/actions/auth.ts` |
-| Admin UI | `components/admin/AdminPermissionsClient.tsx` |
+| Bàn giao | `HANDOFF.md`, [`DEPLOY.md`](DEPLOY.md) |
+| Upload prod (ưu tiên) | `lib/coa-upload.ts`, `lib/equipment-upload.ts` |
+| Deploy / env | `scripts/set-vercel-turso-env.ps1`, `scripts/deploy-check.ps1`, `lib/db.ts` |
+| Mobile UX | `components/TouchHorizontalScroll.tsx`, `TouchVerticalScroll.tsx`, `FilterChipBar.tsx`, `DataTable.tsx`, `Sidebar.tsx` |
+| Session auth | `lib/auth/session.ts`, `middleware.ts`, `components/SessionProvider.tsx` |
 
-### File tham chiếu (Auth — đã xong)
+### Recommended Next Prompt
+
+```
+Đọc HANDOFF.md (§ Pending Tasks).
+Ưu tiên 1: QA login https://huutai-lims-m929.vercel.app (smartai0101@gmail.com / Admin@123456).
+Ưu tiên 2: Fix upload COA/file trên Vercel — Vercel Blob + refactor coa-upload.ts / equipment-upload.ts.
+Hoặc: QA mobile vuốt scroll · rotate Turso token · commit phiên này.
+Chỉ đọc file liên quan — không scan toàn repo.
+```
+
+### File tham chiếu (Session fix — đã xong)
+
+| Mục đích | File |
+|----------|------|
+| Read-only session | `lib/auth/session.ts` |
+| Public routes | `lib/auth/public-paths.ts` |
+| Stale cookie + pathname | `middleware.ts` |
+| Redirect no session | `app/layout.tsx` |
+| Permission UI | `components/SessionProvider.tsx`, `components/Sidebar.tsx` |
+| Login UX | `components/auth/LoginForm.tsx` |
+
+### File tham chiếu (Auth RBAC — đã xong)
 
 | Mục đích | File |
 |----------|------|

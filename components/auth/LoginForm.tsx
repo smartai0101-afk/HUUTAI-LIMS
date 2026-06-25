@@ -8,6 +8,7 @@ import { login } from "@/lib/actions/auth";
 export function LoginForm() {
   const searchParams = useSearchParams();
   const from = searchParams.get("from") ?? "/";
+  const sessionExpired = searchParams.get("reason") === "session";
   const [state, formAction, pending] = useActionState(login, null);
 
   return (
@@ -25,6 +26,12 @@ export function LoginForm() {
 
         <h2 className="text-lg font-medium text-white">Đăng nhập</h2>
         <p className="mt-1 text-sm text-slate-400">Nhập email và mật khẩu tài khoản lab</p>
+
+        {sessionExpired ? (
+          <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.
+          </p>
+        ) : null}
 
         <form action={formAction} className="mt-6 space-y-4">
           <input type="hidden" name="redirect" value={from} />

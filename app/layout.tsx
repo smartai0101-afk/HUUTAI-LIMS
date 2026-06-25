@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ToastProvider } from "@/components/ToastProvider";
+import { isPublicAuthPath } from "@/lib/auth/public-paths";
 import { getSessionUser } from "@/lib/auth/session";
 import "./globals.css";
 
@@ -18,6 +21,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await getSessionUser();
+  const pathname = (await headers()).get("x-pathname") ?? "";
+
+  if (!session && pathname && !isPublicAuthPath(pathname)) {
+    redirect("/login?reason=session");
+  }
 
   return (
     <html lang="en" className={inter.className}>

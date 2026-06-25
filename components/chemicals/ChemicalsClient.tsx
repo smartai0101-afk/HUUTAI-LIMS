@@ -6,6 +6,7 @@ import { Download, Edit, Plus, Search, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
+import { FilterChipBar } from "@/components/FilterChipBar";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -296,14 +297,18 @@ export function ChemicalsClient({ items, groupOptions }: { items: ChemicalView[]
               </select>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {STANDARD_STATUS_FILTERS.map((s) => (
-              <button key={s} type="button" onClick={() => setStatusFilter(s)} className={`rounded-xl px-3 py-2 text-sm ${statusFilter === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"}`}>{s === "All" ? "Tất cả trạng thái" : s}</button>
-            ))}
-          </div>
+          <FilterChipBar
+            options={STANDARD_STATUS_FILTERS.map((s) => ({
+              value: s,
+              label: s === "All" ? "Tất cả trạng thái" : s,
+            }))}
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+          />
         </div>
 
         <DataTable
+          stickyLeadingColumns={2}
           columns={[
             { key: "code", header: "Mã hóa chất", render: (v, row) => groupedCell(row.showMasterFields, v) },
             { key: "name", header: "Tên hóa chất", render: (v, row) => groupedCell(row.showMasterFields, v) },

@@ -10,6 +10,7 @@ import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
 import { EquipmentAttachmentList } from "@/components/equipment/EquipmentAttachmentList";
 import { EquipmentFileUpload } from "@/components/equipment/EquipmentFileUpload";
+import { FilterChipBar } from "@/components/FilterChipBar";
 import { EquipmentModuleShell } from "@/components/equipment/EquipmentModuleShell";
 import { EquipmentSelect, type EquipmentOption } from "@/components/equipment/EquipmentSelect";
 import { USER_DISPLAY_NAME, useRole } from "@/components/RoleProvider";
@@ -182,13 +183,14 @@ export function MaintenanceLogsClient({
         createLabel="Thêm nhật ký"
         canEdit={canEdit}
         filters={
-          <div className="flex flex-wrap gap-2">
-            {(["All", "Open", "Done"] as const).map((s) => (
-              <button key={s} type="button" onClick={() => setCompletedFilter(s)} className={`rounded-xl px-3 py-2 text-sm ${completedFilter === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"}`}>
-                {s === "All" ? "Tất cả" : s === "Open" ? MAINTENANCE_LOG.statusOpen : MAINTENANCE_LOG.statusDone}
-              </button>
-            ))}
-          </div>
+          <FilterChipBar
+            options={(["All", "Open", "Done"] as const).map((s) => ({
+              value: s,
+              label: s === "All" ? "Tất cả" : s === "Open" ? MAINTENANCE_LOG.statusOpen : MAINTENANCE_LOG.statusDone,
+            }))}
+            value={completedFilter}
+            onChange={setCompletedFilter}
+          />
         }
       >
         <DataTable

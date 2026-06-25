@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/jwt";
+import { isPublicAuthPath } from "@/lib/auth/public-paths";
 import { isAdminPermissionKey } from "@/lib/auth/nav-permissions";
 import { hasPermission, routePermission } from "@/lib/auth/permissions";
 import type { UserRole } from "@prisma/client";
 
-const PUBLIC_PATHS = ["/login", "/access-denied"];
+function nextWithPathname(request: NextRequest) {
+  const response = NextResponse.next();
+  response.headers.set("x-pathname", request.nextUrl.pathname);
+  return response;
+}
 
 function isPublicAsset(pathname: string) {
   return (
@@ -22,7 +27,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (isPublicAuthPath(pathname)) {
+    if (pathname === "/login" && request.nextUrl.searchParams.get("reason") === "session") {
+      const response = nextWithPathname(request);
+      response.cookies.delete(SESSION_COOKIE);
+      return response;
+    }
     const token = request.cookies.get(SESSION_COOKIE)?.value;
     if (token && pathname === "/login") {
       try {
@@ -34,7 +44,7 @@ export async function middleware(request: NextRequest) {
         /* SESSION_SECRET missing — allow login page */
       }
     }
-    return NextResponse.next();
+    return nextWithPathname(request);
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -71,7 +81,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return nextWithPathname(request);
 }
 
 export const config = {

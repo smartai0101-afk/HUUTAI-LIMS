@@ -9,6 +9,7 @@ import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
+import { FilterChipBar } from "@/components/FilterChipBar";
 import { EquipmentFileUpload } from "@/components/equipment/EquipmentFileUpload";
 import { EquipmentModuleShell } from "@/components/equipment/EquipmentModuleShell";
 import { EquipmentStatusBadge } from "@/components/equipment/EquipmentStatusBadge";
@@ -288,18 +289,15 @@ export function EquipmentCatalogClient({
                 <option value="Valid">Còn hạn</option>
               </select>
             </div>
-            <div className="flex flex-wrap gap-2 sm:items-end">
-              {EQUIPMENT_STATUS_FILTERS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatusFilter(s)}
-                  className={`rounded-xl px-3 py-2 text-sm ${statusFilter === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"}`}
-                >
-                  {s === "All" ? "Tất cả TT" : s}
-                </button>
-              ))}
-            </div>
+            <FilterChipBar
+              className="sm:items-end"
+              options={EQUIPMENT_STATUS_FILTERS.map((s) => ({
+                value: s,
+                label: s === "All" ? "Tất cả TT" : s,
+              }))}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
           </div>
         }
       >

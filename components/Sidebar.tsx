@@ -18,6 +18,7 @@ import {
   getEquipmentNavItems,
   getMaterialsNavItems,
 } from "@/lib/auth/nav-permissions";
+import { TouchVerticalScroll } from "@/components/TouchVerticalScroll";
 import { cn } from "@/lib/utils";
 
 function isMaterialsRoute(pathname: string, href: string) {
@@ -44,6 +45,15 @@ export function Sidebar() {
     () => getAdminNavItems().filter((item) => hasPermission(item.key, "read")),
     [hasPermission],
   );
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
 
   useEffect(() => {
     const savedMaterials = localStorage.getItem("materials-nav-open");
@@ -83,8 +93,8 @@ export function Sidebar() {
   };
 
   const content = (
-    <>
-      <div className="flex h-16 items-center justify-between border-b border-slate-800 px-6">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
             <ScanLine className="h-5 w-5" />
@@ -98,7 +108,8 @@ export function Sidebar() {
           <X className="h-5 w-5" />
         </button>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
+      <TouchVerticalScroll className="min-h-0 flex-1" fadeClassName="from-slate-950">
+        <nav className="space-y-1 px-3 py-5">
         {visibleMaterials.length > 0 ? (
           <div>
             <button
@@ -239,8 +250,9 @@ export function Sidebar() {
             ) : null}
           </div>
         ) : null}
-      </nav>
-      <div className="border-t border-slate-800 p-4">
+        </nav>
+      </TouchVerticalScroll>
+      <div className="shrink-0 border-t border-slate-800 p-4">
         <div className="rounded-2xl bg-slate-900 p-4">
           <p className="text-xs text-slate-400">System status</p>
           <div className="mt-2 flex items-center justify-between gap-3">
@@ -251,7 +263,7 @@ export function Sidebar() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 
   return (
@@ -262,7 +274,7 @@ export function Sidebar() {
       >
         <Menu className="h-5 w-5" />
       </button>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-200 bg-slate-950 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden h-full w-72 flex-col border-r border-slate-200 bg-slate-950 lg:flex">
         {content}
       </aside>
       {open ? (
@@ -273,7 +285,7 @@ export function Sidebar() {
             className="absolute inset-0 bg-slate-950/50"
             onClick={() => setOpen(false)}
           />
-          <aside className="relative z-10 h-full w-72 bg-slate-950 shadow-xl">{content}</aside>
+          <aside className="relative z-10 flex h-full min-h-0 w-72 flex-col bg-slate-950 shadow-xl">{content}</aside>
         </div>
       ) : null}
     </>

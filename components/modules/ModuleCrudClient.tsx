@@ -6,6 +6,7 @@ import { Download, Edit, Plus, Search, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
+import { FilterChipBar } from "@/components/FilterChipBar";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -129,9 +130,20 @@ export function ModuleCrudClient(props: Props) {
         </div>
         <div className="rounded-2xl border bg-white p-4 shadow-sm space-y-3">
           <div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm kiếm..." className="h-10 w-full rounded-xl border pl-10 pr-3 text-sm" /></div>
-          <div className="flex flex-wrap gap-2">{STATUS_FILTERS.map((s) => <button key={s} type="button" onClick={() => setStatus(s)} className={`rounded-xl px-3 py-2 text-sm ${status === s ? "bg-slate-900 text-white" : "bg-slate-100"}`}>{s}</button>)}</div>
+          <FilterChipBar
+            options={STATUS_FILTERS.map((s) => ({ value: s, label: s }))}
+            value={status}
+            onChange={setStatus}
+            activeClassName="bg-slate-900 text-white"
+            inactiveClassName="bg-slate-100 text-slate-700"
+          />
           {extraFilters?.map((f) => (
-            <div key={f.key} className="flex flex-wrap gap-2">{["All", ...f.options].map((o) => <button key={o} type="button" onClick={() => setExtra((p) => ({ ...p, [f.key]: o }))} className={`rounded-xl px-3 py-2 text-sm ${(extra[f.key] ?? "All") === o ? "bg-cyan-700 text-white" : "bg-slate-100"}`}>{o}</button>)}</div>
+            <FilterChipBar
+              key={f.key}
+              options={["All", ...f.options].map((o) => ({ value: o, label: o }))}
+              value={extra[f.key] ?? "All"}
+              onChange={(value) => setExtra((p) => ({ ...p, [f.key]: value }))}
+            />
           ))}
         </div>
         <DataTable columns={columns} rows={filtered} onRowClick={setSelected} />

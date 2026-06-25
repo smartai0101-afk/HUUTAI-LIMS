@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
+import { FilterChipBar } from "@/components/FilterChipBar";
 import { EquipmentModuleShell } from "@/components/equipment/EquipmentModuleShell";
 import { EquipmentSelect, type EquipmentOption } from "@/components/equipment/EquipmentSelect";
 import { USER_DISPLAY_NAME, useRole } from "@/components/RoleProvider";
@@ -173,18 +174,14 @@ export function CalibrationEvaluationsClient({
         createLabel="Thêm đánh giá"
         canEdit={canEdit}
         filters={
-          <div className="flex flex-wrap gap-2">
-            {(["All", ...Object.keys(EVALUATION_STATUS_LABELS)] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s as typeof statusFilter)}
-                className={`rounded-xl px-3 py-2 text-sm ${statusFilter === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"}`}
-              >
-                {s === "All" ? "Tất cả" : EVALUATION_STATUS_LABELS[s as keyof typeof EVALUATION_STATUS_LABELS]}
-              </button>
-            ))}
-          </div>
+          <FilterChipBar
+            options={(["All", ...Object.keys(EVALUATION_STATUS_LABELS)] as const).map((s) => ({
+              value: s,
+              label: s === "All" ? "Tất cả" : EVALUATION_STATUS_LABELS[s as keyof typeof EVALUATION_STATUS_LABELS],
+            }))}
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+          />
         }
       >
         <DataTable

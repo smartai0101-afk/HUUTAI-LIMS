@@ -13,7 +13,7 @@ export { roles, type Role };
 
 export type SessionContextValue = {
   user: SessionUser | null;
-  role: Role;
+  role: Role | null;
   canManage: boolean;
   canEdit: boolean;
   canApprove: boolean;
@@ -22,12 +22,18 @@ export type SessionContextValue = {
   hasPermission: (key: PermissionKey, mode?: "read" | "write") => boolean;
 };
 
-const defaultCaps = roleCapabilities("Viewer");
+const unauthenticatedCaps = {
+  canManage: false,
+  canEdit: false,
+  canApprove: false,
+  isViewer: false,
+  canViewAuditReports: false,
+};
 
 const SessionContext = createContext<SessionContextValue>({
   user: null,
-  role: "Viewer",
-  ...defaultCaps,
+  role: null,
+  ...unauthenticatedCaps,
   hasPermission: () => false,
 });
 
@@ -42,8 +48,8 @@ export function SessionProvider({
     if (!initialSession) {
       return {
         user: null,
-        role: "Viewer",
-        ...defaultCaps,
+        role: null,
+        ...unauthenticatedCaps,
         hasPermission: () => false,
       };
     }
@@ -71,7 +77,7 @@ export function useSession() {
 export function useRole() {
   const ctx = useContext(SessionContext);
   return {
-    role: ctx.role,
+    role: ctx.role ?? "Viewer",
     setRole: () => undefined,
     canManage: ctx.canManage,
     canEdit: ctx.canEdit,

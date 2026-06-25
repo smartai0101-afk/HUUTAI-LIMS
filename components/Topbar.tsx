@@ -44,7 +44,7 @@ export function Topbar() {
             </div>
             <div className="hidden sm:block">
               <p className="font-medium text-slate-900">{displayName}</p>
-              <p className="text-xs text-slate-500">{role}</p>
+              {role ? <p className="text-xs text-slate-500">{role}</p> : null}
             </div>
           </div>
           {user ? (
