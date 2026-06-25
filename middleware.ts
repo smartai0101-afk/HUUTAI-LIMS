@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/jwt";
 import { isAdminPermissionKey } from "@/lib/auth/nav-permissions";
 import { hasPermission, routePermission } from "@/lib/auth/permissions";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import type { UserRole } from "@prisma/client";
 
 const PUBLIC_PATHS = ["/login", "/access-denied"];
@@ -25,9 +25,13 @@ export async function middleware(request: NextRequest) {
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     const token = request.cookies.get(SESSION_COOKIE)?.value;
     if (token && pathname === "/login") {
-      const payload = await verifySessionToken(token);
-      if (payload) {
-        return NextResponse.redirect(new URL("/", request.url));
+      try {
+        const payload = await verifySessionToken(token);
+        if (payload) {
+          return NextResponse.redirect(new URL("/", request.url));
+        }
+      } catch {
+        /* SESSION_SECRET missing — allow login page */
       }
     }
     return NextResponse.next();
@@ -40,7 +44,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const payload = await verifySessionToken(token);
+  let payload: Awaited<ReturnType<typeof verifySessionToken>> = null;
+  try {
+    payload = await verifySessionToken(token);
+  } catch {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("from", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
   if (!payload) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);

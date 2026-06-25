@@ -1,6 +1,6 @@
 # Lab Inventory LIMS — HANDOFF
 
-> **Cập nhật:** 2026-06-25 (Lý lịch gallery · QA E2E TB · Plan Auth/RBAC)  
+> **Cập nhật:** 2026-06-25 (Auth/RBAC · Phân quyền sidebar · Turso/Vercel)  
 > **Mục đích:** Dùng file này để mở chat mới — **không scan toàn repo**. Chỉ đọc file liên quan trực tiếp.
 
 ---
@@ -22,15 +22,19 @@
 | **TypeScript / Tests** | ✅ `tsc`, `test-stock-in.ts`, `test-inventory-stock.ts`, `test-stock-in-identity.ts`, `test-catalog-lot-rows.ts`, `test-equipment-schedule.ts`, `test-equipment-history-sync.ts`, **`test-equipment-e2e-qa.ts`** |
 | **Module Thiết bị** (`/equipment/*`) | ✅ HC inline · BT/SC UX · Phụ kiện · upload đa file · subtitle EN · Dashboard gọn · **Lý lịch gallery ảnh + carousel** |
 | **Lý lịch thiết bị** (`/equipment/history`) | ✅ Chọn sự kiện timeline → gallery ảnh (nguồn gốc + upload) · carousel prev/next · PDF link riêng |
-| **Authentication** | 🟡 **Mock only** — [`RoleProvider`](components/RoleProvider.tsx) dropdown Topbar; **chưa** login/session/middleware |
-| **Sidebar navigation** | ✅ 2 nhóm collapsible: **Hoá chất - Chuẩn - Chủng** (11 mục) · **Thiết bị** (9 mục) |
+| **Authentication & RBAC** | ✅ Login/logout · JWT session · middleware · **23 quyền theo sidebar** · Admin UI |
+| **Deploy Vercel** | 🟡 Cần **Turso** + env trên Vercel — xem § Deploy Vercel |
+| **Sidebar navigation** | ✅ 3 nhóm collapsible: **Hoá chất - Chuẩn - Chủng** (11) · **Thiết bị** (9) · **Quản trị** (3) |
 
 **Menu vật tư** (nhóm **Hoá chất - Chuẩn - Chủng**, thứ tự gốc): Dashboard · Nhập kho · Hoá chất/Chuẩn/Chủng gốc · pha chế · Thống kê · Nhật ký · Báo cáo.  
 **Route `/containers`** giữ URL, label menu **“Thống kê”**. **Nhập kho** → `/stock-in`.
 
 ### URL hiện tại
 
-**http://localhost:3000**
+| Môi trường | URL |
+|------------|-----|
+| **Local dev** | http://localhost:3000 |
+| **Vercel (prod)** | https://huutai-lims-m929.vercel.app — login cần Turso + env (§ Deploy Vercel) |
 
 ### Trạng thái Next.js
 
@@ -43,7 +47,7 @@
 
 - **Client:** ✅ Generated — restart dev server nếu `prisma generate` báo EPERM
 - **Schema:** ✅ Valid
-- **Migrations (13):**
+- **Migrations (14):**
   - `20260621050000_restore_chemical_standard_fields`
   - `20260621120000_prepared_standard_components`
   - `20260621180000_prepared_standard_component_source`
@@ -57,16 +61,17 @@
   - `20260623_equipment_module` ← **Equipment + HC/BT/SC/phụ tùng/thanh lý/lý lịch**
   - `20260624_calibration_record_results` ← **`CalibrationRecord.calibrationResults` JSON**
   - `20260624_spare_part_catalog_fields` ← **`SparePart.manufacturer`, `productCode`, `lotNumber`**
+  - `20260625_auth_rbac` ← **User, Permission, UserPermission, Task**
 - **Dev note:** `migrate deploy` có thể báo P3005 — dùng `db execute` migration SQL hoặc `db push`
 
 ### Trạng thái Database
 
-- **Provider:** SQLite — `prisma/dev.db`
-- **`.env`:** `DATABASE_URL="file:./dev.db"`
+- **Local:** SQLite — `prisma/dev.db` · `DATABASE_URL="file:./dev.db"`
+- **Production (Vercel):** **Turso (libSQL)** — SQLite file local **không** chạy trên Vercel serverless
+- **`.env` local:** `SESSION_SECRET`, `SESSION_MAX_AGE` — xem [`.env.example`](.env.example)
 - **Optional:** `ALLOW_FIFO_WITHOUT_LOT=true` — FIFO khi **không** chọn lot (mặc định: false)
-- **Seed:** `npx tsx prisma/seed.ts`
-- **StockLot / StockInLog / InventoryTransaction.stockLotId** — ✅
-- **Prepared* stockLotId columns** — ✅ sau migration `20260622120000`
+- **Seed:** `npx tsx prisma/seed.ts` hoặc `npm run db:seed`
+- **Remote setup:** `npm run db:setup-remote` (push schema + seed lên Turso)
 
 ### Module đang hoạt động
 
@@ -77,8 +82,10 @@
 | **Nhật ký** | `/usage-logs` | Tab Nhật ký + Thống kê nhân viên |
 | Pha chế | `/prepared-chemicals`, `/prepared-standards`, `/prepared-strains` | Lot picker · trừ tồn theo lot |
 | Catalog gốc | `/chemicals`, `/standards`, `/microbial-strains` | CRUD + 1 dòng/lot + export grouped |
-| **Thiết bị** | `/equipment`, `/equipment/catalog`, … | 10 menu sidebar (bỏ Đề xuất SC); xem § Module Thiết bị |
+| **Thiết bị** | `/equipment`, `/equipment/catalog`, … | 9 menu sidebar; xem § Module Thiết bị |
+| **Quản trị** | `/admin/users`, `/admin/permissions`, `/admin/tasks` | Admin: users + phân quyền; LM/Analyst: giao việc |
 | Báo cáo | `/reports`, `/` | ReportsClient / mock dashboard |
+| **Login** | `/login` | Public; middleware redirect nếu chưa auth |
 
 ### Các lỗi còn tồn tại
 
@@ -91,8 +98,9 @@
 | **Usage log chưa chọn lot** | 🟡 | FIFO (nếu policy cho phép) |
 | **Chưa UI InventoryTransaction / Staff** | 🟡 | Phase 3 |
 | **Catalog CRUD sửa `quantity` trực tiếp** | 🟡 | Có thể lệch khi đã có StockLot |
-| **Chưa commit** | 🟡 | Lý lịch gallery + QA E2E TB + phiên trước — chờ user yêu cầu |
-| **Auth mock không an toàn** | 🟡 | Role gửi từ FormData client — xem [PLAN-auth-rbac.md](./PLAN-auth-rbac.md) |
+| **Chưa commit** | 🟡 | Auth/RBAC + phân quyền sidebar + Turso — chờ user yêu cầu |
+| **Vercel login lỗi 500** | 🟡 | Chưa set Turso + `SESSION_SECRET` trên Vercel — xem § Deploy Vercel |
+| **Non-equipment actions chưa session guard** | 🟡 | Catalog/stock-in/usage-log vẫn không check session server-side (chỉ middleware route) |
 | Dev server treo port 3000 / EPERM generate | 🟡 | `taskkill /F /IM node.exe` → `npx prisma generate` → `npm run dev` |
 | Prisma stale client (Turbopack) | 🟢 | Fix `lib/db.ts` Proxy; restart dev nếu vẫn lỗi `findMany` undefined |
 | DetailDrawer che ModalShell | 🟢 | Đã fix — `DetailDrawer` `z-[70]`, `ModalShell` `z-[80]`, `ConfirmDialog` `z-[90]` |
@@ -102,7 +110,36 @@
 
 ## 2. Completed Work
 
-### Phiên này (2026-06-25) — Lý lịch gallery + QA E2E Thiết bị
+### Phiên này (2026-06-25) — Auth/RBAC + Phân quyền sidebar + Turso/Vercel
+
+#### Authentication & RBAC ✅
+
+- ✅ `bcryptjs` + `jose`; env `SESSION_SECRET`, `SESSION_MAX_AGE`
+- ✅ Prisma: `User`, `Permission`, `UserPermission`, `Task` + migration `20260625_auth_rbac` + seed admin
+- ✅ `lib/auth/*` — password, session JWT httpOnly, roles, permissions, guards
+- ✅ `/login`, `/access-denied`, `middleware.ts`
+- ✅ `SessionProvider` thay mock; Topbar logout; Sidebar lọc permission
+- ✅ `/admin/users`, `/admin/permissions`, `/admin/tasks`
+- ✅ Equipment server actions: `requireSessionCanEdit/Manage/Approve` (bỏ `FormData role`)
+- ✅ Admin seed: `smartai0101@gmail.com` / `Admin@123456` · Demo: `*@demo.local` / `Demo@123456`
+- **File:** `lib/auth/`, `lib/actions/auth.ts`, `components/SessionProvider.tsx`, `middleware.ts`, `app/login/`, `app/admin/*`, `components/admin/*`
+
+#### Phân quyền 1-1 với sidebar (23 quyền) ✅
+
+- ✅ Registry chung [`lib/auth/nav-permissions.ts`](lib/auth/nav-permissions.ts) — 3 nhóm · 23 key tiếng Việt
+- ✅ Sidebar + middleware + Admin UI dùng cùng registry
+- ✅ Role defaults: LM/Analyst write materials+equipment+tasks; QA/QC read+reports; Viewer read-only
+- ✅ Checkbox Admin = quyền **bổ sung** (role default không hiển thị tick)
+
+#### Deploy Vercel — Turso adapter ✅ (code)
+
+- ✅ `@libsql/client` + `@prisma/adapter-libsql` — [`lib/db.ts`](lib/db.ts) auto Turso khi có env
+- ✅ JWT tách [`lib/auth/jwt.ts`](lib/auth/jwt.ts) — middleware không load Prisma
+- ✅ Login try/catch — message rõ khi thiếu DB/SESSION_SECRET
+- ✅ `npm run db:setup-remote` · [`.env.example`](.env.example)
+- ⏳ **User cần:** tạo Turso DB · set env Vercel · chạy `db:setup-remote` · redeploy
+
+### Phiên trước (2026-06-25) — Lý lịch gallery + QA E2E Thiết bị
 
 #### Lý lịch thiết bị — Gallery ảnh + carousel ✅
 
@@ -122,11 +159,7 @@
   - Duyệt thanh lý → `Equipment.status = Disposed`
 - ✅ `npx tsc --noEmit` pass
 
-#### Plan Auth/RBAC (chưa code) 📋
-
-- ✅ Plan chi tiết: [PLAN-auth-rbac.md](./PLAN-auth-rbac.md)
-- Quyết định: **Role defaults + Admin override** qua `user_permissions`
-- Admin seed: `smartai0101@gmail.com` / `Admin@123456`
+#### Plan Auth/RBAC ✅ đã implement — xem § Authentication & RBAC
 
 ### Phiên trước (2026-06-25) — Sidebar vật tư + UX Thiết bị
 
@@ -519,7 +552,11 @@ npx prisma generate
 
 ---
 
-## 6. Phân quyền (pattern hiện tại)
+## 6. Phân quyền (session + RBAC)
+
+**UI client:** `canEdit` / `canManage` / `canApprove` từ [`roleCapabilities()`](lib/auth/roles.ts) theo role session.  
+**Route/middleware:** 23 permission keys — [`lib/auth/nav-permissions.ts`](lib/auth/nav-permissions.ts).  
+**Admin override:** tick thêm quyền bổ sung trên `/admin/permissions` (`user_permissions`).
 
 | Role | Nhập kho / CRUD catalog | Ghi nhật ký | Xoá | Duyệt (`canApprove`) | Xem audit/báo cáo |
 |------|-------------------------|-------------|-----|----------------------|-------------------|
@@ -552,18 +589,30 @@ npx prisma generate
 
 ## 8. Pending Tasks
 
-### Ưu tiên 0 — Authentication & RBAC 🔴 (phiên tiếp theo)
+### Ưu tiên 0 — Deploy Vercel + Turso 🟡 (phiên tiếp theo)
 
-> Plan đầy đủ: [PLAN-auth-rbac.md](./PLAN-auth-rbac.md)
+- [ ] Tạo database tại https://turso.tech
+- [ ] Local: set `TURSO_*` + `DATABASE_URL=libsql://...?authToken=...` → `npm run db:setup-remote`
+- [ ] Vercel env: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` (≥32 chars)
+- [ ] Redeploy · QA login prod `smartai0101@gmail.com` / `Admin@123456`
 
-- [ ] `bcryptjs` + `jose`; env `SESSION_SECRET`
-- [ ] Prisma: `User`, `Permission`, `UserPermission`, `Task` + migration + seed admin
-- [ ] `lib/auth/*` — session JWT httpOnly, guards, permissions
-- [ ] `/login`, `/access-denied`, `middleware.ts`
-- [ ] `SessionProvider` thay `RoleProvider`; Topbar logout; Sidebar lọc permission
-- [ ] `/admin/users`, `/admin/permissions`, `/admin/tasks`
-- [ ] Migrate server actions: bỏ `FormData role` → `requireSession`
-- [ ] QA: login/logout · role matrix · function assignment · task flow
+### Ưu tiên 0 — Authentication & RBAC ✅ (đã implement)
+
+- [x] `bcryptjs` + `jose`; env `SESSION_SECRET`
+- [x] Prisma User/Permission/UserPermission/Task + migration + seed
+- [x] `lib/auth/*` — session, guards, permissions
+- [x] `/login`, `/access-denied`, `middleware.ts`
+- [x] `SessionProvider`; Topbar logout; Sidebar lọc permission (23 key)
+- [x] `/admin/users`, `/admin/permissions`, `/admin/tasks`
+- [x] Equipment actions: session guards (bỏ `FormData role`)
+- [ ] QA manual: login/logout · Viewer không Sửa · revoke 1 quyền → sidebar ẩn · task flow
+
+### Ưu tiên 1 — QA Auth/RBAC trên prod
+
+- [ ] Login/logout Vercel sau Turso setup
+- [ ] Tick bổ sung `chemicals` trên Viewer → thấy Hoá chất gốc
+- [ ] Analyst không vào `/admin/users` (middleware → access-denied)
+- [ ] LM giao task · Analyst cập nhật status
 
 ### Ưu tiên 0 — Lý lịch gallery ✅ (đã implement)
 
@@ -676,6 +725,7 @@ npx tsx scripts/test-equipment-schedule.ts
 npx tsx scripts/test-equipment-history-sync.ts
 npx tsx scripts/test-equipment-e2e-qa.ts
 npm run build
+# Turso prod (một lần): npm run db:setup-remote
 ```
 
 ---
@@ -727,15 +777,23 @@ npm run dev
 ## 10. Recommended Next Prompt
 
 ```
-Đọc HANDOFF.md và PLAN-auth-rbac.md.
-Implement Authentication & RBAC theo plan: login/logout, middleware, SessionProvider, Admin users/permissions/tasks, migrate server actions.
+Đọc HANDOFF.md (§ Deploy Vercel).
+Hoàn tất Turso + env Vercel, QA login production.
+Hoặc: QA browser E2E Thiết bị · QA pha chế/lot · QA nhập kho.
 Chỉ đọc file liên quan — không scan toàn repo.
-Chạy: npx tsc --noEmit && npm run build
 ```
 
-**Admin seed sau implement:** `smartai0101@gmail.com` / `Admin@123456`
+**Turso setup nhanh:**
 
-**Tuỳ chọn (sau Auth):** QA browser E2E Thiết bị · QA pha chế/lot · QA nhập kho
+```powershell
+$env:TURSO_DATABASE_URL="libsql://YOUR-DB.turso.io"
+$env:TURSO_AUTH_TOKEN="YOUR_TOKEN"
+$env:DATABASE_URL="libsql://YOUR-DB.turso.io?authToken=YOUR_TOKEN"
+$env:SESSION_SECRET="random-32-chars-minimum"
+npm run db:setup-remote
+```
+
+**Admin seed:** `smartai0101@gmail.com` / `Admin@123456`
 
 ---
 
@@ -745,8 +803,9 @@ Chạy: npx tsc --noEmit && npm run build
 |------|--------------|-----------|
 | **Hoá chất - Chuẩn - Chủng** | `materials-nav-open` | 11 — xem §1 |
 | **Thiết bị** | `equipment-nav-open` | 9 — xem § Module Thiết bị |
+| **Quản trị** | `admin-nav-open` | 3 — Người dùng · Phân quyền · Giao việc |
 
-**File:** [`components/Sidebar.tsx`](components/Sidebar.tsx) — `materialsNavItems`, `equipmentNavItems`, `isMaterialsRoute()`.
+**File:** [`components/Sidebar.tsx`](components/Sidebar.tsx) — nav từ [`lib/auth/nav-permissions.ts`](lib/auth/nav-permissions.ts).
 
 ---
 
@@ -792,14 +851,13 @@ Schema: `prisma/schema.prisma` · DB sync: `npx prisma db push` hoặc migration
 | UI | `components/equipment/*`, `components/ExcelImportDialog.tsx` |
 | Pages | `app/equipment/**/page.tsx` |
 
-### Phân quyền (hiện tại — mock)
+### Phân quyền (session + RBAC)
 
-> **Sẽ thay bằng session thật** — xem [PLAN-auth-rbac.md](./PLAN-auth-rbac.md)
+> **Session thật** — JWT cookie · middleware · 23 quyền sidebar. Plan: [PLAN-auth-rbac.md](./PLAN-auth-rbac.md)
 
-- [`RoleProvider`](components/RoleProvider.tsx): dropdown đổi role (Topbar) — **không an toàn**
-- `canEdit` — Admin, Lab Manager, Analyst
-- `canManage` — Admin, Lab Manager
-- `canApprove` — Admin, Lab Manager, QA/QC
+- [`SessionProvider`](components/SessionProvider.tsx): role từ session; `canEdit`/`canManage`/`canApprove` từ `roleCapabilities()`
+- Equipment actions: `requireSessionCanEdit/Manage/Approve` qua [`lib/equipment-auth.ts`](lib/equipment-auth.ts)
+- Sidebar: lọc theo `hasPermission(key)` từ [`lib/auth/nav-permissions.ts`](lib/auth/nav-permissions.ts)
 
 ### Luồng tự động
 
@@ -901,28 +959,77 @@ npm run build
 
 ---
 
-## Authentication & RBAC (plan — chưa implement)
+## Authentication & RBAC ✅ (đã implement)
 
-> Chi tiết: [PLAN-auth-rbac.md](./PLAN-auth-rbac.md)
+> Plan gốc: [PLAN-auth-rbac.md](./PLAN-auth-rbac.md)
 
 | Thành phần | Trạng thái |
 |------------|------------|
-| Login / Logout | Chưa |
-| `middleware.ts` | Chưa |
-| Models `User`, `Permission`, `UserPermission`, `Task` | Chưa |
-| `/admin/users`, `/admin/permissions`, `/admin/tasks` | Chưa |
-| Session thay RoleProvider mock | Chưa |
+| Login / Logout | ✅ `/login` · server action · JWT cookie `lims_session` |
+| `middleware.ts` | ✅ Route → 23 permission keys |
+| Models `User`, `Permission`, `UserPermission`, `Task` | ✅ migration `20260625_auth_rbac` |
+| `/admin/users`, `/admin/permissions`, `/admin/tasks` | ✅ |
+| `SessionProvider` | ✅ thay mock; [`RoleProvider`](components/RoleProvider.tsx) re-export |
+| Phân quyền sidebar | ✅ 23 key — [`lib/auth/nav-permissions.ts`](lib/auth/nav-permissions.ts) |
 
-**Admin seed (sau implement):** `smartai0101@gmail.com` / `Admin@123456`
+**Admin seed:** `smartai0101@gmail.com` / `Admin@123456`
 
-**File đọc trước khi implement Auth:**
+**23 permission keys (tóm tắt):**
+
+| Nhóm | Keys |
+|------|------|
+| Hoá chất… (11) | `dashboard`, `stock_in`, `chemicals`, `standards`, `microbial_strains`, `prepared_*`, `containers`, `usage_logs`, `reports` |
+| Thiết bị (9) | `equipment_dashboard`, `equipment_catalog`, … `equipment_disposal` |
+| Quản trị (3) | `admin_users`, `admin_permissions`, `admin_tasks` |
+
+**File đọc khi sửa Auth:**
 
 | Mục đích | File |
 |----------|------|
-| Plan | `PLAN-auth-rbac.md`, `HANDOFF.md` §8 |
-| Mock hiện tại | `components/RoleProvider.tsx`, `components/Topbar.tsx` |
-| Guard pattern | `lib/equipment-auth.ts` → `lib/auth/guards.ts` |
-| Layout | `app/layout.tsx`, `components/AppShell.tsx`, `components/Sidebar.tsx` |
+| Nav + route permission | `lib/auth/nav-permissions.ts` |
+| Role defaults | `lib/auth/permissions.ts` |
+| Session / JWT | `lib/auth/session.ts`, `lib/auth/jwt.ts` |
+| Guards | `lib/auth/guards.ts`, `lib/equipment-auth.ts` |
+| UI | `components/SessionProvider.tsx`, `components/Sidebar.tsx`, `components/admin/*` |
+| Actions | `lib/actions/auth.ts`, `admin-users.ts`, `admin-permissions.ts`, `tasks.ts` |
+
+---
+
+## Deploy Vercel + Turso
+
+SQLite `file:./dev.db` **không** chạy trên Vercel. Production dùng **Turso** (libSQL).
+
+### Env Vercel (Settings → Environment Variables)
+
+| Biến | Bắt buộc | Ghi chú |
+|------|----------|---------|
+| `TURSO_DATABASE_URL` | ✅ | `libsql://xxx.turso.io` |
+| `TURSO_AUTH_TOKEN` | ✅ | Token từ Turso dashboard |
+| `SESSION_SECRET` | ✅ | ≥ 16 ký tự (khuyến nghị ≥ 32) |
+| `SESSION_MAX_AGE` | — | Mặc định 604800 |
+
+### Setup DB remote (một lần, từ local)
+
+```powershell
+npm run db:setup-remote
+# hoặc: npx tsx scripts/setup-vercel-db.ts
+```
+
+Script: `prisma db push` + `prisma/seed.ts` lên Turso.
+
+### Runtime
+
+[`lib/db.ts`](lib/db.ts): nếu có `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (hoặc `DATABASE_URL=libsql://...?authToken=...`) → dùng `@prisma/adapter-libsql`.
+
+### Lỗi thường gặp
+
+| Triệu chứng | Nguyên nhân | Fix |
+|-------------|-------------|-----|
+| Vercel "server error" khi login | Không có DB / chưa seed | Turso + `db:setup-remote` |
+| "SESSION_SECRET must be set" | Thiếu env | Set trên Vercel, redeploy |
+| Login OK local, fail prod | Chỉ có `dev.db` local | Turso + env Vercel |
+
+**File:** [`.env.example`](.env.example), [`scripts/setup-vercel-db.ts`](scripts/setup-vercel-db.ts)
 
 ---
 
@@ -939,26 +1046,24 @@ npm run build
 
 ## Ghi chú phiên làm việc
 
-- **Phiên kết thúc (2026-06-25):** Lý lịch **gallery ảnh + carousel** · QA E2E TB automated (`test-equipment-e2e-qa.ts`) · Plan **Auth/RBAC** lưu [`PLAN-auth-rbac.md`](./PLAN-auth-rbac.md) · `tsc` pass · **chưa commit**
-- **Ưu tiên phiên sau:** **Implement Auth/RBAC** theo plan (login, middleware, Admin UI, migrate actions)
-- **Sau Auth:** QA browser E2E Thiết bị · QA pha chế/lot · QA nhập kho
+- **Phiên kết thúc (2026-06-25):** **Auth/RBAC** (login, middleware, SessionProvider, Admin UI) · **23 quyền sidebar** (`nav-permissions.ts`) · **Turso adapter** cho Vercel · `tsc` + `build` pass · **chưa commit**
+- **Vercel prod:** https://huutai-lims-m929.vercel.app — login **chưa** chạy cho đến khi user setup Turso + env
+- **Ưu tiên phiên sau:** Hoàn tất **Turso + Vercel env** · QA login prod · QA Auth manual · QA E2E vật tư/thiết bị
 
-### File đọc trước (phiên sau — Auth/RBAC)
-
-| Mục đích | File |
-|----------|------|
-| Bàn giao + plan | `HANDOFF.md`, `PLAN-auth-rbac.md` |
-| Role mock (thay thế) | `components/RoleProvider.tsx`, `components/Topbar.tsx` |
-| Guard pattern | `lib/equipment-auth.ts` |
-| Layout / shell | `app/layout.tsx`, `components/AppShell.tsx`, `components/Sidebar.tsx` |
-| Prisma | `prisma/schema.prisma`, `prisma/seed.ts` |
-
-### File tham chiếu (Lý lịch gallery — đã xong)
+### File đọc trước (phiên sau — Vercel / QA)
 
 | Mục đích | File |
 |----------|------|
-| Media merge | `lib/equipment-history-media.ts` |
-| Gallery UI | `components/equipment/HistoryEventImageGallery.tsx` |
-| Timeline | `components/equipment/EquipmentTimeline.tsx` |
-| Client | `components/equipment/EquipmentHistoryClient.tsx` |
-| Actions | `lib/actions/equipment-history.ts` |
+| Bàn giao | `HANDOFF.md` § Deploy Vercel |
+| DB prod | `lib/db.ts`, `.env.example`, `scripts/setup-vercel-db.ts` |
+| Auth | `lib/auth/nav-permissions.ts`, `lib/actions/auth.ts` |
+| Admin UI | `components/admin/AdminPermissionsClient.tsx` |
+
+### File tham chiếu (Auth — đã xong)
+
+| Mục đích | File |
+|----------|------|
+| Nav registry | `lib/auth/nav-permissions.ts` |
+| Session | `lib/auth/session.ts`, `lib/auth/jwt.ts` |
+| Middleware | `middleware.ts` |
+| Seed auth | `prisma/seed.ts` → `seedAuth()` |

@@ -1,13 +1,48 @@
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { Prisma, PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+function getTursoConfig(): { url: string; authToken: string } | null {
+  const tursoUrl = process.env.TURSO_DATABASE_URL?.trim();
+  const tursoToken = process.env.TURSO_AUTH_TOKEN?.trim();
+  if (tursoUrl && tursoToken) {
+    return { url: tursoUrl, authToken: tursoToken };
+  }
+
+  const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+  if (!databaseUrl.startsWith("libsql://")) return null;
+
+  try {
+    const parsed = new URL(databaseUrl);
+    const token = parsed.searchParams.get("authToken");
+    if (!token) return null;
+    parsed.searchParams.delete("authToken");
+    return { url: parsed.toString(), authToken: token };
+  } catch {
+    return null;
+  }
+}
+
+export function isRemoteDatabase(): boolean {
+  return getTursoConfig() !== null;
+}
+
 function createDb() {
-  return new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  });
+  const turso = getTursoConfig();
+  const log = process.env.NODE_ENV === "development" ? (["error", "warn"] as const) : (["error"] as const);
+
+  if (turso) {
+    const adapter = new PrismaLibSql({
+      url: turso.url,
+      authToken: turso.authToken,
+    });
+    return new PrismaClient({ adapter, log: [...log] });
+  }
+
+  return new PrismaClient({ log: [...log] });
 }
 
 function modelKey(name: string) {

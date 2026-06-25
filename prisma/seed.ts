@@ -3,7 +3,6 @@ import {
   InventoryItemStatus,
   PreparedStandardLevel,
   StandardExpiryStatus,
-  PrismaClient,
   UsageLogType,
   UsageSourceType,
 } from "@prisma/client";
@@ -13,8 +12,7 @@ import { computeContainerStatus } from "../lib/container-status";
 import { formatCasProductSnapshot } from "../lib/chemicals-fields";
 import { addCycleMonths, computeScheduleStatus } from "../lib/equipment-schedule";
 import { computeStandardStatus } from "../lib/standard-status";
-
-const prisma = new PrismaClient();
+import { db as prisma } from "../lib/db";
 
 function parseDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);

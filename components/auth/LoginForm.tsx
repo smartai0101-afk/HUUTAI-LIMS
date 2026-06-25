@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ScanLine } from "lucide-react";
 import { login } from "@/lib/actions/auth";
@@ -8,17 +8,7 @@ import { login } from "@/lib/actions/auth";
 export function LoginForm() {
   const searchParams = useSearchParams();
   const from = searchParams.get("from") ?? "/";
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  const handleSubmit = (formData: FormData) => {
-    setError(null);
-    formData.set("redirect", from);
-    startTransition(async () => {
-      const result = await login(formData);
-      if (result?.error) setError(result.error);
-    });
-  };
+  const [state, formAction, pending] = useActionState(login, null);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
@@ -36,7 +26,8 @@ export function LoginForm() {
         <h2 className="text-lg font-medium text-white">Đăng nhập</h2>
         <p className="mt-1 text-sm text-slate-400">Nhập email và mật khẩu tài khoản lab</p>
 
-        <form action={handleSubmit} className="mt-6 space-y-4">
+        <form action={formAction} className="mt-6 space-y-4">
+          <input type="hidden" name="redirect" value={from} />
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-300">
               Email
@@ -65,8 +56,8 @@ export function LoginForm() {
             />
           </div>
 
-          {error ? (
-            <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{error}</p>
+          {state?.error ? (
+            <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{state.error}</p>
           ) : null}
 
           <button
