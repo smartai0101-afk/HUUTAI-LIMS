@@ -1,0 +1,888 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum StandardExpiryStatus {
+  Ready
+  ExpiringSoon
+  Expired
+}
+
+enum ContainerStatus {
+  Available
+  LowStock
+  Expired
+  PendingDisposal
+}
+
+enum UsageLogType {
+  IN
+  OUT
+  USE
+  DISPOSE
+}
+
+enum UsageSourceType {
+  Chemical
+  Standard
+  MicrobialStrain
+}
+
+enum InventoryItemStatus {
+  Available
+  LowStock
+  Expired
+  PendingDisposal
+  PendingReview
+  InUse
+}
+
+enum PreparedStandardLevel {
+  RootPrepared
+  Intermediate1
+  Intermediate2
+  Intermediate3
+  WorkingPrepared
+}
+
+enum PreparedStandardComponentSourceType {
+  Standard
+  PreparedStandard
+}
+
+enum InventorySourceType {
+  Chemical
+  Standard
+  PreparedStandard
+  MicrobialStrain
+}
+
+enum InventoryActionType {
+  Deduct
+  Restore
+}
+
+enum StockInSourceType {
+  Chemical
+  Standard
+  MicrobialStrain
+}
+
+enum EquipmentStatus {
+  InUse
+  Maintenance
+  Broken
+  Disposed
+}
+
+enum ScheduleStatus {
+  Green
+  Yellow
+  Red
+}
+
+enum CalibrationResult {
+  Pass
+  Fail
+}
+
+enum RepairProposalPriority {
+  Low
+  Medium
+  High
+  Critical
+}
+
+enum RepairProposalStatus {
+  Open
+  InProgress
+  Completed
+  Cancelled
+}
+
+enum PostCalibrationEvaluationStatus {
+  Draft
+  Approved
+  Rejected
+}
+
+enum EquipmentDisposalStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+enum EquipmentHistoryEventType {
+  Calibration
+  Maintenance
+  Repair
+  SparePartReplacement
+  Disposal
+  Installation
+  Manual
+  Other
+}
+
+enum EquipmentHistorySourceType {
+  Manual
+  CalibrationRecord
+  MaintenanceLog
+  SparePartUsage
+  EquipmentDisposal
+  RepairProposal
+}
+
+model Chemical {
+  id                String               @id @default(cuid())
+  code              String               @unique
+  name              String
+  chemicalGroup     String               @default("Dung môi")
+  manufacturer      String               @default("")
+  casNumber         String               @default("")
+  productCode       String               @default("")
+  lot               String               @default("")
+  purity            String               @default("")
+  uncertainty       String               @default("")
+  coaPath           String?
+  unit              String               @default("")
+  quantity          Float                @default(0)
+  expiryDate        DateTime?
+  storageCondition  String               @default("")
+  status            StandardExpiryStatus @default(Ready)
+  storageLocation   String               @default("")
+  notes             String               @default("")
+  reorderLevel      Float                @default(5)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  containers                    Container[]
+  preparedChemicalIngredients   PreparedChemicalIngredient[]
+  preparedStandardSolvents      PreparedStandardSolvent[]
+  stockLots                     StockLot[]
+
+  @@index([status])
+  @@index([chemicalGroup])
+  @@index([expiryDate])
+}
+
+model Standard {
+  id                String               @id @default(cuid())
+  code              String               @unique
+  name              String
+  standardGroup     String               @default("CRM")
+  manufacturer      String               @default("")
+  casNumber         String               @default("")
+  productCode       String               @default("")
+  lot               String               @default("")
+  purity            String               @default("")
+  uncertainty       String               @default("")
+  coaPath           String?
+  unit              String               @default("")
+  quantity          Float                @default(0)
+  expiryDate        DateTime?
+  afterOpenExpiry   DateTime?
+  storageCondition  String               @default("")
+  status            StandardExpiryStatus @default(Ready)
+  storageLocation   String               @default("")
+  notes             String               @default("")
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  containers                  Container[]
+  preparedStandardComponents  PreparedStandardComponent[]
+  stockLots                   StockLot[]
+
+  @@index([status])
+  @@index([standardGroup])
+  @@index([expiryDate])
+}
+
+model MicrobialStrain {
+  id                String               @id @default(cuid())
+  code              String               @unique
+  name              String
+  strainGroup       String               @default("Vi khuẩn")
+  manufacturer      String               @default("")
+  atccProductCode   String               @default("")
+  lot               String               @default("")
+  purity            String               @default("")
+  uncertainty       String               @default("")
+  coaPath           String?
+  unit              String               @default("")
+  quantity          Float                @default(0)
+  expiryDate        DateTime?
+  storageCondition  String               @default("")
+  status            StandardExpiryStatus @default(Ready)
+  storageLocation   String               @default("")
+  passage           Int                  @default(0)
+  speciesStrain     String               @default("")
+  responsiblePerson String               @default("")
+  notes             String               @default("")
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  preparedStrains   PreparedStrain[]
+  stockLots         StockLot[]
+
+  @@index([status])
+  @@index([strainGroup])
+  @@index([expiryDate])
+}
+
+model StockLot {
+  id                String               @id @default(cuid())
+  chemicalId        String?
+  standardId        String?
+  microbialStrainId String?
+  lot               String
+  quantity          Float                @default(0)
+  unit              String               @default("")
+  expiryDate        DateTime?
+  afterOpenExpiry   DateTime?
+  coaPath           String?
+  storageLocation   String               @default("")
+  notes             String               @default("")
+  status            StandardExpiryStatus @default(Ready)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  chemical          Chemical?            @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
+  standard          Standard?            @relation(fields: [standardId], references: [id], onDelete: Cascade)
+  microbialStrain   MicrobialStrain?     @relation(fields: [microbialStrainId], references: [id], onDelete: Cascade)
+  stockInLogs       StockInLog[]
+
+  @@unique([chemicalId, lot])
+  @@unique([standardId, lot])
+  @@unique([microbialStrainId, lot])
+  @@index([chemicalId])
+  @@index([standardId])
+  @@index([microbialStrainId])
+  @@index([expiryDate])
+}
+
+model StockInLog {
+  id             String            @id @default(cuid())
+  time           DateTime          @default(now())
+  user           String            @default("")
+  sourceType     StockInSourceType
+  stockLotId     String
+  sourceCode     String            @default("")
+  sourceName     String            @default("")
+  lot            String            @default("")
+  quantityBefore Float
+  quantityIn     Float
+  quantityAfter  Float
+  unit           String            @default("")
+  notes          String            @default("")
+  referenceId    String            @default("")
+  stockLot       StockLot          @relation(fields: [stockLotId], references: [id], onDelete: Cascade)
+
+  @@index([stockLotId])
+  @@index([sourceType])
+  @@index([time])
+}
+
+model PreparedChemical {
+  id                String                       @id @default(cuid())
+  code              String                       @unique
+  name              String
+  concentration     String                       @default("")
+  concentrationUnit String                       @default("")
+  preparedQuantity  Float                        @default(0)
+  unit              String                       @default("")
+  preparedDate      DateTime
+  preparedBy        String                       @default("")
+  expiryDate        DateTime
+  storageLocation   String                       @default("")
+  storageCondition  String                       @default("")
+  status            StandardExpiryStatus         @default(Ready)
+  notes             String                       @default("")
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  ingredients      PreparedChemicalIngredient[]
+
+  @@index([status])
+  @@index([expiryDate])
+}
+
+model PreparedChemicalIngredient {
+  id                     String           @id @default(cuid())
+  preparedChemicalId     String
+  chemicalId             String
+  stockLotId             String?
+  chemicalNameSnapshot   String
+  casProductCodeSnapshot String           @default("")
+  lotNumberSnapshot      String           @default("")
+  quantityUsed           Float
+  unit                   String           @default("")
+  preparedChemical       PreparedChemical @relation(fields: [preparedChemicalId], references: [id], onDelete: Cascade)
+  chemical               Chemical         @relation(fields: [chemicalId], references: [id])
+
+  @@index([preparedChemicalId])
+  @@index([chemicalId])
+  @@index([stockLotId])
+}
+
+model PreparedStandard {
+  id                String                      @id @default(cuid())
+  code              String                      @unique
+  name              String
+  level             PreparedStandardLevel
+  concentration     String                      @default("")
+  concentrationUnit String                      @default("")
+  solventVolume     Float                       @default(0)
+  solventUnit       String                      @default("")
+  preparedDate      DateTime
+  preparedBy        String                      @default("")
+  expiryDate        DateTime
+  quantity          Float                       @default(0)
+  unit              String                      @default("")
+  status            StandardExpiryStatus        @default(Ready)
+  storageLocation   String                      @default("")
+  storageCondition  String                      @default("")
+  notes             String                      @default("")
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  components        PreparedStandardComponent[]
+  solvents          PreparedStandardSolvent[]
+  usedAsSourceIn    PreparedStandardComponent[] @relation("PreparedStandardSource")
+
+  @@index([level])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+model PreparedStandardComponent {
+  id                       String                              @id @default(cuid())
+  preparedStandardId       String
+  sourceType               PreparedStandardComponentSourceType
+  standardId               String?
+  sourcePreparedStandardId String?
+  stockLotId               String?
+  standardCodeSnapshot     String                              @default("")
+  standardNameSnapshot     String
+  manufacturerSnapshot     String                              @default("")
+  productCodeSnapshot      String                              @default("")
+  lotNumberSnapshot        String                              @default("")
+  puritySnapshot           String                              @default("")
+  concentrationSnapshot    String                              @default("")
+  concentrationUnitSnapshot String                             @default("")
+  levelSnapshot            PreparedStandardLevel?
+  preparedDateSnapshot     DateTime?
+  expiryDateSnapshot       DateTime?
+  quantityUsed             Float
+  unit                     String                              @default("")
+  preparedStandard         PreparedStandard                    @relation(fields: [preparedStandardId], references: [id], onDelete: Cascade)
+  standard                 Standard?                           @relation(fields: [standardId], references: [id])
+  sourcePreparedStandard   PreparedStandard?                   @relation("PreparedStandardSource", fields: [sourcePreparedStandardId], references: [id])
+
+  @@index([preparedStandardId])
+  @@index([standardId])
+  @@index([sourcePreparedStandardId])
+  @@index([stockLotId])
+}
+
+model PreparedStandardSolvent {
+  id                     String           @id @default(cuid())
+  preparedStandardId     String
+  chemicalId             String
+  stockLotId             String?
+  chemicalCodeSnapshot   String           @default("")
+  chemicalNameSnapshot   String
+  casProductCodeSnapshot String           @default("")
+  lotNumberSnapshot      String           @default("")
+  quantityUsed           Float
+  unit                   String           @default("")
+  preparedStandard       PreparedStandard @relation(fields: [preparedStandardId], references: [id], onDelete: Cascade)
+  chemical               Chemical         @relation(fields: [chemicalId], references: [id])
+
+  @@index([preparedStandardId])
+  @@index([chemicalId])
+  @@index([stockLotId])
+}
+
+model PreparedStrain {
+  id                     String              @id @default(cuid())
+  code                   String              @unique
+  name                   String
+  sourceStrainId         String
+  sourceStockLotId       String?
+  sourceLotNumberSnapshot String             @default("")
+  formula                String              @default("")
+  concentration          String              @default("")
+  lot                    String              @default("")
+  preparedDate      DateTime
+  preparedBy        String              @default("")
+  checkedBy         String              @default("")
+  expiryDate        DateTime
+  passage           Int                 @default(0)
+  storageCondition  String              @default("")
+  status            InventoryItemStatus @default(Available)
+  responsiblePerson String              @default("")
+  notes             String              @default("")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  sourceStrain      MicrobialStrain     @relation(fields: [sourceStrainId], references: [id])
+
+  @@index([sourceStrainId])
+  @@index([status])
+}
+
+model Container {
+  id              String          @id @default(cuid())
+  code            String          @unique
+  chemicalId      String?
+  standardId      String?
+  lot             String
+  location        String          @default("")
+  quantity        Float           @default(0)
+  unit            String          @default("L")
+  expiryDate      DateTime
+  afterOpenExpiry DateTime?
+  status          ContainerStatus @default(Available)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  chemical        Chemical?       @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
+  standard        Standard?       @relation(fields: [standardId], references: [id], onDelete: Cascade)
+  usageLogs       UsageLog[]
+
+  @@index([chemicalId])
+  @@index([standardId])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+model Staff {
+  id         String     @id @default(cuid())
+  code       String     @unique
+  name       String
+  department String     @default("")
+  active     Boolean    @default(true)
+  usageLogs  UsageLog[]
+}
+
+model UsageLog {
+  id                 String          @id @default(cuid())
+  date               DateTime
+  type               UsageLogType
+  sourceType         UsageSourceType
+  sourceId           String
+  containerId        String?
+  quantity           Float
+  unit               String
+  performedBy        String
+  performedByStaffId String?
+  purpose            String          @default("")
+  notes              String          @default("")
+  referenceCode      String          @default("")
+  createdAt          DateTime        @default(now())
+  container          Container?      @relation(fields: [containerId], references: [id], onDelete: SetNull)
+  performedByStaff   Staff?          @relation(fields: [performedByStaffId], references: [id], onDelete: SetNull)
+
+  @@index([sourceType, sourceId])
+  @@index([containerId])
+  @@index([date])
+  @@index([type])
+  @@index([performedBy])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  time       DateTime @default(now())
+  user       String
+  action     String
+  entityType String
+  entityId   String
+  beforeJson String   @default("{}")
+  afterJson  String   @default("{}")
+  object     String   @default("")
+
+  @@index([time])
+  @@index([entityType])
+}
+
+model InventoryTransaction {
+  id             String               @id @default(cuid())
+  time           DateTime             @default(now())
+  user           String               @default("")
+  module         String
+  sourceType     InventorySourceType
+  sourceId       String
+  sourceCode     String               @default("")
+  stockLotId     String?
+  quantityBefore Float
+  quantityUsed   Float
+  quantityAfter  Float
+  unit           String               @default("")
+  actionType     InventoryActionType
+  referenceType  String
+  referenceId    String
+  notes          String               @default("")
+
+  @@index([sourceType, sourceId])
+  @@index([stockLotId])
+  @@index([referenceType, referenceId])
+  @@index([time])
+}
+
+model Equipment {
+  id                      String                      @id @default(cuid())
+  code                    String                      @unique
+  name                    String
+  model                   String                      @default("")
+  serialNumber            String                      @default("")
+  specifications          String                      @default("")
+  manufacturer            String                      @default("")
+  countryOfOrigin         String                      @default("")
+  manufacturingYear       Int?
+  purchaseDate            DateTime?
+  commissioningDate       DateTime?
+  lastCalibrationDate     DateTime?
+  calibrator              String                      @default("")
+  calibrationExpiryDate   DateTime?
+  department              String                      @default("")
+  location                String                      @default("")
+  manager                 String                      @default("")
+  status                  EquipmentStatus             @default(InUse)
+  installDate             DateTime?
+  iqOqPqNotes             String                      @default("")
+  userManualPath          String?
+  createdBy               String                      @default("")
+  updatedBy               String                      @default("")
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  calibrationPlans        CalibrationPlan[]
+  calibrationRecords      CalibrationRecord[]
+  postCalibrationEvaluations PostCalibrationEvaluation[]
+  maintenancePlans        MaintenancePlan[]
+  maintenanceLogs         MaintenanceLog[]
+  repairProposals         RepairProposal[]
+  disposals               EquipmentDisposal[]
+  historyEvents           EquipmentHistoryEvent[]
+  sparePartLinks          EquipmentSparePartLink[]
+  sparePartUsages         SparePartUsage[]
+
+  @@index([status])
+  @@index([department])
+  @@index([calibrationExpiryDate])
+}
+
+model CalibrationPlan {
+  id          String         @id @default(cuid())
+  equipmentId String
+  name        String         @default("")
+  cycleMonths Int            @default(12)
+  lastDate    DateTime?
+  nextDate    DateTime?
+  vendor      String         @default("")
+  status      ScheduleStatus @default(Green)
+  notes       String         @default("")
+  createdBy   String         @default("")
+  updatedBy   String         @default("")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  equipment   Equipment      @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([nextDate])
+  @@index([status])
+}
+
+model CalibrationRecord {
+  id              String                      @id @default(cuid())
+  equipmentId     String
+  calibrationDate DateTime
+  certificateNo   String                      @default("")
+  result          CalibrationResult           @default(Pass)
+  deviation       String                      @default("")
+  calibrationResults Json                     @default("[]")
+  certificatePath String?
+  cost            Float                       @default(0)
+  vendor          String                      @default("")
+  notes           String                      @default("")
+  createdBy       String                      @default("")
+  updatedBy       String                      @default("")
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  equipment       Equipment                   @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  evaluation      PostCalibrationEvaluation?
+
+  @@index([equipmentId])
+  @@index([calibrationDate])
+  @@index([result])
+}
+
+model PostCalibrationEvaluation {
+  id                  String                          @id @default(cuid())
+  equipmentId         String
+  calibrationRecordId String                          @unique
+  impactAssessment    String                          @default("")
+  correctiveAction    String                          @default("")
+  status              PostCalibrationEvaluationStatus @default(Draft)
+  approvedBy          String                          @default("")
+  notes               String                          @default("")
+  createdBy           String                          @default("")
+  updatedBy           String                          @default("")
+  createdAt           DateTime                        @default(now())
+  updatedAt           DateTime                        @updatedAt
+  equipment           Equipment                       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  calibrationRecord   CalibrationRecord               @relation(fields: [calibrationRecordId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([status])
+}
+
+model MaintenancePlan {
+  id          String         @id @default(cuid())
+  equipmentId String
+  name        String         @default("")
+  cycleMonths Int            @default(6)
+  lastDate    DateTime?
+  nextDate    DateTime?
+  vendor      String         @default("")
+  status      ScheduleStatus @default(Green)
+  notes       String         @default("")
+  createdBy   String         @default("")
+  updatedBy   String         @default("")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  equipment   Equipment      @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([nextDate])
+  @@index([status])
+}
+
+model MaintenanceLog {
+  id               String          @id @default(cuid())
+  equipmentId      String
+  repairProposalId String?
+  issueDate        DateTime
+  description      String          @default("")
+  rootCause        String          @default("")
+  action           String          @default("")
+  vendor           String          @default("")
+  cost             Float           @default(0)
+  completedDate    DateTime?
+  attachmentPaths  String          @default("[]")
+  notes            String          @default("")
+  createdBy        String          @default("")
+  updatedBy        String          @default("")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  equipment        Equipment       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  repairProposal   RepairProposal? @relation(fields: [repairProposalId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId])
+  @@index([issueDate])
+  @@index([completedDate])
+}
+
+model RepairProposal {
+  id              String                 @id @default(cuid())
+  equipmentId     String
+  ticketNo        String                 @unique
+  priority        RepairProposalPriority @default(Medium)
+  status          RepairProposalStatus   @default(Open)
+  description     String                 @default("")
+  reportedBy      String                 @default("")
+  notes           String                 @default("")
+  createdBy       String                 @default("")
+  updatedBy       String                 @default("")
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  equipment       Equipment              @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  maintenanceLogs MaintenanceLog[]
+
+  @@index([equipmentId])
+  @@index([status])
+  @@index([priority])
+}
+
+model SparePart {
+  id             String                   @id @default(cuid())
+  code           String                   @unique
+  name           String
+  manufacturer   String                   @default("")
+  productCode    String                   @default("")
+  lotNumber      String                   @default("")
+  stockQty       Float                    @default(0)
+  minQty         Float                    @default(0)
+  unit           String                   @default("")
+  unitPrice      Float                    @default(0)
+  supplier       String                   @default("")
+  notes          String                   @default("")
+  createdBy      String                   @default("")
+  updatedBy      String                   @default("")
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  equipmentLinks EquipmentSparePartLink[]
+  usages         SparePartUsage[]
+
+  @@index([code])
+}
+
+model EquipmentSparePartLink {
+  id          String    @id @default(cuid())
+  equipmentId String
+  sparePartId String
+  notes       String    @default("")
+  createdAt   DateTime  @default(now())
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  sparePart   SparePart @relation(fields: [sparePartId], references: [id], onDelete: Cascade)
+
+  @@unique([equipmentId, sparePartId])
+  @@index([equipmentId])
+  @@index([sparePartId])
+}
+
+model SparePartUsage {
+  id          String    @id @default(cuid())
+  equipmentId String
+  sparePartId String
+  quantity    Float
+  usedDate    DateTime
+  notes       String    @default("")
+  createdBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  sparePart   SparePart @relation(fields: [sparePartId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([sparePartId])
+  @@index([usedDate])
+}
+
+model EquipmentDisposal {
+  id            String                  @id @default(cuid())
+  equipmentId   String
+  disposalDate  DateTime
+  residualValue Float                   @default(0)
+  decision      String                  @default("")
+  approver      String                  @default("")
+  documentPath  String?
+  status        EquipmentDisposalStatus @default(Pending)
+  notes         String                  @default("")
+  createdBy     String                  @default("")
+  updatedBy     String                  @default("")
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  equipment     Equipment               @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([status])
+}
+
+model EquipmentHistoryEvent {
+  id          String                     @id @default(cuid())
+  equipmentId String
+  eventType   EquipmentHistoryEventType
+  eventDate   DateTime
+  title       String                     @default("")
+  description String                     @default("")
+  sourceType  EquipmentHistorySourceType @default(Manual)
+  sourceId    String?
+  createdBy   String                     @default("")
+  updatedBy   String                     @default("")
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  equipment   Equipment                  @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceType, sourceId])
+  @@index([equipmentId])
+  @@index([eventDate])
+  @@index([eventType])
+}
+
+model EquipmentAttachment {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  filePath   String
+  fileName   String   @default("")
+  createdBy  String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+enum UserRole {
+  Admin
+  LabManager
+  Analyst
+  QAQC
+  Viewer
+}
+
+enum UserStatus {
+  Active
+  Disabled
+}
+
+enum TaskStatus {
+  Pending
+  InProgress
+  Completed
+  NeedsRevision
+  Cancelled
+}
+
+model User {
+  id           String           @id @default(cuid())
+  name         String
+  email        String           @unique
+  passwordHash String
+  role         UserRole         @default(Viewer)
+  status       UserStatus       @default(Active)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  permissions  UserPermission[]
+  tasksAssigned Task[]          @relation("TaskAssignee")
+  tasksCreated  Task[]          @relation("TaskAssigner")
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  name        String
+  description String           @default("")
+  users       UserPermission[]
+
+  @@map("permissions")
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  permissionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@map("user_permissions")
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  title        String
+  description  String     @default("")
+  assignedToId String
+  assignedById String
+  status       TaskStatus @default(Pending)
+  dueDate      DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  assignedTo   User       @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: Cascade)
+  assignedBy   User       @relation("TaskAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
+
+  @@index([assignedToId])
+  @@index([assignedById])
+  @@index([status])
+  @@map("tasks")
+}

@@ -1,0 +1,6 @@
+- [x] Verify the project requirements and scaffolded a Next.js App Router project.
+- [x] Configure Tailwind-based styling and dashboard layout.
+- [x] Add mock data models, reusable components, and route pages.
+- [x] Install required runtime dependencies for the UI.
+- [x] Verify the project builds successfully.
+- [x] Document how to run the app in the README.

@@ -1,0 +1,208 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Download, Edit, Plus, Search, Trash2, X } from "lucide-react";
+import { AppShell } from "@/components/AppShell";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { DataTable } from "@/components/DataTable";
+import { DetailDrawer } from "@/components/DetailDrawer";
+import { ModalShell } from "@/components/ModalShell";
+import { StatusBadge } from "@/components/StatusBadge";
+import { useRole } from "@/components/RoleProvider";
+import { useToast } from "@/components/ToastProvider";
+import type { StockLotView } from "@/types";
+import type { FieldDef, ModuleRow } from "@/lib/modules/shared";
+import { emptyStockLotSelection } from "@/lib/stock-lot-selection";
+import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPicker";
+import { missingFieldsMessage, STATUS_FILTERS } from "@/lib/modules/shared";
+import { downloadCsv } from "@/lib/storage";
+import { formatDate } from "@/lib/utils";
+
+type Props = {
+  title: string;
+  subtitle: string;
+  exportName: string;
+  items: ModuleRow[];
+  fields: FieldDef[];
+  tableKeys: { key: string; header: string; isDate?: boolean; isStatus?: boolean }[];
+  searchKeys: string[];
+  extraFilters?: { key: string; label: string; options: string[] }[];
+  createAction: (fd: FormData) => Promise<{ error?: string; success?: boolean }>;
+  updateAction: (fd: FormData) => Promise<{ error?: string; success?: boolean }>;
+  deleteAction: (fd: FormData) => Promise<{ error?: string; success?: boolean }>;
+  stockLotMasters?: Array<{ id: string; stockLots: StockLotView[] }>;
+};
+
+export function ModuleCrudClient(props: Props) {
+  const { title, subtitle, exportName, items, fields, tableKeys, searchKeys, extraFilters, createAction, updateAction, deleteAction, stockLotMasters = [] } = props;
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("All");
+  const [extra, setExtra] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<ModuleRow | null>(null);
+  const [form, setForm] = useState<ModuleRow>({});
+  const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [pending, start] = useTransition();
+  const { canManage, canEdit, role } = useRole();
+  const { addToast } = useToast();
+
+  const filtered = useMemo(() => items.filter((row) => {
+    const q = query.toLowerCase();
+    const matchQ = !q || searchKeys.some((k) => String(row[k] ?? "").toLowerCase().includes(q));
+    const matchS = status === "All" || row.status === status;
+    const matchExtra = !extraFilters?.length || extraFilters.every((f) => !extra[f.key] || extra[f.key] === "All" || row[f.key] === extra[f.key]);
+    return matchQ && matchS && matchExtra;
+  }), [items, query, status, extra, searchKeys, extraFilters]);
+
+  const openCreate = () => {
+    setEdit(false);
+    setForm(Object.fromEntries(fields.map((f) => {
+      if (f.type === "number") return [f.key, 0];
+      if (f.type === "select" && f.options?.length) return [f.key, f.options[0].value];
+      return [f.key, ""];
+    })));
+    setOpen(true);
+  };
+
+  const openEdit = (row: ModuleRow) => {
+    setEdit(true);
+    setForm({ ...row });
+    setOpen(true);
+  };
+
+  const submit = () => {
+    const missing = fields.filter((f) => f.required && !String(form[f.key] ?? "").trim());
+    if (missing.length) {
+      addToast(missingFieldsMessage(missing.map((f) => f.label)), "error");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("user", role);
+    fields.forEach((f) => fd.set(f.key, String(form[f.key] ?? "")));
+    if (edit) fd.set("id", String(form.id ?? ""));
+    start(async () => {
+      const res = edit ? await updateAction(fd) : await createAction(fd);
+      if (res.error) { addToast(res.error, "error"); return; }
+      addToast(edit ? "Đã cập nhật" : "Đã thêm mới", "success");
+      setOpen(false);
+      router.refresh();
+    });
+  };
+
+  const remove = () => {
+    if (!selected) return;
+    const fd = new FormData();
+    fd.set("user", role);
+    fd.set("id", String(selected.id));
+    start(async () => {
+      const res = await deleteAction(fd);
+      if (res.error) { addToast(res.error, "error"); return; }
+      addToast("Đã xoá", "success");
+      setSelected(null);
+      setConfirm(false);
+      router.refresh();
+    });
+  };
+
+  const columns = tableKeys.map((c) => ({
+    key: c.key as keyof ModuleRow,
+    header: c.header,
+    render: c.isStatus
+      ? (v: unknown) => <StatusBadge status={String(v)} />
+      : c.isDate
+        ? (v: unknown) => formatDate(String(v))
+        : undefined,
+  }));
+
+  return (
+    <AppShell>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="text-sm text-slate-500">{subtitle}</p><h1 className="text-2xl font-semibold">{title}</h1></div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => downloadCsv(exportName, items as Array<Record<string, string | number>>)} className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"><Download className="h-4 w-4" />Export</button>
+            {canEdit ? <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm text-white"><Plus className="h-4 w-4" />Thêm mới</button> : null}
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-white p-4 shadow-sm space-y-3">
+          <div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm kiếm..." className="h-10 w-full rounded-xl border pl-10 pr-3 text-sm" /></div>
+          <div className="flex flex-wrap gap-2">{STATUS_FILTERS.map((s) => <button key={s} type="button" onClick={() => setStatus(s)} className={`rounded-xl px-3 py-2 text-sm ${status === s ? "bg-slate-900 text-white" : "bg-slate-100"}`}>{s}</button>)}</div>
+          {extraFilters?.map((f) => (
+            <div key={f.key} className="flex flex-wrap gap-2">{["All", ...f.options].map((o) => <button key={o} type="button" onClick={() => setExtra((p) => ({ ...p, [f.key]: o }))} className={`rounded-xl px-3 py-2 text-sm ${(extra[f.key] ?? "All") === o ? "bg-cyan-700 text-white" : "bg-slate-100"}`}>{o}</button>)}</div>
+          ))}
+        </div>
+        <DataTable columns={columns} rows={filtered} onRowClick={setSelected} />
+        <DetailDrawer open={!!selected} onClose={() => setSelected(null)} title={String(selected?.name ?? "")} subtitle={String(selected?.code ?? "")} tabs={["Chi tiết"]} activeTab="Chi tiết" onTabChange={() => undefined} layout="stacked" maxWidth="5xl"
+          actions={selected ? <>{canEdit ? <button type="button" onClick={() => openEdit(selected)} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"><Edit className="h-4 w-4" />Sửa</button> : null}{canManage ? <button type="button" onClick={() => setConfirm(true)} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-700"><Trash2 className="h-4 w-4" />Xoá</button> : null}</> : undefined}
+          tabContent={selected ? <div className="grid gap-3 sm:grid-cols-2">{fields.map((f) => <div key={f.key}><p className="text-xs text-slate-500">{f.label}</p><p className="font-medium">{String(selected[f.key] ?? "-")}</p></div>)}</div> : null}
+        />
+        <ModalShell open={open} onClose={() => setOpen(false)} className="max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{edit ? "Sửa" : "Thêm mới"}</h2><button type="button" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">{fields.map((f) => (
+                <div key={f.key} className={f.colSpan === 2 ? "sm:col-span-2" : ""}>
+                  {f.type !== "stockLot" ? (
+                    <label className="mb-1 block text-sm text-slate-600">{f.label}</label>
+                  ) : null}
+                  {f.type === "select" ? (
+                    <select
+                      value={String(form[f.key] ?? "")}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setForm((p) => {
+                          const next = { ...p, [f.key]: value };
+                          const lotField = fields.find(
+                            (field) => field.type === "stockLot" && field.masterFieldKey === f.key,
+                          );
+                          if (lotField) {
+                            const master = stockLotMasters.find((m) => m.id === value);
+                            const lotPick = master
+                              ? applyDefaultLotIfSingle(master.stockLots, emptyStockLotSelection())
+                              : emptyStockLotSelection();
+                            next[lotField.key] = lotPick.stockLotId;
+                            if (lotField.lotNumberField) {
+                              next[lotField.lotNumberField] = lotPick.lotNumber;
+                            }
+                          }
+                          return next;
+                        });
+                      }}
+                      className="h-11 w-full rounded-xl border px-3 text-sm"
+                    >
+                      {!f.options?.length ? <option value="">Không có lựa chọn</option> : null}
+                      {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  ) : f.type === "stockLot" ? (
+                    <StockLotPicker
+                      label={f.label}
+                      stockLots={
+                        stockLotMasters.find((m) => m.id === String(form[f.masterFieldKey ?? ""]))?.stockLots ?? []
+                      }
+                      value={{
+                        stockLotId: String(form[f.key] ?? ""),
+                        lotNumber: String(form[f.lotNumberField ?? ""] ?? ""),
+                      }}
+                      onChange={(lot) =>
+                        setForm((p) => ({
+                          ...p,
+                          [f.key]: lot.stockLotId,
+                          ...(f.lotNumberField ? { [f.lotNumberField]: lot.lotNumber } : {}),
+                        }))
+                      }
+                    />
+                  ) : f.type === "textarea" ? (
+                    <textarea value={String(form[f.key] ?? "")} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} className="min-h-20 w-full rounded-xl border px-3 py-2 text-sm" />
+                  ) : (
+                    <input type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} value={String(form[f.key] ?? "")} onChange={(e) => setForm((p) => ({ ...p, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))} className="h-11 w-full rounded-xl border px-3 text-sm" />
+                  )}
+                </div>
+              ))}</div>
+              <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="rounded-xl border px-4 py-2 text-sm">Huỷ</button><button type="button" disabled={pending} onClick={submit} className="rounded-xl bg-slate-950 px-4 py-2 text-sm text-white">{pending ? "..." : "Lưu"}</button></div>
+        </ModalShell>
+        <ConfirmDialog open={confirm} title="Xoá?" message={`Xoá ${selected?.code}?`} onCancel={() => setConfirm(false)} onConfirm={remove} />
+      </div>
+    </AppShell>
+  );
+}

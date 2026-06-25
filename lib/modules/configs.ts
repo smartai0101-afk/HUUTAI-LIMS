@@ -1,0 +1,123 @@
+import { LEVEL_LABELS, STATUS_LABELS, type FieldDef } from "@/lib/modules/shared";
+
+const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
+const levelOptions = Object.entries(LEVEL_LABELS).map(([value, label]) => ({ value, label }));
+
+const commonPrepared: FieldDef[] = [
+  { key: "code", label: "Mã", required: true },
+  { key: "name", label: "Tên", required: true },
+  { key: "lot", label: "Lot/Batch" },
+  { key: "formula", label: "Công thức" },
+  { key: "concentration", label: "Nồng độ" },
+  { key: "preparedDate", label: "Ngày pha", type: "date", required: true },
+  { key: "preparedBy", label: "Người pha" },
+  { key: "checkedBy", label: "Người kiểm tra" },
+  { key: "expiryDate", label: "Hạn dùng sau pha", type: "date", required: true },
+  { key: "status", label: "Trạng thái", type: "select", options: statusOptions },
+  { key: "responsiblePerson", label: "Người phụ trách" },
+  { key: "notes", label: "Ghi chú", type: "textarea", colSpan: 2 },
+];
+
+export const moduleConfigs = {
+  microbial: {
+    title: "Chủng gốc vi sinh",
+    subtitle: "Microbial stock",
+    exportName: "microbial-strains",
+    fields: [
+      { key: "code", label: "Mã nội bộ", required: true },
+      { key: "name", label: "Tên chủng", required: true },
+      { key: "atccCode", label: "Mã ATCC" },
+      { key: "speciesStrain", label: "Loài/Strain" },
+      { key: "storageCondition", label: "Điều kiện bảo quản" },
+      { key: "passage", label: "Passage", type: "number" },
+      { key: "lot", label: "Lot/Batch" },
+      { key: "expiryDate", label: "Hạn dùng", type: "date" },
+      { key: "status", label: "Trạng thái", type: "select", options: statusOptions },
+      { key: "responsiblePerson", label: "Người phụ trách" },
+      { key: "notes", label: "Ghi chú", type: "textarea", colSpan: 2 },
+    ] as FieldDef[],
+    tableKeys: [
+      { key: "code", header: "Mã" },
+      { key: "name", header: "Tên chủng" },
+      { key: "atccCode", header: "ATCC" },
+      { key: "speciesStrain", header: "Loài/Strain" },
+      { key: "passage", header: "Passage" },
+      { key: "lot", header: "Lot" },
+      { key: "expiryDate", header: "Hạn dùng", isDate: true },
+      { key: "status", header: "Trạng thái", isStatus: true },
+    ],
+    searchKeys: ["code", "name", "atccCode", "speciesStrain", "lot"],
+  },
+  preparedChemical: {
+    title: "Hoá chất pha chế",
+    subtitle: "Prepared chemicals",
+    exportName: "prepared-chemicals",
+    fields: [
+      { key: "sourceChemicalId", label: "Hoá chất gốc", type: "select", required: true },
+      ...commonPrepared,
+    ] as FieldDef[],
+    tableKeys: [
+      { key: "code", header: "Mã" },
+      { key: "name", header: "Tên" },
+      { key: "sourceCode", header: "Nguồn gốc" },
+      { key: "concentration", header: "Nồng độ" },
+      { key: "lot", header: "Lot" },
+      { key: "preparedDate", header: "Ngày pha", isDate: true },
+      { key: "expiryDate", header: "Hạn dùng", isDate: true },
+      { key: "status", header: "Trạng thái", isStatus: true },
+    ],
+    searchKeys: ["code", "name", "sourceCode", "lot", "concentration"],
+  },
+  preparedStandard: {
+    title: "Chuẩn pha chế",
+    subtitle: "Prepared standards",
+    exportName: "prepared-standards",
+    fields: [
+      { key: "sourceStandardId", label: "Chuẩn gốc", type: "select", required: true },
+      { key: "levelRaw", label: "Cấp chuẩn", type: "select", options: levelOptions, required: true },
+      ...commonPrepared,
+    ] as FieldDef[],
+    tableKeys: [
+      { key: "code", header: "Mã" },
+      { key: "name", header: "Tên" },
+      { key: "level", header: "Cấp" },
+      { key: "sourceCode", header: "Nguồn gốc" },
+      { key: "concentration", header: "Nồng độ" },
+      { key: "lot", header: "Lot" },
+      { key: "expiryDate", header: "Hạn dùng", isDate: true },
+      { key: "status", header: "Trạng thái", isStatus: true },
+    ],
+    searchKeys: ["code", "name", "sourceCode", "level", "lot"],
+    extraFilters: [{ key: "level", label: "Cấp", options: Object.values(LEVEL_LABELS) }],
+  },
+  preparedStrain: {
+    title: "Chủng pha chế",
+    subtitle: "Prepared strains",
+    exportName: "prepared-strains",
+    fields: [
+      { key: "sourceStrainId", label: "Chủng gốc", type: "select", required: true },
+      {
+        key: "sourceStockLotId",
+        label: "Lot chủng gốc",
+        type: "stockLot",
+        masterFieldKey: "sourceStrainId",
+        lotNumberField: "sourceLotNumberSnapshot",
+        required: true,
+      },
+      ...commonPrepared,
+      { key: "passage", label: "Passage", type: "number" },
+      { key: "storageCondition", label: "Điều kiện bảo quản" },
+    ] as FieldDef[],
+    tableKeys: [
+      { key: "code", header: "Mã" },
+      { key: "name", header: "Tên" },
+      { key: "sourceCode", header: "Nguồn gốc" },
+      { key: "sourceLotNumber", header: "Lot nguồn" },
+      { key: "passage", header: "Passage" },
+      { key: "lot", header: "Lot" },
+      { key: "expiryDate", header: "Hạn dùng", isDate: true },
+      { key: "status", header: "Trạng thái", isStatus: true },
+    ],
+    searchKeys: ["code", "name", "sourceCode", "lot"],
+  },
+};
