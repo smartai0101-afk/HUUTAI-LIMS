@@ -1,10 +1,8 @@
 /**
  * Backfill Equipment.specifications from seed map (idempotent — chỉ ghi khi đang rỗng).
  */
-import { PrismaClient } from "@prisma/client";
+import { db } from "../lib/db";
 import { EQUIPMENT_SPECIFICATIONS } from "../prisma/seed-data/equipment-specifications";
-
-const db = new PrismaClient();
 
 async function main() {
   let updated = 0;
@@ -38,4 +36,6 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(() => db.$disconnect());
+  .finally(async () => {
+    await db.$disconnect();
+  });
