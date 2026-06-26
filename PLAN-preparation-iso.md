@@ -1,7 +1,7 @@
 # Lịch sử quá trình pha chế — ISO/IEC 17025
 
-> **Trạng thái:** Phase 1+2 done (`0d9518f`) · Phase 3–4 pending  
-> **Cập nhật:** 2026-06-27  
+> **Trạng thái:** Phase 1–3 done · Phase 4 pending  
+> **Cập nhật:** 2026-06-27 (HEAD `4bbcb0b` · soft-delete code fix)  
 > **Quyết định:** Không tạo `PreparationBatch` trùng — mở rộng `PreparedChemical` / `PreparedStandard` / `PreparedStrain` + `PreparationHistory` + `PreparationAuditLog`  
 > **Backfill:** Dữ liệu cũ → `workflowStatus = Approved`
 
@@ -14,7 +14,8 @@
 | `phase1-schema` | 1 | Migration: workflowStatus, Staff FKs, deletedAt, PreparationHistory, PreparationAuditLog + backfill Approved | done (`0d9518f`) |
 | `phase1-services` | 1 | `lib/services/preparation-workflow.ts` + hook prepared-chemicals/standards/modules | done (`0d9518f`) |
 | `phase2-ui-workflow` | 2 | Workflow UI: transitions, amendment dialog, soft delete, Staff pickers (3 Prepared*Client) | done (`0d9518f`) |
-| `phase3-traceability` | 3 | `preparation-traceability.ts` + tree UI + reverse lookup catalog + `/preparation/[type]/[id]` | pending |
+| `phase3-traceability` | 3 | `preparation-traceability.ts` + tree UI + reverse lookup catalog + `/preparation/[type]/[id]` | done (`aa305a5`) |
+| `phase3-soft-delete-code` | 3 | `prepared-code-guard.ts` — archive mã ghost · release on create/update | done (`4bbcb0b`) |
 | `phase4-reports` | 4 | `/preparation-history`, Excel export, prepared-excel/import, seed chain, HANDOFF | pending |
 
 ---
@@ -77,6 +78,7 @@ Script: `scripts/backfill-preparation-history.ts`
 |----------|---------|
 | `lib/services/preparation-workflow.ts` | snapshot, history, FSM transition, amend, separation of duties |
 | `lib/services/preparation-traceability.ts` | forward/reverse tree, `buildTraceTree` |
+| `lib/prepared-code-guard.ts` | Kiểm tra trùng mã active · archive/release ghost codes |
 | `lib/services/preparation-history-report.ts` | rows báo cáo 14 cột |
 | `lib/actions/preparation-workflow.ts` | server actions transition/amend |
 | `lib/preparation-workflow-labels.ts` | label VI |
@@ -131,7 +133,7 @@ Script: `scripts/backfill-preparation-history.ts`
 
 1. **Foundation** — schema, backfill, workflow service, hook actions  
 2. **Workflow UI** — transitions, amendment, Staff pickers, tabs  
-3. **Traceability** — tree, reverse lookup, detail page  
+3. **Traceability** — tree, reverse lookup, detail page ✅ (`aa305a5`)  
 4. **Reports** — `/preparation-history`, Excel, import/export, seed, HANDOFF
 
 ---
