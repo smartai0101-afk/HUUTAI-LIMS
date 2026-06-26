@@ -16,6 +16,7 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  avatarUrl: string;
   role: UserRole;
   roleLabel: Role;
   extraPermissions: string[];
@@ -28,6 +29,7 @@ export function sessionUserFromPayload(payload: SessionPayload): SessionUser {
     id: payload.sub,
     email: payload.email,
     name: payload.name,
+    avatarUrl: payload.avatarUrl,
     role: payload.role,
     roleLabel: roleToLabel(payload.role),
     extraPermissions: payload.extraPermissions,
@@ -74,6 +76,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       id: true,
       email: true,
       name: true,
+      avatarUrl: true,
       role: true,
       status: true,
       permissions: { select: { permission: { select: { key: true } } } },
@@ -87,6 +90,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     sub: user.id,
     email: user.email,
     name: user.name,
+    avatarUrl: user.avatarUrl,
     role: user.role,
     extraPermissions,
   });
@@ -99,6 +103,7 @@ export async function loadUserSessionPayload(userId: string): Promise<SessionPay
       id: true,
       email: true,
       name: true,
+      avatarUrl: true,
       role: true,
       status: true,
       permissions: { select: { permission: { select: { key: true } } } },
@@ -109,7 +114,15 @@ export async function loadUserSessionPayload(userId: string): Promise<SessionPay
     sub: user.id,
     email: user.email,
     name: user.name,
+    avatarUrl: user.avatarUrl,
     role: user.role,
     extraPermissions: user.permissions.map((p) => p.permission.key),
   };
+}
+
+export async function refreshSessionCookie(userId: string) {
+  const payload = await loadUserSessionPayload(userId);
+  if (!payload) return;
+  const token = await createSessionToken(payload);
+  await setSessionCookie(token);
 }

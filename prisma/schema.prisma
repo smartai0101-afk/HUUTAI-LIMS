@@ -833,6 +833,7 @@ model User {
   name         String
   email        String           @unique
   passwordHash String
+  avatarUrl    String           @default("")
   role         UserRole         @default(Viewer)
   status       UserStatus       @default(Active)
   createdAt    DateTime         @default(now())

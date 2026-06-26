@@ -1,18 +1,24 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { Bell, LogOut, Search } from "lucide-react";
 import { useSession, useUserDisplayName } from "@/components/SessionProvider";
 import { logout } from "@/lib/actions/auth";
 
-export function Topbar() {
-  const { role, user } = useSession();
-  const displayName = useUserDisplayName();
-  const initials = displayName
+function initialsFromName(name: string) {
+  return name
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+export function Topbar() {
+  const { role, user } = useSession();
+  const displayName = useUserDisplayName();
+  const initials = initialsFromName(displayName);
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -38,15 +44,30 @@ export function Topbar() {
             <Bell className="h-5 w-5" />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500" />
           </button>
-          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-500 text-sm font-semibold text-white">
-              {initials || "U"}
-            </div>
-            <div className="hidden sm:block">
-              <p className="font-medium text-slate-900">{displayName}</p>
-              {role ? <p className="text-xs text-slate-500">{role}</p> : null}
-            </div>
-          </div>
+          {user ? (
+            <Link
+              href="/account"
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 transition hover:border-cyan-200 hover:bg-cyan-50/40"
+            >
+              <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-cyan-500 text-sm font-semibold text-white">
+                {user.avatarUrl ? (
+                  <Image
+                    src={user.avatarUrl}
+                    alt={displayName}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  initials || "U"
+                )}
+              </div>
+              <div className="hidden sm:block">
+                <p className="font-medium text-slate-900">{displayName}</p>
+                {role ? <p className="text-xs text-slate-500">{role}</p> : null}
+              </div>
+            </Link>
+          ) : null}
           {user ? (
             <form action={logout}>
               <button

@@ -6,13 +6,18 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function getTursoConfig(): { url: string; authToken: string } | null {
+  const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+  // Local dev: use SQLite when DATABASE_URL is file: (HANDOFF — prisma/dev.db)
+  if (process.env.NODE_ENV !== "production" && databaseUrl.startsWith("file:")) {
+    return null;
+  }
+
   const tursoUrl = process.env.TURSO_DATABASE_URL?.trim();
   const tursoToken = process.env.TURSO_AUTH_TOKEN?.trim();
   if (tursoUrl && tursoToken) {
     return { url: tursoUrl, authToken: tursoToken };
   }
 
-  const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
   if (!databaseUrl.startsWith("libsql://")) return null;
 
   try {

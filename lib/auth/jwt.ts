@@ -7,6 +7,7 @@ export interface SessionPayload {
   sub: string;
   email: string;
   name: string;
+  avatarUrl: string;
   role: UserRole;
   extraPermissions: string[];
 }
@@ -29,6 +30,7 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
   return new SignJWT({
     email: payload.email,
     name: payload.name,
+    avatarUrl: payload.avatarUrl,
     role: payload.role,
     extraPermissions: payload.extraPermissions,
   })
@@ -46,11 +48,12 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
     if (!sub || typeof sub !== "string") return null;
     const email = String(payload.email ?? "");
     const name = String(payload.name ?? "");
+    const avatarUrl = String(payload.avatarUrl ?? "");
     const role = String(payload.role ?? "Viewer") as UserRole;
     const extraPermissions = Array.isArray(payload.extraPermissions)
       ? payload.extraPermissions.map(String)
       : [];
-    return { sub, email, name, role, extraPermissions };
+    return { sub, email, name, avatarUrl, role, extraPermissions };
   } catch {
     return null;
   }

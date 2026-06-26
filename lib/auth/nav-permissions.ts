@@ -87,6 +87,7 @@ const ROUTE_ENTRIES: RouteEntry[] = NAV_PERMISSION_GROUPS.flatMap((g) =>
 /** Map URL pathname to required permission key (longest href match). */
 export function routePermission(pathname: string): PermissionKey | null {
   if (pathname === "/login" || pathname === "/access-denied") return null;
+  if (pathname === "/account" || pathname.startsWith("/account/")) return null;
 
   for (const item of ROUTE_ENTRIES) {
     if (item.href === "/") {

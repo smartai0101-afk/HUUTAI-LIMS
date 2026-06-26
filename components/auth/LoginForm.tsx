@@ -46,7 +46,7 @@ export function LoginForm() {
               autoComplete="username"
               required
               className="mt-1.5 h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-cyan-500"
-              placeholder="smartai0101@gmail.com"
+              placeholder="email@congty.com"
             />
           </div>
           <div>
@@ -75,10 +75,6 @@ export function LoginForm() {
             {pending ? "Đang đăng nhập…" : "Đăng nhập"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-xs text-slate-500">
-          Admin seed: smartai0101@gmail.com / Admin@123456
-        </p>
       </div>
     </div>
   );
