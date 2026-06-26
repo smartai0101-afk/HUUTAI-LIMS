@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getPreparationHistory } from "@/lib/services/preparation-history";
 import {
+  buildTraceTree,
+  findPreparedDerivatives,
+  type CatalogSourceKind,
+} from "@/lib/services/preparation-traceability";
+import {
   deductPreparationStock,
   preparationHasStockDeducted,
   restorePreparationStock,
@@ -164,6 +169,28 @@ export async function fetchPreparationHistory(fd: FormData) {
   if (!type || !id) return { error: "Thiếu thông tin" };
   const entries = await getPreparationHistory(type, id);
   return { success: true, entries };
+}
+
+function parseCatalogKind(raw: string): CatalogSourceKind | null {
+  if (raw === "CHEMICAL" || raw === "STANDARD" || raw === "STRAIN") return raw;
+  return null;
+}
+
+export async function fetchPreparationTraceTree(fd: FormData) {
+  const type = parseType(str(fd, "preparationType"));
+  const id = str(fd, "id");
+  if (!type || !id) return { error: "Thiếu thông tin" };
+  const tree = await buildTraceTree(type, id);
+  if (!tree) return { error: "Không tìm thấy bản ghi pha chế" };
+  return { success: true, tree };
+}
+
+export async function fetchCatalogPreparedDerivatives(fd: FormData) {
+  const kind = parseCatalogKind(str(fd, "catalogKind"));
+  const id = str(fd, "catalogId");
+  if (!kind || !id) return { error: "Thiếu thông tin" };
+  const derivatives = await findPreparedDerivatives(kind, id);
+  return { success: true, derivatives };
 }
 
 export async function getAvailableTransitions(workflowStatus: PreparationWorkflowStatus) {

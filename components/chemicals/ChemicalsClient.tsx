@@ -12,6 +12,7 @@ import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CoaLink } from "@/components/standards/CoaLink";
+import { CatalogPreparedDerivatives } from "@/components/preparation/CatalogPreparedDerivatives";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
 import { bulkImportChemicals, previewChemicalsImport } from "@/lib/actions/catalog-import";
@@ -412,6 +413,7 @@ export function ChemicalsClient({ items, groupOptions }: { items: ChemicalView[]
                   <p className="text-xs text-slate-500">COA</p>
                   <CoaLink path={selected.coaPath} />
                 </div>
+                <CatalogPreparedDerivatives catalogKind="CHEMICAL" catalogId={selected.id} />
               </div>
             ) : null
           }

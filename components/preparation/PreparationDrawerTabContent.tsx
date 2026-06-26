@@ -1,6 +1,7 @@
 "use client";
 
 import { PreparationHistoryTimeline } from "@/components/preparation/PreparationHistoryTimeline";
+import { PreparationTraceTree } from "@/components/preparation/PreparationTraceTree";
 import { PreparationWorkflowPanel } from "@/components/preparation/PreparationWorkflowPanel";
 import type { PreparationRecordType } from "@/lib/services/preparation-workflow";
 import type { StaffView } from "@/lib/services/staff";
@@ -41,9 +42,10 @@ export function PreparationDrawerTabContent({
   }
   if (tab === "Truy xuất") {
     return (
-      <p className="text-sm text-slate-500">
-        Cây truy xuất nguồn gốc sẽ có ở Phase 3.
-      </p>
+      <PreparationTraceTree
+        preparationType={preparationType}
+        preparationId={record.id}
+      />
     );
   }
   return (

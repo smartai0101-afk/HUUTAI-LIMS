@@ -41,6 +41,7 @@ import { LOT_SELECTION_REQUIRED_MESSAGE } from "@/lib/inventory-lot-policy";
 import { emptyStockLotSelection, requiresLotSelection } from "@/lib/stock-lot-selection";
 import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
 import { PreparationHistoryTimeline } from "@/components/preparation/PreparationHistoryTimeline";
+import { PreparationTraceTree } from "@/components/preparation/PreparationTraceTree";
 import { PreparationWorkflowPanel } from "@/components/preparation/PreparationWorkflowPanel";
 import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
 import {
@@ -589,9 +590,10 @@ export function PreparedChemicalsClient({
                   role={role}
                 />
               ) : drawerTab === "Truy xuất" ? (
-                <p className="text-sm text-slate-500">
-                  Cây truy xuất nguồn gốc sẽ có ở Phase 3 (PSTD-0006 → PSTD-0005 → STD-0007).
-                </p>
+                <PreparationTraceTree
+                  preparationType="CHEMICAL"
+                  preparationId={selected.id}
+                />
               ) : (
               <div className="space-y-4">
                 <PreparationWorkflowPanel
