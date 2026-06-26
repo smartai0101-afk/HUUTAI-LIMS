@@ -27,7 +27,8 @@ async function main() {
   const cfg = CATALOG_EXCEL.standard;
   const exportRows = buildCatalogExportRows(displayRows, cfg.fieldKeys, cfg.masterKeys);
   const buffer = exportToXlsxBuffer(exportRows, [...cfg.columns]);
-  const parsed = parseXlsx(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), STANDARD_IMPORT_COLUMN_MAP);
+  const xlsxBytes = new Uint8Array(buffer);
+  const parsed = parseXlsx(xlsxBytes.buffer, STANDARD_IMPORT_COLUMN_MAP);
   assert(!parsed.error, "parse exported xlsx");
   assert(parsed.rows.length > 0, `parsed ${parsed.rows.length} row(s)`);
 
