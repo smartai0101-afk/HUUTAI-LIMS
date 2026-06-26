@@ -12,6 +12,7 @@ import {
   PREPARED_STANDARD_LEVEL_LABELS,
 } from "@/lib/prepared-standards-fields";
 import { toDateStr } from "@/lib/modules/shared";
+import { mapPreparationWorkflowFields } from "@/lib/map-preparation-workflow";
 import type {
   PreparedStandardComponentView,
   PreparedStandardSolventView,
@@ -107,9 +108,13 @@ function mapSolvent(row: {
 
 export async function getPreparedStandards(): Promise<PreparedStandardView[]> {
   const rows = await db.preparedStandard.findMany({
+    where: { deletedAt: null },
     include: {
       components: { orderBy: { id: "asc" } },
       solvents: { orderBy: { id: "asc" } },
+      preparedByStaff: { select: { name: true } },
+      checkedByStaff: { select: { name: true } },
+      approvedByStaff: { select: { name: true } },
     },
     orderBy: { code: "asc" },
   });
@@ -140,6 +145,7 @@ export async function getPreparedStandards(): Promise<PreparedStandardView[]> {
       solvents,
       componentsSummary: components.map((c) => c.displayLine).join("\n"),
       solventsSummary: solvents.map((s) => s.displayLine).join("\n"),
+      ...mapPreparationWorkflowFields(row),
     };
   });
 }

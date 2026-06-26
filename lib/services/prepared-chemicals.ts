@@ -5,6 +5,7 @@ import {
   preparedChemicalStatusLabel,
 } from "@/lib/prepared-chemical-status";
 import { toDateString } from "@/lib/mappers";
+import { mapPreparationWorkflowFields } from "@/lib/map-preparation-workflow";
 import type { PreparedChemicalIngredientView, PreparedChemicalView } from "@/types";
 
 function mapIngredient(row: {
@@ -37,7 +38,13 @@ function mapIngredient(row: {
 
 export async function getPreparedChemicals(): Promise<PreparedChemicalView[]> {
   const rows = await db.preparedChemical.findMany({
-    include: { ingredients: { orderBy: { id: "asc" } } },
+    where: { deletedAt: null },
+    include: {
+      ingredients: { orderBy: { id: "asc" } },
+      preparedByStaff: { select: { name: true } },
+      checkedByStaff: { select: { name: true } },
+      approvedByStaff: { select: { name: true } },
+    },
     orderBy: { code: "asc" },
   });
 
@@ -60,6 +67,7 @@ export async function getPreparedChemicals(): Promise<PreparedChemicalView[]> {
       notes: row.notes,
       ingredients,
       ingredientsSummary: ingredients.map((i) => i.displayLine).join("\n"),
+      ...mapPreparationWorkflowFields(row),
     };
   });
 }

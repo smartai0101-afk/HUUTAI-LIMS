@@ -15,6 +15,13 @@ import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
 
 import { resolveStockLotSelection } from "@/lib/resolve-stock-lot-selection";
+import {
+  recordPreparationCreated,
+  recordPreparationDeleted,
+  recordPreparationUpdated,
+  assertAmendmentAllowed,
+} from "@/lib/services/preparation-workflow";
+import { preparationHasStockDeducted, restorePreparationStock } from "@/lib/services/preparation-transition-stock";
 
 const REVALIDATE_PATHS = ["/prepared-chemicals", "/chemicals", "/", "/reports"];
 const MODULE_NAME = "PreparedChemical";
@@ -206,17 +213,7 @@ export async function createPreparedChemical(fd: FormData) {
       const built = await buildIngredientCreates(tx, withLots);
       if ("error" in built) throw new Error(built.error);
 
-      const stockError = await applyInventoryStockChange(tx, {
-        user,
-        module: MODULE_NAME,
-        referenceType: MODULE_NAME,
-        referenceId: newId,
-        deducts: ingredientStockLines(withLots),
-        notes: `Tạo ${data.code}`,
-      });
-      if (stockError) throw new Error(stockError);
-
-      return tx.preparedChemical.create({
+      const row = await tx.preparedChemical.create({
         data: {
           id: newId,
           code: data.code,
@@ -232,10 +229,14 @@ export async function createPreparedChemical(fd: FormData) {
           storageCondition: data.storageCondition,
           status: computePreparedChemicalStatus(expiryDate),
           notes: data.notes,
+          workflowStatus: "Draft",
           ingredients: { create: built.creates },
         },
         include: { ingredients: true },
       });
+
+      await recordPreparationCreated(tx, "CHEMICAL", row, user);
+      return row;
     });
 
     await logActivity({
@@ -280,6 +281,16 @@ export async function updatePreparedChemical(fd: FormData) {
     include: { ingredients: true },
   });
   if (!before) return { error: "Không tìm thấy hóa chất pha chế" };
+  if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
+  if (before.workflowStatus === "Prepared" || before.workflowStatus === "Checked") {
+    return { error: "Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước" };
+  }
+
+  const amendmentReason = str(fd, "amendmentReason");
+  if (before.workflowStatus === "Approved") {
+    const amendError = assertAmendmentAllowed("Approved", amendmentReason);
+    if (amendError) return { error: amendError };
+  }
 
   const duplicate = await db.preparedChemical.findFirst({
     where: { code: data.code, NOT: { id } },
@@ -301,23 +312,25 @@ export async function updatePreparedChemical(fd: FormData) {
       const withLots = await resolveIngredientLots(tx, resolved);
       if ("error" in withLots) throw new Error(withLots.error);
 
-      const stockError = await applyInventoryStockChange(tx, {
-        user,
-        module: MODULE_NAME,
-        referenceType: MODULE_NAME,
-        referenceId: id,
-        restores: restoreLines,
-        deducts: ingredientStockLines(withLots),
-        notes: `Cập nhật ${data.code}`,
-      });
-      if (stockError) throw new Error(stockError);
+      if (preparationHasStockDeducted(before.workflowStatus)) {
+        const stockError = await applyInventoryStockChange(tx, {
+          user,
+          module: MODULE_NAME,
+          referenceType: MODULE_NAME,
+          referenceId: id,
+          restores: restoreLines,
+          deducts: ingredientStockLines(withLots),
+          notes: `Cập nhật ${data.code}`,
+        });
+        if (stockError) throw new Error(stockError);
+      }
 
       const built = await buildIngredientCreates(tx, withLots);
       if ("error" in built) throw new Error(built.error);
 
       await tx.preparedChemicalIngredient.deleteMany({ where: { preparedChemicalId: id } });
 
-      return tx.preparedChemical.update({
+      const row = await tx.preparedChemical.update({
         where: { id },
         data: {
           code: data.code,
@@ -333,10 +346,22 @@ export async function updatePreparedChemical(fd: FormData) {
           storageCondition: data.storageCondition,
           status: computePreparedChemicalStatus(expiryDate),
           notes: data.notes,
+          version: before.workflowStatus === "Approved" ? before.version + 1 : before.version,
+          amendmentReason: before.workflowStatus === "Approved" ? amendmentReason : before.amendmentReason,
           ingredients: { create: built.creates },
         },
         include: { ingredients: true },
       });
+
+      await recordPreparationUpdated(
+        tx,
+        "CHEMICAL",
+        row,
+        before,
+        user,
+        before.workflowStatus === "Approved" ? amendmentReason : undefined,
+      );
+      return row;
     });
 
     await logActivity({
@@ -368,27 +393,21 @@ export async function deletePreparedChemical(fd: FormData) {
     include: { ingredients: true },
   });
   if (!before) return { error: "Không tìm thấy hóa chất pha chế" };
-
-  const restoreLines = before.ingredients.map((ing) =>
-    chemicalStockLine(ing.chemicalId, ing.quantityUsed, ing.unit, {
-      stockLotId: ing.stockLotId,
-      lotNumber: ing.lotNumberSnapshot,
-    }),
-  );
+  if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
 
   try {
     await db.$transaction(async (tx) => {
-      const stockError = await applyInventoryStockChange(tx, {
-        user,
-        module: MODULE_NAME,
-        referenceType: MODULE_NAME,
-        referenceId: id,
-        restores: restoreLines,
-        notes: `Xóa ${before.code}`,
-      });
-      if (stockError) throw new Error(stockError);
+      if (preparationHasStockDeducted(before.workflowStatus)) {
+        const stockError = await restorePreparationStock(tx, "CHEMICAL", id, user);
+        if (stockError) throw new Error(stockError);
+      }
 
-      await tx.preparedChemical.delete({ where: { id } });
+      await recordPreparationDeleted(tx, "CHEMICAL", before, user);
+
+      await tx.preparedChemical.update({
+        where: { id },
+        data: { deletedAt: new Date(), workflowStatus: "Cancelled" },
+      });
     });
 
     await logActivity({

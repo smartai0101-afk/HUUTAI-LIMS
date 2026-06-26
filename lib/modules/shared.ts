@@ -48,7 +48,7 @@ export function toDateStr(d: Date | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
-export type ModuleRow = Record<string, string | number>;
+export type ModuleRow = Record<string, string | number | null>;
 
 export type FieldDef = {
   key: string;

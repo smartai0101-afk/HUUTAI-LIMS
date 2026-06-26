@@ -20,6 +20,15 @@ import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPi
 import { missingFieldsMessage, STATUS_FILTERS } from "@/lib/modules/shared";
 import { exportToXlsx, type ExcelColumn } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
+import { PreparationDrawerTabContent } from "@/components/preparation/PreparationDrawerTabContent";
+import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
+import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
+import {
+  PREPARATION_WORKFLOW_FILTERS,
+  PREPARATION_WORKFLOW_STATUS_LABELS,
+} from "@/lib/preparation-workflow-labels";
+import type { PreparationRecordType } from "@/lib/services/preparation-workflow";
+import type { StaffView } from "@/lib/services/staff";
 
 type Props = {
   title: string;
@@ -39,6 +48,8 @@ type Props = {
   onImport?: (rows: Record<string, string>[]) => Promise<{ error?: string; success?: boolean; count?: number; errors?: string[] }>;
   exportRowsBuilder?: (items: ModuleRow[]) => Array<Record<string, string | number>>;
   exportColumns?: ExcelColumn[];
+  preparationType?: PreparationRecordType;
+  staff?: StaffView[];
 };
 
 export function ModuleCrudClient(props: Props) {
@@ -60,16 +71,22 @@ export function ModuleCrudClient(props: Props) {
     onImport,
     exportRowsBuilder,
     exportColumns,
+    preparationType,
+    staff = [],
   } = props;
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
+  const [workflowFilter, setWorkflowFilter] = useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
+  const [drawerTab, setDrawerTab] = useState("Chi tiết");
   const [extra, setExtra] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<ModuleRow | null>(null);
   const [form, setForm] = useState<ModuleRow>({});
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [amendmentOpen, setAmendmentOpen] = useState(false);
+  const [pendingAmendmentReason, setPendingAmendmentReason] = useState("");
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [pending, start] = useTransition();
   const { canManage, canEdit, role } = useRole();
@@ -79,9 +96,11 @@ export function ModuleCrudClient(props: Props) {
     const q = query.toLowerCase();
     const matchQ = !q || searchKeys.some((k) => String(row[k] ?? "").toLowerCase().includes(q));
     const matchS = status === "All" || row.status === status;
+    const matchWorkflow =
+      !preparationType || workflowFilter === "All" || row.workflowStatus === workflowFilter;
     const matchExtra = !extraFilters?.length || extraFilters.every((f) => !extra[f.key] || extra[f.key] === "All" || row[f.key] === extra[f.key]);
-    return matchQ && matchS && matchExtra;
-  }), [items, query, status, extra, searchKeys, extraFilters]);
+    return matchQ && matchS && matchWorkflow && matchExtra;
+  }), [items, query, status, workflowFilter, extra, searchKeys, extraFilters, preparationType]);
 
   const openCreate = () => {
     setEdit(false);
@@ -94,6 +113,19 @@ export function ModuleCrudClient(props: Props) {
   };
 
   const openEdit = (row: ModuleRow) => {
+    if (preparationType) {
+      const ws = String(row.workflowStatus ?? "");
+      if (ws === "Prepared" || ws === "Checked") {
+        addToast("Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước", "error");
+        return;
+      }
+      if (ws === "Approved") {
+        setEdit(true);
+        setForm({ ...row });
+        setAmendmentOpen(true);
+        return;
+      }
+    }
     setEdit(true);
     setForm({ ...row });
     setOpen(true);
@@ -109,11 +141,13 @@ export function ModuleCrudClient(props: Props) {
     fd.set("user", role);
     fields.forEach((f) => fd.set(f.key, String(form[f.key] ?? "")));
     if (edit) fd.set("id", String(form.id ?? ""));
+    if (pendingAmendmentReason) fd.set("amendmentReason", pendingAmendmentReason);
     start(async () => {
       const res = edit ? await updateAction(fd) : await createAction(fd);
       if (res.error) { addToast(res.error, "error"); return; }
-      addToast(edit ? "Đã cập nhật" : "Đã thêm mới", "success");
+      addToast(edit ? "Đã cập nhật" : preparationType ? "Đã tạo nháp" : "Đã thêm mới", "success");
       setOpen(false);
+      setPendingAmendmentReason("");
       router.refresh();
     });
   };
@@ -133,15 +167,26 @@ export function ModuleCrudClient(props: Props) {
     });
   };
 
-  const columns = tableKeys.map((c) => ({
-    key: c.key as keyof ModuleRow,
-    header: c.header,
-    render: c.isStatus
-      ? (v: unknown) => <StatusBadge status={String(v)} />
-      : c.isDate
-        ? (v: unknown) => formatDate(String(v))
-        : undefined,
-  }));
+  const columns = [
+    ...tableKeys.map((c) => ({
+      key: c.key as keyof ModuleRow,
+      header: c.header,
+      render: c.isStatus
+        ? (v: unknown) => <StatusBadge status={String(v)} />
+        : c.isDate
+          ? (v: unknown) => formatDate(String(v))
+          : undefined,
+    })),
+    ...(preparationType
+      ? [{
+          key: "workflowStatus" as keyof ModuleRow,
+          header: "Quy trình",
+          render: (_v: unknown, row: ModuleRow) => (
+            <WorkflowStatusBadge status={String(row.workflowStatus ?? "Approved")} />
+          ),
+        }]
+      : []),
+  ];
 
   const handleExport = () => {
     if (exportRowsBuilder && exportColumns) {
@@ -193,11 +238,58 @@ export function ModuleCrudClient(props: Props) {
               onChange={(value) => setExtra((p) => ({ ...p, [f.key]: value }))}
             />
           ))}
+          {preparationType ? (
+            <FilterChipBar
+              options={PREPARATION_WORKFLOW_FILTERS.map((s) => ({
+                value: s,
+                label:
+                  s === "All"
+                    ? "Tất cả quy trình"
+                    : PREPARATION_WORKFLOW_STATUS_LABELS[s as keyof typeof PREPARATION_WORKFLOW_STATUS_LABELS],
+              }))}
+              value={workflowFilter}
+              onChange={setWorkflowFilter}
+            />
+          ) : null}
         </div>
-        <DataTable columns={columns} rows={filtered} onRowClick={setSelected} />
-        <DetailDrawer open={!!selected} onClose={() => setSelected(null)} title={String(selected?.name ?? "")} subtitle={String(selected?.code ?? "")} tabs={["Chi tiết"]} activeTab="Chi tiết" onTabChange={() => undefined} layout="stacked" maxWidth="5xl"
+        <DataTable columns={columns} rows={filtered} onRowClick={(row) => { setSelected(row); setDrawerTab("Chi tiết"); }} />
+        <DetailDrawer open={!!selected} onClose={() => setSelected(null)} title={String(selected?.name ?? "")} subtitle={String(selected?.code ?? "")}
+          tabs={preparationType ? ["Chi tiết", "Lịch sử", "Truy xuất"] : ["Chi tiết"]}
+          activeTab={drawerTab}
+          onTabChange={setDrawerTab}
+          layout="stacked" maxWidth="5xl"
           actions={selected ? <>{canEdit ? <button type="button" onClick={() => openEdit(selected)} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"><Edit className="h-4 w-4" />Sửa</button> : null}{canManage ? <button type="button" onClick={() => setConfirm(true)} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-700"><Trash2 className="h-4 w-4" />Xoá</button> : null}</> : undefined}
-          tabContent={selected ? <div className="grid gap-3 sm:grid-cols-2">{fields.map((f) => <div key={f.key}><p className="text-xs text-slate-500">{f.label}</p><p className="font-medium">{String(selected[f.key] ?? "-")}</p></div>)}</div> : null}
+          tabContent={selected ? (
+            preparationType ? (
+              <PreparationDrawerTabContent
+                tab={drawerTab}
+                preparationType={preparationType}
+                record={{
+                  id: String(selected.id),
+                  workflowStatus: String(selected.workflowStatus ?? "Approved"),
+                  version: Number(selected.version ?? 1),
+                }}
+                staff={staff}
+                canEdit={canEdit}
+                role={role}
+                onRefresh={() => router.refresh()}
+                onError={(msg) => addToast(msg, "error")}
+                onSuccess={(msg) => addToast(msg, "success")}
+                detail={
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {fields.map((f) => (
+                      <div key={f.key}>
+                        <p className="text-xs text-slate-500">{f.label}</p>
+                        <p className="font-medium">{String(selected[f.key] ?? "-")}</p>
+                      </div>
+                    ))}
+                  </div>
+                }
+              />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">{fields.map((f) => <div key={f.key}><p className="text-xs text-slate-500">{f.label}</p><p className="font-medium">{String(selected[f.key] ?? "-")}</p></div>)}</div>
+            )
+          ) : null}
         />
         <ModalShell open={open} onClose={() => setOpen(false)} className="max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
               <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{edit ? "Sửa" : "Thêm mới"}</h2><button type="button" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
@@ -261,7 +353,16 @@ export function ModuleCrudClient(props: Props) {
               ))}</div>
               <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="rounded-xl border px-4 py-2 text-sm">Huỷ</button><button type="button" disabled={pending} onClick={submit} className="rounded-xl bg-slate-950 px-4 py-2 text-sm text-white">{pending ? "..." : "Lưu"}</button></div>
         </ModalShell>
-        <ConfirmDialog open={confirm} title="Xoá?" message={`Xoá ${selected?.code}?`} onCancel={() => setConfirm(false)} onConfirm={remove} />
+        <ConfirmDialog open={confirm} title="Xoá?" message={`Xoá mềm ${selected?.code}? Tồn kho sẽ được hoàn lại nếu đã trừ.`} onCancel={() => setConfirm(false)} onConfirm={remove} />
+        <AmendmentReasonDialog
+          open={amendmentOpen}
+          onCancel={() => setAmendmentOpen(false)}
+          onConfirm={(reason) => {
+            setPendingAmendmentReason(reason);
+            setAmendmentOpen(false);
+            setOpen(true);
+          }}
+        />
         {importColumnMap && onImport ? (
           <ExcelImportDialog
             open={isImportOpen}

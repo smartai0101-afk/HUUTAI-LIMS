@@ -39,6 +39,15 @@ import { formatDate } from "@/lib/utils";
 import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPicker";
 import { LOT_SELECTION_REQUIRED_MESSAGE } from "@/lib/inventory-lot-policy";
 import { emptyStockLotSelection, requiresLotSelection } from "@/lib/stock-lot-selection";
+import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
+import { PreparationHistoryTimeline } from "@/components/preparation/PreparationHistoryTimeline";
+import { PreparationWorkflowPanel } from "@/components/preparation/PreparationWorkflowPanel";
+import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
+import {
+  PREPARATION_WORKFLOW_FILTERS,
+  PREPARATION_WORKFLOW_STATUS_LABELS,
+} from "@/lib/preparation-workflow-labels";
+import type { StaffView } from "@/lib/services/staff";
 import type { ChemicalView, PreparedChemicalView } from "@/types";
 
 type IngredientFormRow = {
@@ -85,13 +94,17 @@ function emptyIngredient(): IngredientFormRow {
 export function PreparedChemicalsClient({
   items,
   chemicals,
+  staff,
 }: {
   items: PreparedChemicalView[];
   chemicals: ChemicalView[];
+  staff: StaffView[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof PREPARED_CHEMICAL_STATUS_FILTERS)[number]>("All");
+  const [workflowFilter, setWorkflowFilter] = useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
+  const [drawerTab, setDrawerTab] = useState("Chi tiết");
   const [selected, setSelected] = useState<PreparedChemicalView | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -102,6 +115,8 @@ export function PreparedChemicalsClient({
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [amendmentOpen, setAmendmentOpen] = useState(false);
+  const [pendingAmendmentReason, setPendingAmendmentReason] = useState("");
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -121,9 +136,11 @@ export function PreparedChemicalsClient({
         item.concentration.toLowerCase().includes(q) ||
         item.ingredientsSummary.toLowerCase().includes(q);
       const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchStatus;
+      const matchWorkflow =
+        workflowFilter === "All" || item.workflowStatus === workflowFilter;
+      return matchQuery && matchStatus && matchWorkflow;
     });
-  }, [items, query, statusFilter]);
+  }, [items, query, statusFilter, workflowFilter]);
 
   const selectedRows = useMemo(
     () => items.filter((item) => selectedRowIds.has(item.id)),
@@ -169,6 +186,45 @@ export function PreparedChemicalsClient({
   };
 
   const openEdit = (item: PreparedChemicalView) => {
+    if (item.workflowStatus === "Prepared" || item.workflowStatus === "Checked") {
+      addToast("Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước", "error");
+      return;
+    }
+    if (item.workflowStatus === "Approved") {
+      setSelected(null);
+      setIsEditing(true);
+      setEditingId(item.id);
+      setForm({
+        code: item.code,
+        name: item.name,
+        concentration: item.concentration,
+        concentrationUnit: item.concentrationUnit,
+        preparedQuantity: String(item.preparedQuantity),
+        unit: item.unit,
+        preparedDate: item.preparedDate,
+        expiryDate: item.expiryDate,
+        preparedBy: item.preparedBy,
+        storageLocation: item.storageLocation,
+        storageCondition: item.storageCondition,
+        notes: item.notes,
+      });
+      setIngredients(
+        item.ingredients.length
+          ? item.ingredients.map((ing) => ({
+              key: ing.id,
+              chemicalId: ing.chemicalId,
+              chemicalName: ing.chemicalName,
+              casProductCode: ing.casProductCode,
+              stockLotId: ing.stockLotId ?? "",
+              lotNumber: ing.lotNumber,
+              quantityUsed: String(ing.quantityUsed),
+              unit: ing.unit,
+            }))
+          : [emptyIngredient()],
+      );
+      setAmendmentOpen(true);
+      return;
+    }
     setSelected(null);
     setIsEditing(true);
     setEditingId(item.id);
@@ -221,7 +277,7 @@ export function PreparedChemicalsClient({
     });
   };
 
-  const handleSubmit = () => {
+  const submitForm = (amendmentReason = "") => {
     if (!form.code.trim() || !form.name.trim()) {
       addToast("Mã và tên hóa chất pha là bắt buộc", "error");
       return;
@@ -264,6 +320,7 @@ export function PreparedChemicalsClient({
       ),
     );
     if (isEditing && editingId) fd.set("id", editingId);
+    if (amendmentReason) fd.set("amendmentReason", amendmentReason);
 
     startTransition(async () => {
       const result = isEditing ? await updatePreparedChemical(fd) : await createPreparedChemical(fd);
@@ -271,11 +328,20 @@ export function PreparedChemicalsClient({
         addToast(result.error, "error");
         return;
       }
-      addToast(isEditing ? "Đã cập nhật hóa chất pha chế" : "Đã thêm hóa chất pha chế mới", "success");
+      addToast(
+        isEditing
+          ? "Đã cập nhật hóa chất pha chế"
+          : "Đã tạo nháp — chuyển sang Đã pha chế để trừ tồn kho",
+        "success",
+      );
       setIsFormOpen(false);
+      setAmendmentOpen(false);
+      setPendingAmendmentReason("");
       router.refresh();
     });
   };
+
+  const handleSubmit = () => submitForm(pendingAmendmentReason);
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -364,6 +430,20 @@ export function PreparedChemicalsClient({
             />
           </div>
           <div className="flex flex-wrap gap-2">
+            {PREPARATION_WORKFLOW_FILTERS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setWorkflowFilter(s)}
+                className={`rounded-xl px-3 py-2 text-sm ${workflowFilter === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
+              >
+                {s === "All"
+                  ? "Tất cả quy trình"
+                  : PREPARATION_WORKFLOW_STATUS_LABELS[s as keyof typeof PREPARATION_WORKFLOW_STATUS_LABELS]}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
             {PREPARED_CHEMICAL_STATUS_FILTERS.map((s) => (
               <button
                 key={s}
@@ -415,6 +495,11 @@ export function PreparedChemicalsClient({
             { key: "expiryDate", header: "Ngày hết hạn", render: (v) => (v ? formatDate(String(v)) : "-") },
             { key: "preparedBy", header: "Người pha" },
             {
+              key: "workflowStatus",
+              header: "Quy trình",
+              render: (_v, row) => <WorkflowStatusBadge status={row.workflowStatus} />,
+            },
+            {
               key: "ingredientsSummary",
               header: "Hóa chất gốc sử dụng",
               render: (_v, row) => (
@@ -429,7 +514,10 @@ export function PreparedChemicalsClient({
             { key: "storageLocation", header: "Vị trí lưu" },
           ]}
           rows={filtered}
-          onRowClick={setSelected}
+          onRowClick={(row) => {
+            setSelected(row);
+            setDrawerTab("Chi tiết");
+          }}
           selection={{
             getRowId: (row) => row.id,
             selectedIds: selectedRowIds,
@@ -457,9 +545,9 @@ export function PreparedChemicalsClient({
           onClose={() => setSelected(null)}
           title={selected?.name ?? ""}
           subtitle={selected?.code}
-          tabs={["Thông tin chung"]}
-          activeTab="Thông tin chung"
-          onTabChange={() => undefined}
+          tabs={["Chi tiết", "Lịch sử", "Truy xuất"]}
+          activeTab={drawerTab}
+          onTabChange={setDrawerTab}
           layout="stacked"
           maxWidth="5xl"
           actions={
@@ -494,7 +582,30 @@ export function PreparedChemicalsClient({
           }
           tabContent={
             selected ? (
+              drawerTab === "Lịch sử" ? (
+                <PreparationHistoryTimeline
+                  preparationType="CHEMICAL"
+                  preparationId={selected.id}
+                  role={role}
+                />
+              ) : drawerTab === "Truy xuất" ? (
+                <p className="text-sm text-slate-500">
+                  Cây truy xuất nguồn gốc sẽ có ở Phase 3 (PSTD-0006 → PSTD-0005 → STD-0007).
+                </p>
+              ) : (
               <div className="space-y-4">
+                <PreparationWorkflowPanel
+                  preparationType="CHEMICAL"
+                  recordId={selected.id}
+                  workflowStatus={selected.workflowStatus}
+                  version={selected.version}
+                  staff={staff}
+                  canEdit={canEdit}
+                  role={role}
+                  onChanged={() => router.refresh()}
+                  onError={(msg) => addToast(msg, "error")}
+                  onSuccess={(msg) => addToast(msg, "success")}
+                />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <p className="text-xs text-slate-500">Mã hóa chất pha</p>
@@ -563,6 +674,7 @@ export function PreparedChemicalsClient({
                   </div>
                 </div>
               </div>
+              )
             ) : null
           }
         />
@@ -822,11 +934,24 @@ export function PreparedChemicalsClient({
         <ConfirmDialog
           open={!!deleteTarget}
           title="Xóa hóa chất pha chế"
-          message={`Xác nhận xóa "${deleteTarget?.name}"? Tồn kho hóa chất gốc sẽ được hoàn lại.`}
+          message={`Xác nhận xóa mềm "${deleteTarget?.name}"? Tồn kho sẽ được hoàn lại nếu đã trừ.`}
           confirmLabel="Xóa"
           cancelLabel="Hủy"
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+
+        <AmendmentReasonDialog
+          open={amendmentOpen}
+          onCancel={() => {
+            setAmendmentOpen(false);
+            setIsFormOpen(true);
+          }}
+          onConfirm={(reason) => {
+            setPendingAmendmentReason(reason);
+            setAmendmentOpen(false);
+            setIsFormOpen(true);
+          }}
         />
 
         <ExcelImportDialog

@@ -44,6 +44,19 @@ export type ChemicalView = {
   stockLots: StockLotView[];
 };
 
+export type PreparationWorkflowView = {
+  workflowStatus: string;
+  workflowStatusLabel: string;
+  version: number;
+  amendmentReason: string;
+  preparedByStaffId: string | null;
+  checkedByStaffId: string | null;
+  approvedByStaffId: string | null;
+  preparedByStaffName: string;
+  checkedByStaffName: string;
+  approvedByStaffName: string;
+};
+
 export type PreparedChemicalIngredientView = {
   id: string;
   chemicalId: string;
@@ -73,7 +86,7 @@ export type PreparedChemicalView = {
   notes: string;
   ingredients: PreparedChemicalIngredientView[];
   ingredientsSummary: string;
-};
+} & PreparationWorkflowView;
 
 export type PreparedStandardComponentView = {
   id: string;
@@ -135,7 +148,7 @@ export type PreparedStandardView = {
   solvents: PreparedStandardSolventView[];
   componentsSummary: string;
   solventsSummary: string;
-};
+} & PreparationWorkflowView;
 
 export type MicrobialStrainView = {
   id: string;

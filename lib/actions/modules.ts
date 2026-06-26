@@ -12,6 +12,13 @@ import {
   STOCK_SHORTAGE_MESSAGE,
 } from "@/lib/inventory-stock";
 import { resolveStockLotSelection } from "@/lib/resolve-stock-lot-selection";
+import {
+  recordPreparationCreated,
+  recordPreparationDeleted,
+  recordPreparationUpdated,
+  assertAmendmentAllowed,
+} from "@/lib/services/preparation-workflow";
+import { preparationHasStockDeducted, restorePreparationStock } from "@/lib/services/preparation-transition-stock";
 
 const PREPARED_STRAIN_USE_QTY = 1;
 
@@ -134,22 +141,7 @@ export async function createPreparedStrain(fd: FormData) {
       );
       if ("error" in lotResolved) throw new Error(lotResolved.error);
 
-      const stockError = await applyInventoryStockChange(tx, {
-        user,
-        module: "PreparedStrain",
-        referenceType: "PreparedStrain",
-        referenceId: code,
-        deducts: [
-          microbialStrainStockLine(sourceStrainId, PREPARED_STRAIN_USE_QTY, sourceStrain.unit, {
-            stockLotId: lotResolved.stockLotId,
-            lotNumber: lotResolved.lotNumber,
-          }),
-        ],
-        notes: `Pha chủng ${code}`,
-      });
-      if (stockError) throw new Error(stockError);
-
-      return tx.preparedStrain.create({
+      const row = await tx.preparedStrain.create({
         data: {
           code,
           name,
@@ -168,8 +160,12 @@ export async function createPreparedStrain(fd: FormData) {
           status: statusFromLabel(str(fd, "status") || "Available"),
           responsiblePerson: str(fd, "responsiblePerson"),
           notes: str(fd, "notes"),
+          workflowStatus: "Draft",
         },
       });
+
+      await recordPreparationCreated(tx, "STRAIN", row, user);
+      return row;
     });
     await audit(user, "Created", "PreparedStrain", row.id, code, undefined, row);
   } catch (e) {
@@ -187,6 +183,17 @@ export async function updatePreparedStrain(fd: FormData) {
   const id = str(fd, "id");
   const before = await db.preparedStrain.findUnique({ where: { id } });
   if (!before) return { error: "Không tìm thấy" };
+  if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
+  if (before.workflowStatus === "Prepared" || before.workflowStatus === "Checked") {
+    return { error: "Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước" };
+  }
+
+  const amendmentReason = str(fd, "amendmentReason");
+  if (before.workflowStatus === "Approved") {
+    const amendError = assertAmendmentAllowed("Approved", amendmentReason);
+    if (amendError) return { error: amendError };
+  }
+
   const expiryDate = parseFormDate(str(fd, "expiryDate"));
   const preparedDate = parseFormDate(str(fd, "preparedDate"));
   if (!expiryDate || !preparedDate) return { error: "Ngày không hợp lệ" };
@@ -200,7 +207,7 @@ export async function updatePreparedStrain(fd: FormData) {
       const sourceStrain = await tx.microbialStrain.findUnique({ where: { id: sourceStrainId } });
       if (!sourceStrain) throw new Error("Không tìm thấy chủng gốc");
 
-      if (before.sourceStockLotId) {
+      if (preparationHasStockDeducted(before.workflowStatus) && before.sourceStockLotId) {
         const beforeStrain = await tx.microbialStrain.findUnique({
           where: { id: before.sourceStrainId },
         });
@@ -234,22 +241,24 @@ export async function updatePreparedStrain(fd: FormData) {
       );
       if ("error" in lotResolved) throw new Error(lotResolved.error);
 
-      const deductError = await applyInventoryStockChange(tx, {
-        user,
-        module: "PreparedStrain",
-        referenceType: "PreparedStrain",
-        referenceId: before.code,
-        deducts: [
-          microbialStrainStockLine(sourceStrainId, PREPARED_STRAIN_USE_QTY, sourceStrain.unit, {
-            stockLotId: lotResolved.stockLotId,
-            lotNumber: lotResolved.lotNumber,
-          }),
-        ],
-        notes: `Cập nhật pha chủng ${before.code}`,
-      });
-      if (deductError) throw new Error(deductError);
+      if (preparationHasStockDeducted(before.workflowStatus)) {
+        const deductError = await applyInventoryStockChange(tx, {
+          user,
+          module: "PreparedStrain",
+          referenceType: "PreparedStrain",
+          referenceId: before.code,
+          deducts: [
+            microbialStrainStockLine(sourceStrainId, PREPARED_STRAIN_USE_QTY, sourceStrain.unit, {
+              stockLotId: lotResolved.stockLotId,
+              lotNumber: lotResolved.lotNumber,
+            }),
+          ],
+          notes: `Cập nhật pha chủng ${before.code}`,
+        });
+        if (deductError) throw new Error(deductError);
+      }
 
-      return tx.preparedStrain.update({
+      const row = await tx.preparedStrain.update({
         where: { id },
         data: {
           code: str(fd, "code"),
@@ -269,8 +278,20 @@ export async function updatePreparedStrain(fd: FormData) {
           status: statusFromLabel(str(fd, "status") || "Available"),
           responsiblePerson: str(fd, "responsiblePerson"),
           notes: str(fd, "notes"),
+          version: before.workflowStatus === "Approved" ? before.version + 1 : before.version,
+          amendmentReason: before.workflowStatus === "Approved" ? amendmentReason : before.amendmentReason,
         },
       });
+
+      await recordPreparationUpdated(
+        tx,
+        "STRAIN",
+        row,
+        before,
+        user,
+        before.workflowStatus === "Approved" ? amendmentReason : undefined,
+      );
+      return row;
     });
     await audit(user, "Updated", "PreparedStrain", id, row.code, before, row);
   } catch (e) {
@@ -288,30 +309,21 @@ export async function deletePreparedStrain(fd: FormData) {
   const id = str(fd, "id");
   const before = await db.preparedStrain.findUnique({ where: { id } });
   if (!before) return { error: "Không tìm thấy" };
+  if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
 
   try {
     await db.$transaction(async (tx) => {
-      if (before.sourceStockLotId) {
-        const sourceStrain = await tx.microbialStrain.findUnique({
-          where: { id: before.sourceStrainId },
-        });
-        const unit = sourceStrain?.unit ?? "vial";
-        const restoreError = await applyInventoryStockChange(tx, {
-          user,
-          module: "PreparedStrain",
-          referenceType: "PreparedStrain",
-          referenceId: before.code,
-          restores: [
-            microbialStrainStockLine(before.sourceStrainId, PREPARED_STRAIN_USE_QTY, unit, {
-              stockLotId: before.sourceStockLotId,
-              lotNumber: before.sourceLotNumberSnapshot,
-            }),
-          ],
-          notes: `Xóa pha chủng ${before.code}`,
-        });
-        if (restoreError) throw new Error(restoreError);
+      if (preparationHasStockDeducted(before.workflowStatus)) {
+        const stockError = await restorePreparationStock(tx, "STRAIN", id, user);
+        if (stockError) throw new Error(stockError);
       }
-      await tx.preparedStrain.delete({ where: { id } });
+
+      await recordPreparationDeleted(tx, "STRAIN", before, user);
+
+      await tx.preparedStrain.update({
+        where: { id },
+        data: { deletedAt: new Date(), workflowStatus: "Cancelled" },
+      });
     });
     await audit(user, "Deleted", "PreparedStrain", id, before.code, before);
   } catch (e) {

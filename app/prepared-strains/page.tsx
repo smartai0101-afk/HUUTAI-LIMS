@@ -1,9 +1,14 @@
 import { PreparedStrainsClient } from "@/components/prepared-strains/PreparedStrainsClient";
 import { moduleConfigs } from "@/lib/modules/configs";
 import { getMicrobialStrainOptions, getPreparedStrains } from "@/lib/services/modules";
+import { getActiveStaff } from "@/lib/services/staff";
 
 export default async function Page() {
-  const [items, sources] = await Promise.all([getPreparedStrains(), getMicrobialStrainOptions()]);
+  const [items, sources, staff] = await Promise.all([
+    getPreparedStrains(),
+    getMicrobialStrainOptions(),
+    getActiveStaff(),
+  ]);
   const cfg = moduleConfigs.preparedStrain;
   const fields = cfg.fields.map((f) =>
     f.key === "sourceStrainId"
@@ -20,6 +25,7 @@ export default async function Page() {
       tableKeys={cfg.tableKeys}
       searchKeys={cfg.searchKeys}
       stockLotMasters={sources}
+      staff={staff}
     />
   );
 }

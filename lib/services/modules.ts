@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { mapPreparationWorkflowFields } from "@/lib/map-preparation-workflow";
 import { mapStockLot } from "@/lib/map-stock-lot";
 import { statusLabel, toDateStr } from "@/lib/modules/shared";
 import { standardStatusLabel } from "@/lib/standard-status";
@@ -64,7 +65,13 @@ export async function getMicrobialStrains() {
 
 export async function getPreparedStrains() {
   const rows = await db.preparedStrain.findMany({
-    include: { sourceStrain: true },
+    where: { deletedAt: null },
+    include: {
+      sourceStrain: true,
+      preparedByStaff: { select: { name: true } },
+      checkedByStaff: { select: { name: true } },
+      approvedByStaff: { select: { name: true } },
+    },
     orderBy: { code: "asc" },
   });
   return rows.map((r) => ({
@@ -82,6 +89,7 @@ export async function getPreparedStrains() {
     passage: r.passage,
     storageCondition: r.storageCondition,
     sourceStrainId: r.sourceStrainId,
+    ...mapPreparationWorkflowFields(r),
   }));
 }
 

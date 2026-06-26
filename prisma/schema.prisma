@@ -55,6 +55,27 @@ enum PreparedStandardComponentSourceType {
   PreparedStandard
 }
 
+enum PreparationType {
+  CHEMICAL
+  STANDARD
+  STRAIN
+}
+
+enum PreparationWorkflowStatus {
+  Draft
+  Prepared
+  Checked
+  Approved
+  Cancelled
+}
+
+enum PreparationIngredientRole {
+  MAIN
+  SOLVENT
+  MEDIUM
+  ADDITIVE
+}
+
 enum InventorySourceType {
   Chemical
   Standard
@@ -284,26 +305,44 @@ model StockInLog {
 }
 
 model PreparedChemical {
-  id                String                       @id @default(cuid())
-  code              String                       @unique
-  name              String
-  concentration     String                       @default("")
-  concentrationUnit String                       @default("")
-  preparedQuantity  Float                        @default(0)
-  unit              String                       @default("")
-  preparedDate      DateTime
-  preparedBy        String                       @default("")
-  expiryDate        DateTime
-  storageLocation   String                       @default("")
-  storageCondition  String                       @default("")
-  status            StandardExpiryStatus         @default(Ready)
-  notes             String                       @default("")
-  createdAt        DateTime                     @default(now())
-  updatedAt        DateTime                     @updatedAt
-  ingredients      PreparedChemicalIngredient[]
+  id                    String                       @id @default(cuid())
+  code                  String                       @unique
+  name                  String
+  concentration         String                       @default("")
+  concentrationUnit     String                       @default("")
+  originalConcentration String                       @default("")
+  finalConcentration    String                       @default("")
+  preparedQuantity      Float                        @default(0)
+  unit                  String                       @default("")
+  preparedDate          DateTime
+  preparedBy            String                       @default("")
+  preparedByStaffId     String?
+  checkedByStaffId      String?
+  approvedByStaffId     String?
+  expiryDate            DateTime
+  storageLocation       String                       @default("")
+  storageCondition      String                       @default("")
+  formula               String                       @default("")
+  equipmentUsed         String                       @default("")
+  preparationCondition  String                       @default("")
+  attachmentUrl         String                       @default("")
+  workflowStatus        PreparationWorkflowStatus    @default(Approved)
+  version               Int                          @default(1)
+  amendmentReason       String                       @default("")
+  deletedAt             DateTime?
+  status                StandardExpiryStatus         @default(Ready)
+  notes                 String                       @default("")
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  ingredients           PreparedChemicalIngredient[]
+  preparedByStaff       Staff?                       @relation("PChemPreparedBy", fields: [preparedByStaffId], references: [id], onDelete: SetNull)
+  checkedByStaff        Staff?                       @relation("PChemCheckedBy", fields: [checkedByStaffId], references: [id], onDelete: SetNull)
+  approvedByStaff       Staff?                       @relation("PChemApprovedBy", fields: [approvedByStaffId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([expiryDate])
+  @@index([workflowStatus])
+  @@index([deletedAt])
 }
 
 model PreparedChemicalIngredient {
@@ -325,32 +364,50 @@ model PreparedChemicalIngredient {
 }
 
 model PreparedStandard {
-  id                String                      @id @default(cuid())
-  code              String                      @unique
-  name              String
-  level             PreparedStandardLevel
-  concentration     String                      @default("")
-  concentrationUnit String                      @default("")
-  solventVolume     Float                       @default(0)
-  solventUnit       String                      @default("")
-  preparedDate      DateTime
-  preparedBy        String                      @default("")
-  expiryDate        DateTime
-  quantity          Float                       @default(0)
-  unit              String                      @default("")
-  status            StandardExpiryStatus        @default(Ready)
-  storageLocation   String                      @default("")
-  storageCondition  String                      @default("")
-  notes             String                      @default("")
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
-  components        PreparedStandardComponent[]
-  solvents          PreparedStandardSolvent[]
-  usedAsSourceIn    PreparedStandardComponent[] @relation("PreparedStandardSource")
+  id                    String                      @id @default(cuid())
+  code                  String                      @unique
+  name                  String
+  level                 PreparedStandardLevel
+  concentration         String                      @default("")
+  concentrationUnit     String                      @default("")
+  originalConcentration String                      @default("")
+  finalConcentration    String                      @default("")
+  solventVolume         Float                       @default(0)
+  solventUnit           String                      @default("")
+  preparedDate          DateTime
+  preparedBy            String                      @default("")
+  preparedByStaffId     String?
+  checkedByStaffId      String?
+  approvedByStaffId     String?
+  expiryDate            DateTime
+  quantity              Float                       @default(0)
+  unit                  String                      @default("")
+  formula               String                      @default("")
+  equipmentUsed         String                      @default("")
+  preparationCondition  String                      @default("")
+  attachmentUrl         String                      @default("")
+  workflowStatus        PreparationWorkflowStatus   @default(Approved)
+  version               Int                         @default(1)
+  amendmentReason       String                      @default("")
+  deletedAt             DateTime?
+  status                StandardExpiryStatus        @default(Ready)
+  storageLocation       String                      @default("")
+  storageCondition      String                      @default("")
+  notes                 String                      @default("")
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  components            PreparedStandardComponent[]
+  solvents              PreparedStandardSolvent[]
+  usedAsSourceIn        PreparedStandardComponent[] @relation("PreparedStandardSource")
+  preparedByStaff       Staff?                      @relation("PStdPreparedBy", fields: [preparedByStaffId], references: [id], onDelete: SetNull)
+  checkedByStaff        Staff?                      @relation("PStdCheckedBy", fields: [checkedByStaffId], references: [id], onDelete: SetNull)
+  approvedByStaff       Staff?                      @relation("PStdApprovedBy", fields: [approvedByStaffId], references: [id], onDelete: SetNull)
 
   @@index([level])
   @@index([status])
   @@index([expiryDate])
+  @@index([workflowStatus])
+  @@index([deletedAt])
 }
 
 model PreparedStandardComponent {
@@ -403,30 +460,47 @@ model PreparedStandardSolvent {
 }
 
 model PreparedStrain {
-  id                     String              @id @default(cuid())
-  code                   String              @unique
-  name                   String
-  sourceStrainId         String
-  sourceStockLotId       String?
-  sourceLotNumberSnapshot String             @default("")
-  formula                String              @default("")
-  concentration          String              @default("")
-  lot                    String              @default("")
-  preparedDate      DateTime
-  preparedBy        String              @default("")
-  checkedBy         String              @default("")
-  expiryDate        DateTime
-  passage           Int                 @default(0)
-  storageCondition  String              @default("")
-  status            InventoryItemStatus @default(Available)
-  responsiblePerson String              @default("")
-  notes             String              @default("")
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  sourceStrain      MicrobialStrain     @relation(fields: [sourceStrainId], references: [id])
+  id                      String                    @id @default(cuid())
+  code                    String                    @unique
+  name                    String
+  sourceStrainId          String
+  sourceStockLotId        String?
+  sourceLotNumberSnapshot String                    @default("")
+  formula                 String                    @default("")
+  concentration           String                    @default("")
+  originalConcentration   String                    @default("")
+  finalConcentration      String                    @default("")
+  lot                     String                    @default("")
+  preparedDate            DateTime
+  preparedBy              String                    @default("")
+  preparedByStaffId       String?
+  checkedBy               String                    @default("")
+  checkedByStaffId        String?
+  approvedByStaffId       String?
+  expiryDate              DateTime
+  passage                 Int                       @default(0)
+  storageCondition        String                    @default("")
+  equipmentUsed           String                    @default("")
+  preparationCondition    String                    @default("")
+  attachmentUrl           String                    @default("")
+  workflowStatus          PreparationWorkflowStatus @default(Approved)
+  version                 Int                       @default(1)
+  amendmentReason         String                    @default("")
+  deletedAt               DateTime?
+  status                  InventoryItemStatus       @default(Available)
+  responsiblePerson       String                    @default("")
+  notes                   String                    @default("")
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  sourceStrain            MicrobialStrain           @relation(fields: [sourceStrainId], references: [id])
+  preparedByStaff         Staff?                    @relation("PStrPreparedBy", fields: [preparedByStaffId], references: [id], onDelete: SetNull)
+  checkedByStaff          Staff?                    @relation("PStrCheckedBy", fields: [checkedByStaffId], references: [id], onDelete: SetNull)
+  approvedByStaff         Staff?                    @relation("PStrApprovedBy", fields: [approvedByStaffId], references: [id], onDelete: SetNull)
 
   @@index([sourceStrainId])
   @@index([status])
+  @@index([workflowStatus])
+  @@index([deletedAt])
 }
 
 model Container {
@@ -454,13 +528,52 @@ model Container {
 }
 
 model Staff {
-  id         String     @id @default(cuid())
-  code       String     @unique
-  name       String
-  department String     @default("")
-  active     Boolean    @default(true)
-  usageLogs  UsageLog[]
-  user       User?
+  id                         String             @id @default(cuid())
+  code                       String             @unique
+  name                       String
+  department                 String             @default("")
+  active                     Boolean            @default(true)
+  usageLogs                  UsageLog[]
+  user                       User?
+  preparedChemicalsPrepared  PreparedChemical[] @relation("PChemPreparedBy")
+  preparedChemicalsChecked   PreparedChemical[] @relation("PChemCheckedBy")
+  preparedChemicalsApproved  PreparedChemical[] @relation("PChemApprovedBy")
+  preparedStandardsPrepared  PreparedStandard[] @relation("PStdPreparedBy")
+  preparedStandardsChecked   PreparedStandard[] @relation("PStdCheckedBy")
+  preparedStandardsApproved  PreparedStandard[] @relation("PStdApprovedBy")
+  preparedStrainsPrepared    PreparedStrain[]   @relation("PStrPreparedBy")
+  preparedStrainsChecked     PreparedStrain[]   @relation("PStrCheckedBy")
+  preparedStrainsApproved    PreparedStrain[]   @relation("PStrApprovedBy")
+}
+
+model PreparationHistory {
+  id              String           @id @default(cuid())
+  preparationType PreparationType
+  preparationId   String
+  version         Int
+  event           String
+  snapshotJson    String
+  reason          String           @default("")
+  performedBy     String
+  performedAt     DateTime         @default(now())
+
+  @@index([preparationType, preparationId])
+  @@index([performedAt])
+}
+
+model PreparationAuditLog {
+  id              String           @id @default(cuid())
+  preparationType PreparationType
+  preparationId   String
+  action          String
+  beforeJson      String           @default("{}")
+  afterJson       String           @default("{}")
+  reason          String           @default("")
+  performedBy     String
+  performedAt     DateTime         @default(now())
+
+  @@index([preparationType, preparationId])
+  @@index([performedAt])
 }
 
 model UsageLog {

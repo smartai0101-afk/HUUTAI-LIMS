@@ -26,6 +26,13 @@ import {
   WORKING_SOURCE_LEVELS,
 } from "@/lib/prepared-standards-fields";
 import { resolveStockLotSelection } from "@/lib/resolve-stock-lot-selection";
+import {
+  recordPreparationCreated,
+  recordPreparationDeleted,
+  recordPreparationUpdated,
+  assertAmendmentAllowed,
+} from "@/lib/services/preparation-workflow";
+import { preparationHasStockDeducted, restorePreparationStock } from "@/lib/services/preparation-transition-stock";
 
 const REVALIDATE_PATHS = ["/prepared-standards", "/standards", "/chemicals", "/", "/reports"];
 const MODULE_NAME = "PreparedStandard";
@@ -478,20 +485,7 @@ export async function createPreparedStandard(fd: FormData) {
       const builtSolvents = await buildSolventCreates(tx, resolvedSolvents);
       if ("error" in builtSolvents) throw new Error(builtSolvents.error);
 
-      const stockError = await applyInventoryStockChange(tx, {
-        user,
-        module: MODULE_NAME,
-        referenceType: MODULE_NAME,
-        referenceId: newId,
-        deducts: [
-          ...componentInputToStockLines(resolvedComponents),
-          ...solventInputToStockLines(resolvedSolvents),
-        ],
-        notes: `Tạo ${data.code}`,
-      });
-      if (stockError) throw new Error(stockError);
-
-      return tx.preparedStandard.create({
+      const row = await tx.preparedStandard.create({
         data: {
           id: newId,
           code: data.code,
@@ -510,11 +504,15 @@ export async function createPreparedStandard(fd: FormData) {
           storageLocation: data.storageLocation,
           storageCondition: data.storageCondition,
           notes: data.notes,
+          workflowStatus: "Draft",
           components: { create: builtComponents.creates },
           solvents: { create: builtSolvents.creates },
         },
         include: { components: true, solvents: true },
       });
+
+      await recordPreparationCreated(tx, "STANDARD", row, user);
+      return row;
     });
 
     await logActivity({
@@ -558,6 +556,16 @@ export async function updatePreparedStandard(fd: FormData) {
     include: { components: true, solvents: true },
   });
   if (!before) return { error: "Không tìm thấy chuẩn pha chế" };
+  if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
+  if (before.workflowStatus === "Prepared" || before.workflowStatus === "Checked") {
+    return { error: "Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước" };
+  }
+
+  const amendmentReason = str(fd, "amendmentReason");
+  if (before.workflowStatus === "Approved") {
+    const amendError = assertAmendmentAllowed("Approved", amendmentReason);
+    if (amendError) return { error: amendError };
+  }
 
   const duplicate = await db.preparedStandard.findFirst({
     where: { code: data.code, NOT: { id } },
@@ -571,22 +579,24 @@ export async function updatePreparedStandard(fd: FormData) {
       const resolvedSolvents = await resolveSolventLots(tx, solvents);
       if ("error" in resolvedSolvents) throw new Error(resolvedSolvents.error);
 
-      const stockError = await applyInventoryStockChange(tx, {
-        user,
-        module: MODULE_NAME,
-        referenceType: MODULE_NAME,
-        referenceId: id,
-        restores: [
-          ...preparedStandardComponentToStockLines(before.components),
-          ...preparedStandardSolventToStockLines(before.solvents),
-        ],
-        deducts: [
-          ...componentInputToStockLines(resolvedComponents),
-          ...solventInputToStockLines(resolvedSolvents),
-        ],
-        notes: `Cập nhật ${data.code}`,
-      });
-      if (stockError) throw new Error(stockError);
+      if (preparationHasStockDeducted(before.workflowStatus)) {
+        const stockError = await applyInventoryStockChange(tx, {
+          user,
+          module: MODULE_NAME,
+          referenceType: MODULE_NAME,
+          referenceId: id,
+          restores: [
+            ...preparedStandardComponentToStockLines(before.components),
+            ...preparedStandardSolventToStockLines(before.solvents),
+          ],
+          deducts: [
+            ...componentInputToStockLines(resolvedComponents),
+            ...solventInputToStockLines(resolvedSolvents),
+          ],
+          notes: `Cập nhật ${data.code}`,
+        });
+        if (stockError) throw new Error(stockError);
+      }
 
       const builtComponents = await buildComponentCreates(tx, resolvedComponents, data.level!, id);
       if ("error" in builtComponents) throw new Error(builtComponents.error);
@@ -596,7 +606,7 @@ export async function updatePreparedStandard(fd: FormData) {
       await tx.preparedStandardComponent.deleteMany({ where: { preparedStandardId: id } });
       await tx.preparedStandardSolvent.deleteMany({ where: { preparedStandardId: id } });
 
-      return tx.preparedStandard.update({
+      const row = await tx.preparedStandard.update({
         where: { id },
         data: {
           code: data.code,
@@ -613,11 +623,23 @@ export async function updatePreparedStandard(fd: FormData) {
           storageLocation: data.storageLocation,
           storageCondition: data.storageCondition,
           notes: data.notes,
+          version: before.workflowStatus === "Approved" ? before.version + 1 : before.version,
+          amendmentReason: before.workflowStatus === "Approved" ? amendmentReason : before.amendmentReason,
           components: { create: builtComponents.creates },
           solvents: { create: builtSolvents.creates },
         },
         include: { components: true, solvents: true },
       });
+
+      await recordPreparationUpdated(
+        tx,
+        "STANDARD",
+        row,
+        before,
+        user,
+        before.workflowStatus === "Approved" ? amendmentReason : undefined,
+      );
+      return row;
     });
 
     await logActivity({
@@ -658,23 +680,21 @@ export async function deletePreparedStandard(fd: FormData) {
     include: { components: true, solvents: true },
   });
   if (!before) return { error: "Không tìm thấy chuẩn pha chế" };
+  if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
 
   try {
     await db.$transaction(async (tx) => {
-      const stockError = await applyInventoryStockChange(tx, {
-        user,
-        module: MODULE_NAME,
-        referenceType: MODULE_NAME,
-        referenceId: id,
-        restores: [
-          ...preparedStandardComponentToStockLines(before.components),
-          ...preparedStandardSolventToStockLines(before.solvents),
-        ],
-        notes: `Xóa ${before.code}`,
-      });
-      if (stockError) throw new Error(stockError);
+      if (preparationHasStockDeducted(before.workflowStatus)) {
+        const stockError = await restorePreparationStock(tx, "STANDARD", id, user);
+        if (stockError) throw new Error(stockError);
+      }
 
-      await tx.preparedStandard.delete({ where: { id } });
+      await recordPreparationDeleted(tx, "STANDARD", before, user);
+
+      await tx.preparedStandard.update({
+        where: { id },
+        data: { deletedAt: new Date(), workflowStatus: "Cancelled" },
+      });
     });
 
     await logActivity({

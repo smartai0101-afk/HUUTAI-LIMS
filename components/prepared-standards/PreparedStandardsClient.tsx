@@ -56,6 +56,14 @@ import {
   requiresLotSelection,
 } from "@/lib/stock-lot-selection";
 import type { PreparedStandardView, StockLotView } from "@/types";
+import { PreparationDrawerTabContent } from "@/components/preparation/PreparationDrawerTabContent";
+import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
+import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
+import {
+  PREPARATION_WORKFLOW_FILTERS,
+  PREPARATION_WORKFLOW_STATUS_LABELS,
+} from "@/lib/preparation-workflow-labels";
+import type { StaffView } from "@/lib/services/staff";
 
 type StandardCatalogItem = {
   id: string;
@@ -249,12 +257,14 @@ export function PreparedStandardsClient({
   preparedStandards,
   levelCounts,
   chemicals,
+  staff,
 }: {
   items: PreparedStandardView[];
   standards: StandardCatalogItem[];
   preparedStandards: PreparedStandardCatalogItem[];
   levelCounts: Record<PreparedStandardLevel, number>;
   chemicals: ChemicalCatalogItem[];
+  staff: StaffView[];
 }) {
   const router = useRouter();
   const [levelFilter, setLevelFilter] = useState<PreparedStandardLevelFilter>(
@@ -263,6 +273,8 @@ export function PreparedStandardsClient({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] =
     useState<(typeof PREPARED_STANDARD_STATUS_FILTERS)[number]>("All");
+  const [workflowFilter, setWorkflowFilter] = useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
+  const [drawerTab, setDrawerTab] = useState("Chi tiết");
   const [selected, setSelected] = useState<PreparedStandardView | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -274,6 +286,8 @@ export function PreparedStandardsClient({
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [amendmentOpen, setAmendmentOpen] = useState(false);
+  const [pendingAmendmentReason, setPendingAmendmentReason] = useState("");
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -360,10 +374,12 @@ export function PreparedStandardsClient({
           item.componentsSummary.toLowerCase().includes(q) ||
           item.solventsSummary.toLowerCase().includes(q);
         const matchStatus = statusFilter === "All" || item.status === statusFilter;
-        return matchLevel && matchQuery && matchStatus;
+        const matchWorkflow =
+          workflowFilter === "All" || item.workflowStatus === workflowFilter;
+        return matchLevel && matchQuery && matchStatus && matchWorkflow;
       })
       .map((item, index) => ({ ...item, stt: index + 1 }));
-  }, [items, query, statusFilter, levelFilter]);
+  }, [items, query, statusFilter, levelFilter, workflowFilter]);
 
   const selectedRows = useMemo(
     () => items.filter((item) => selectedRowIds.has(item.id)),
@@ -412,6 +428,10 @@ export function PreparedStandardsClient({
   };
 
   const openEdit = (item: PreparedStandardView) => {
+    if (item.workflowStatus === "Prepared" || item.workflowStatus === "Checked") {
+      addToast("Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước", "error");
+      return;
+    }
     setSelected(null);
     setIsEditing(true);
     setEditingId(item.id);
@@ -470,6 +490,10 @@ export function PreparedStandardsClient({
           }))
         : [emptySolvent()],
     );
+    if (item.workflowStatus === "Approved") {
+      setAmendmentOpen(true);
+      return;
+    }
     setIsFormOpen(true);
   };
 
@@ -728,6 +752,7 @@ export function PreparedStandardsClient({
       ),
     );
     if (isEditing && editingId) fd.set("id", editingId);
+    if (pendingAmendmentReason) fd.set("amendmentReason", pendingAmendmentReason);
 
     startTransition(async () => {
       const result = isEditing ? await updatePreparedStandard(fd) : await createPreparedStandard(fd);
@@ -735,8 +760,12 @@ export function PreparedStandardsClient({
         addToast(result.error, "error");
         return;
       }
-      addToast(isEditing ? "Đã cập nhật chuẩn pha chế" : "Đã thêm chuẩn pha chế mới", "success");
+      addToast(
+        isEditing ? "Đã cập nhật chuẩn pha chế" : "Đã tạo nháp — chuyển sang Đã pha chế để trừ tồn",
+        "success",
+      );
       setIsFormOpen(false);
+      setPendingAmendmentReason("");
       router.refresh();
     });
   };
@@ -827,6 +856,20 @@ export function PreparedStandardsClient({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {PREPARATION_WORKFLOW_FILTERS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setWorkflowFilter(s)}
+                className={`rounded-xl px-3 py-2 text-sm ${workflowFilter === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
+              >
+                {s === "All"
+                  ? "Tất cả quy trình"
+                  : PREPARATION_WORKFLOW_STATUS_LABELS[s as keyof typeof PREPARATION_WORKFLOW_STATUS_LABELS]}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
             {PREPARED_STANDARD_STATUS_FILTERS.map((s) => (
               <button
                 key={s}
@@ -886,6 +929,11 @@ export function PreparedStandardsClient({
             { key: "expiryDate", header: "Hạn dùng", render: (v) => (v ? formatDate(String(v)) : "-") },
             { key: "preparedBy", header: "Người pha" },
             {
+              key: "workflowStatus",
+              header: "Quy trình",
+              render: (_v, row) => <WorkflowStatusBadge status={row.workflowStatus} />,
+            },
+            {
               key: "componentsSummary",
               header: "Chuẩn gốc sử dụng",
               render: (_v, row) => (
@@ -910,7 +958,10 @@ export function PreparedStandardsClient({
             { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
           ]}
           rows={filtered}
-          onRowClick={setSelected}
+          onRowClick={(row) => {
+            setSelected(row);
+            setDrawerTab("Chi tiết");
+          }}
           selection={{
             getRowId: (row) => row.id,
             selectedIds: selectedRowIds,
@@ -938,9 +989,9 @@ export function PreparedStandardsClient({
           onClose={() => setSelected(null)}
           title={selected?.name ?? ""}
           subtitle={selected?.code}
-          tabs={["Thông tin chung", "Nguyên liệu"]}
-          activeTab="Thông tin chung"
-          onTabChange={() => undefined}
+          tabs={["Chi tiết", "Lịch sử", "Truy xuất"]}
+          activeTab={drawerTab}
+          onTabChange={setDrawerTab}
           layout="stacked"
           maxWidth="5xl"
           actions={
@@ -975,6 +1026,21 @@ export function PreparedStandardsClient({
           }
           tabContent={
             selected ? (
+              <PreparationDrawerTabContent
+                tab={drawerTab}
+                preparationType="STANDARD"
+                record={{
+                  id: selected.id,
+                  workflowStatus: selected.workflowStatus,
+                  version: selected.version,
+                }}
+                staff={staff}
+                canEdit={canEdit}
+                role={role}
+                onRefresh={() => router.refresh()}
+                onError={(msg) => addToast(msg, "error")}
+                onSuccess={(msg) => addToast(msg, "success")}
+                detail={
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -1088,6 +1154,8 @@ export function PreparedStandardsClient({
                   </div>
                 </div>
               </div>
+                }
+              />
             ) : null
           }
         />
@@ -1571,11 +1639,21 @@ export function PreparedStandardsClient({
         <ConfirmDialog
           open={!!deleteTarget}
           title="Xóa chuẩn pha chế"
-          message={`Xác nhận xóa "${deleteTarget?.name}"?`}
+          message={`Xác nhận xóa mềm "${deleteTarget?.name}"? Tồn kho sẽ được hoàn lại nếu đã trừ.`}
           confirmLabel="Xóa"
           cancelLabel="Hủy"
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+
+        <AmendmentReasonDialog
+          open={amendmentOpen}
+          onCancel={() => setAmendmentOpen(false)}
+          onConfirm={(reason) => {
+            setPendingAmendmentReason(reason);
+            setAmendmentOpen(false);
+            setIsFormOpen(true);
+          }}
         />
 
         <ExcelImportDialog

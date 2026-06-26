@@ -26,6 +26,7 @@ type Props = {
   searchKeys: string[];
   extraFilters?: { key: string; label: string; options: string[] }[];
   stockLotMasters: Array<{ id: string; stockLots: StockLotView[] }>;
+  staff: import("@/lib/services/staff").StaffView[];
 };
 
 export function PreparedStrainsClient(props: Props) {
@@ -41,6 +42,7 @@ export function PreparedStrainsClient(props: Props) {
   return (
     <ModuleCrudClient
       {...props}
+      preparationType="STRAIN"
       createAction={createPreparedStrain}
       updateAction={updatePreparedStrain}
       deleteAction={deletePreparedStrain}
