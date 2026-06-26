@@ -26,7 +26,7 @@ Mở http://localhost:3000 — đăng nhập seed: `smartai0101@gmail.com` / `Ad
 |------|--------|
 | Vật tư | `/`, `/stock-in`, `/chemicals`, `/standards`, `/microbial-strains`, `/prepared-*`, `/containers`, `/usage-logs`, `/inventory-ledger`, `/reports` |
 | Thiết bị | `/equipment/*` |
-| Quản trị | `/admin/users`, `/admin/permissions`, `/admin/tasks`, `/admin/staff` |
+| Quản trị | `/admin/people`, `/admin/permissions`, `/admin/tasks` |
 
 Legacy MVP (`/solutions`, `/transactions`, `/inventory`, `/alerts`) redirect sang module Prisma tương ứng.
 

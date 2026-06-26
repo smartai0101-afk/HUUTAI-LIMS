@@ -1,7 +1,5 @@
-import { AdminStaffClient } from "@/components/admin/AdminStaffClient";
-import { listStaff } from "@/lib/actions/admin-staff";
+import { redirect } from "next/navigation";
 
-export default async function AdminStaffPage() {
-  const staff = await listStaff();
-  return <AdminStaffClient staff={staff} />;
+export default function AdminStaffRedirectPage() {
+  redirect("/admin/people");
 }

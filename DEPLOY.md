@@ -205,7 +205,7 @@ git push origin main
 - [ ] Turso DB đã `db:setup-remote`
 - [ ] Vercel có `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SESSION_SECRET`
 - [ ] Login prod OK, sidebar đủ menu
-- [ ] **Đổi mật khẩu Admin** sau go-live (trang `/admin/users` hoặc seed lại)
+- [ ] **Đổi mật khẩu Admin** sau go-live (trang `/admin/people` hoặc seed lại)
 
 ---
 

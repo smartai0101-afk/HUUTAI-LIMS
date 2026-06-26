@@ -58,10 +58,9 @@ export const NAV_PERMISSION_GROUPS = [
     id: "admin" as const,
     label: "Quản trị",
     items: [
-      { key: "admin_users" as const, label: "Người dùng", href: "/admin/users" },
+      { key: "admin_people" as const, label: "Nhân sự", href: "/admin/people" },
       { key: "admin_permissions" as const, label: "Phân quyền", href: "/admin/permissions" },
       { key: "admin_tasks" as const, label: "Giao việc", href: "/admin/tasks" },
-      { key: "admin_staff" as const, label: "Nhân viên", href: "/admin/staff" },
     ],
   },
 ] as const;
@@ -92,6 +91,7 @@ export function routePermission(pathname: string): PermissionKey | null {
   if (pathname === "/account" || pathname.startsWith("/account/")) return null;
   if (pathname === "/notifications" || pathname.startsWith("/notifications/")) return null;
   if (pathname.startsWith("/api/notifications")) return null;
+  if (pathname === "/admin/users" || pathname === "/admin/staff") return "admin_people";
 
   for (const item of ROUTE_ENTRIES) {
     if (item.href === "/") {

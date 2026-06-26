@@ -12,7 +12,10 @@ const MODULE_DELEGATES = [
 
 function assertModuleDelegates() {
   const record = db as unknown as Record<string, unknown>;
-  const missing = MODULE_DELEGATES.filter((key) => !(key in db) || !record[key]);
+  const missing = MODULE_DELEGATES.filter((key) => {
+    const delegate = record[key] as { findMany?: unknown } | undefined;
+    return !delegate || typeof delegate.findMany !== "function";
+  });
   if (missing.length) {
     throw new Error(
       `Prisma client thiếu model delegate: ${missing.join(", ")}. Chạy: npx.cmd prisma generate && npx.cmd prisma db push`,

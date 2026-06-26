@@ -460,6 +460,7 @@ model Staff {
   department String     @default("")
   active     Boolean    @default(true)
   usageLogs  UsageLog[]
+  user       User?
 }
 
 model UsageLog {
@@ -836,6 +837,8 @@ model User {
   avatarUrl    String           @default("")
   role         UserRole         @default(Viewer)
   status       UserStatus       @default(Active)
+  staffId      String?          @unique
+  staff        Staff?           @relation(fields: [staffId], references: [id], onDelete: SetNull)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   permissions  UserPermission[]

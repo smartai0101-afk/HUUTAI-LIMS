@@ -1037,6 +1037,39 @@ async function seedAuth() {
       },
     });
   }
+
+  await linkUsersToStaffByName();
+}
+
+async function linkUsersToStaffByName() {
+  const [staffRows, users] = await Promise.all([
+    prisma.staff.findMany({ select: { id: true, name: true } }),
+    prisma.user.findMany({ where: { staffId: null }, select: { id: true, name: true } }),
+  ]);
+  const linkedStaffIds = new Set(
+    (
+      await prisma.user.findMany({
+        where: { staffId: { not: null } },
+        select: { staffId: true },
+      })
+    )
+      .map((u) => u.staffId)
+      .filter(Boolean) as string[],
+  );
+
+  for (const user of users) {
+    const match = staffRows.find(
+      (s) =>
+        !linkedStaffIds.has(s.id) &&
+        s.name.localeCompare(user.name, undefined, { sensitivity: "accent" }) === 0,
+    );
+    if (!match) continue;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { staffId: match.id },
+    });
+    linkedStaffIds.add(match.id);
+  }
 }
 
 main()

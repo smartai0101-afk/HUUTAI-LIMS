@@ -1,7 +1,5 @@
-import { AdminUsersClient } from "@/components/admin/AdminUsersClient";
-import { listUsers } from "@/lib/actions/admin-users";
+import { redirect } from "next/navigation";
 
-export default async function AdminUsersPage() {
-  const users = await listUsers();
-  return <AdminUsersClient users={users} />;
+export default function AdminUsersRedirectPage() {
+  redirect("/admin/people");
 }
