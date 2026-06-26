@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRightLeft, Check, Edit, Trash2, X } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
@@ -123,7 +122,7 @@ export function RepairProposalsClient({
   };
 
   return (
-    <EquipmentAppShell>
+    <>
       <EquipmentModuleShell
         title="Đề xuất sửa chữa"
         subtitle={EQUIPMENT_SUBTITLE}
@@ -201,6 +200,6 @@ export function RepairProposalsClient({
       </ModalShell>
 
       <ConfirmDialog open={!!deleteTarget} title="Xóa đề xuất sửa chữa" message="Bạn có chắc muốn xóa đề xuất này?" cancelLabel="Hủy" confirmLabel="Xóa" onCancel={() => setDeleteTarget(null)} onConfirm={handleDelete} />
-    </EquipmentAppShell>
+    </>
   );
 }

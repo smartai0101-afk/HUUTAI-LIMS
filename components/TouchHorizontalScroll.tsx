@@ -51,7 +51,7 @@ export function TouchHorizontalScroll({
       <div
         ref={scrollRef}
         className={cn(
-          "touch-scroll-x scrollbar-hide overflow-x-auto overflow-y-hidden overscroll-x-contain",
+          "touch-scroll-x touch-scroll-x-mobile-hide touch-scroll-x-desktop overflow-x-auto overflow-y-hidden overscroll-x-contain",
           snap && "snap-x snap-proximity",
           contentClassName,
         )}

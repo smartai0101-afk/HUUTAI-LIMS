@@ -59,3 +59,37 @@ export const STANDARD_CSV_FIELD_KEYS = [
   "storageLocation",
   "notes",
 ] as const;
+
+export const STANDARD_EXCEL_COLUMNS = [
+  { key: "code", header: "Mã chuẩn" },
+  { key: "name", header: "Tên chuẩn" },
+  { key: "standardGroup", header: "Nhóm chuẩn" },
+  { key: "manufacturer", header: "Hãng sản xuất" },
+  { key: "casNumber", header: "CAS Number" },
+  { key: "productCode", header: "Product Code" },
+  { key: "lot", header: "Lot Number" },
+  { key: "purity", header: "Purity" },
+  { key: "uncertainty", header: "Uncertainty" },
+  { key: "coaPath", header: "COA" },
+  { key: "unit", header: "Đơn vị" },
+  { key: "quantity", header: "Số lượng tồn kho" },
+  { key: "expiryDate", header: "Hạn dùng" },
+  { key: "afterOpenExpiry", header: "Hạn sau mở nắp" },
+  { key: "storageCondition", header: "Điều kiện bảo quản" },
+  { key: "status", header: "Trạng thái" },
+  { key: "storageLocation", header: "Vị trí lưu" },
+  { key: "notes", header: "Ghi chú" },
+] as const;
+
+export const STANDARD_CATALOG_MASTER_KEYS = [
+  "code",
+  "name",
+  "standardGroup",
+  "manufacturer",
+  "casNumber",
+  "productCode",
+] as const;
+
+export const STANDARD_IMPORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
+  STANDARD_EXCEL_COLUMNS.map((c) => [c.header, c.key]),
+);

@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Trash2, X } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { DataTable } from "@/components/DataTable";
@@ -236,7 +235,7 @@ export function EquipmentCatalogClient({
   };
 
   return (
-    <EquipmentAppShell>
+    <>
       <EquipmentModuleShell
         title="Danh mục thiết bị"
         subtitle={EQUIPMENT_SUBTITLE}
@@ -491,6 +490,6 @@ export function EquipmentCatalogClient({
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
-    </EquipmentAppShell>
+    </>
   );
 }

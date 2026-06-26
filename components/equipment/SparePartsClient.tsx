@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Link2, PackageMinus, Trash2, Unlink, X } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
@@ -224,7 +223,7 @@ export function SparePartsClient({
   };
 
   return (
-    <EquipmentAppShell>
+    <>
       <EquipmentModuleShell
         title="Quản lý phụ kiện"
         subtitle={EQUIPMENT_SUBTITLE}
@@ -445,6 +444,6 @@ export function SparePartsClient({
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
-    </EquipmentAppShell>
+    </>
   );
 }

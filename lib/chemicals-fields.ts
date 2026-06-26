@@ -53,6 +53,39 @@ export const CHEMICAL_CSV_FIELD_KEYS = [
   "notes",
 ] as const;
 
+export const CHEMICAL_EXCEL_COLUMNS = [
+  { key: "code", header: "Mã hóa chất" },
+  { key: "name", header: "Tên hóa chất" },
+  { key: "chemicalGroup", header: "Nhóm hóa chất" },
+  { key: "manufacturer", header: "Hãng sản xuất" },
+  { key: "casNumber", header: "CAS Number" },
+  { key: "productCode", header: "Product Code" },
+  { key: "lot", header: "Lot Number" },
+  { key: "purity", header: "Purity" },
+  { key: "uncertainty", header: "Uncertainty" },
+  { key: "coaPath", header: "COA" },
+  { key: "unit", header: "Đơn vị" },
+  { key: "quantity", header: "Số lượng tồn kho" },
+  { key: "expiryDate", header: "Hạn dùng" },
+  { key: "storageCondition", header: "Điều kiện bảo quản" },
+  { key: "status", header: "Trạng thái" },
+  { key: "storageLocation", header: "Vị trí lưu" },
+  { key: "notes", header: "Ghi chú" },
+] as const;
+
+export const CHEMICAL_CATALOG_MASTER_KEYS = [
+  "code",
+  "name",
+  "chemicalGroup",
+  "manufacturer",
+  "casNumber",
+  "productCode",
+] as const;
+
+export const CHEMICAL_IMPORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
+  CHEMICAL_EXCEL_COLUMNS.map((c) => [c.header, c.key]),
+);
+
 export function formatCasProductSnapshot(casNumber: string, productCode: string): string {
   return [casNumber, productCode].filter(Boolean).join(" / ");
 }

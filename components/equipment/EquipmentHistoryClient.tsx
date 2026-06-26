@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Plus, Trash2, X } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ModalShell } from "@/components/ModalShell";
 import { EquipmentSelect, type EquipmentOption } from "@/components/equipment/EquipmentSelect";
@@ -186,7 +185,7 @@ export function EquipmentHistoryClient({
   };
 
   return (
-    <EquipmentAppShell>
+    <>
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -305,6 +304,6 @@ export function EquipmentHistoryClient({
         onCancel={() => setDeleteImageTarget(null)}
         onConfirm={handleDeleteImage}
       />
-    </EquipmentAppShell>
+    </>
   );
 }

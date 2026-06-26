@@ -1,10 +1,5 @@
-import { ModuleCrudClient } from "@/components/modules/ModuleCrudClient";
+import { PreparedStrainsClient } from "@/components/prepared-strains/PreparedStrainsClient";
 import { moduleConfigs } from "@/lib/modules/configs";
-import {
-  createPreparedStrain,
-  deletePreparedStrain,
-  updatePreparedStrain,
-} from "@/lib/actions/modules";
 import { getMicrobialStrainOptions, getPreparedStrains } from "@/lib/services/modules";
 
 export default async function Page() {
@@ -16,14 +11,15 @@ export default async function Page() {
       : f,
   );
   return (
-    <ModuleCrudClient
-      {...cfg}
+    <PreparedStrainsClient
+      title={cfg.title}
+      subtitle={cfg.subtitle}
+      exportName={cfg.exportName}
       items={items}
       fields={fields}
+      tableKeys={cfg.tableKeys}
+      searchKeys={cfg.searchKeys}
       stockLotMasters={sources}
-      createAction={createPreparedStrain}
-      updateAction={updatePreparedStrain}
-      deleteAction={deletePreparedStrain}
     />
   );
 }

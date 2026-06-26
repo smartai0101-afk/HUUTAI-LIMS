@@ -2,10 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Download, Edit, Plus, Search, Trash2, X } from "lucide-react";
+import { Download, Edit, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { FilterChipBar } from "@/components/FilterChipBar";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
@@ -13,17 +14,20 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { CoaLink } from "@/components/standards/CoaLink";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
+import { bulkImportMicrobialStrains, previewMicrobialStrainsImport } from "@/lib/actions/catalog-import";
 import { createMicrobialStrain, deleteMicrobialStrain, updateMicrobialStrain } from "@/lib/actions/microbial-strains";
 import { deleteStockLot } from "@/lib/actions/stock-lot";
 import {
   STRAIN_FORM_FIELD_KEYS,
   STRAIN_GROUP_FILTER_ALL,
   STRAIN_GROUP_FILTER_OPTIONS,
+  STRAIN_IMPORT_COLUMN_MAP,
   type StrainGroupFilter,
 } from "@/lib/strains-fields";
+import { CATALOG_EXCEL, buildStrainExportRows } from "@/lib/catalog-excel";
+import { expandCatalogToLotRows, groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
+import { exportToXlsx } from "@/lib/excel";
 import { computeStandardStatus, STANDARD_STATUS_FILTERS, standardStatusLabel } from "@/lib/standard-status";
-import { expandCatalogToLotRows, exportGroupedValue, groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
-import { downloadCsv } from "@/lib/storage";
 import { formatDate } from "@/lib/utils";
 import type { MicrobialStrainView } from "@/types";
 
@@ -108,6 +112,7 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
   const [coaFile, setCoaFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StrainLotRow | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -221,27 +226,27 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
   };
 
   const handleExport = () => {
-    downloadCsv(
-      "microbial-strains-export",
-      displayRows.map((item) => ({
-        code: exportGroupedValue(item.showMasterFields, item.code),
-        name: exportGroupedValue(item.showMasterFields, item.name),
-        strainGroup: exportGroupedValue(item.showMasterFields, item.strainGroup),
-        manufacturer: exportGroupedValue(item.showMasterFields, item.manufacturer),
-        atccProductCode: exportGroupedValue(item.showMasterFields, item.atccProductCode),
-        lot: item.lot,
-        purity: item.purity,
-        uncertainty: item.uncertainty,
-        coaPath: item.coaPath,
-        unit: item.unit,
-        quantity: item.quantity,
-        expiryDate: item.expiryDate,
-        storageCondition: item.storageCondition,
-        status: item.status,
-        storageLocation: item.storageLocation,
-      })),
-    );
-    addToast("Đã export CSV thành công", "success");
+    const cfg = CATALOG_EXCEL.strain;
+    exportToXlsx(cfg.filename, buildStrainExportRows(filtered), [...cfg.columns]);
+    addToast("Đã export Excel", "success");
+  };
+
+  const handlePreview = async (rows: Record<string, string>[]) => {
+    const fd = new FormData();
+    fd.set("rows", JSON.stringify(rows));
+    return previewMicrobialStrainsImport(fd);
+  };
+
+  const handleImport = async (
+    rows: Record<string, string>[],
+    options?: { mergeDuplicates?: boolean },
+  ) => {
+    const fd = new FormData();
+    fd.set("user", role);
+    fd.set("rows", JSON.stringify(rows));
+    if (options?.mergeDuplicates) fd.set("mergeDuplicates", "true");
+    const result = await bulkImportMicrobialStrains(fd);
+    return result;
   };
 
   return (
@@ -255,8 +260,14 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
           <div className="flex gap-2">
             <button type="button" onClick={handleExport} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700">
               <Download className="h-4 w-4" />
-              Export CSV
+              Export Excel
             </button>
+            {canEdit ? (
+              <button type="button" onClick={() => setIsImportOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700">
+                <Upload className="h-4 w-4" />
+                Import Excel
+              </button>
+            ) : null}
             {canEdit ? (
               <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white">
                 <Plus className="h-4 w-4" />
@@ -473,6 +484,18 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
           confirmLabel="Xóa"
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
+        />
+
+        <ExcelImportDialog
+          open={isImportOpen}
+          onClose={() => setIsImportOpen(false)}
+          onImported={() => {
+            void router.refresh();
+          }}
+          title="Import chủng gốc vi sinh"
+          columnMap={STRAIN_IMPORT_COLUMN_MAP}
+          onPreview={handlePreview}
+          onImport={handleImport}
         />
       </div>
     </AppShell>

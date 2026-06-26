@@ -74,6 +74,19 @@ export function codesMatch(a: string, b: string): boolean {
   return normalizeKey(a) === normalizeKey(b);
 }
 
+export function existingCodeIdentityMismatchMessage(
+  sourceType: StockInSourceType,
+  code: string,
+): string {
+  if (sourceType === "Chemical") {
+    return `Mã ${code} đã tồn tại — không khớp tên/hãng/CAS/product code`;
+  }
+  if (sourceType === "Standard") {
+    return `Mã ${code} đã tồn tại — không khớp tên/hãng/product code`;
+  }
+  return `Mã ${code} đã tồn tại — không khớp tên/hãng/ATCC product code`;
+}
+
 export function identityCodeMismatchMessage(
   sourceType: StockInSourceType,
   existingCode: string,

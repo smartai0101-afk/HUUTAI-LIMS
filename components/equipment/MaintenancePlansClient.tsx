@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Trash2, X } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
@@ -97,7 +96,7 @@ export function MaintenancePlansClient({
   };
 
   return (
-    <EquipmentAppShell>
+    <>
       <EquipmentModuleShell
         title="Kế hoạch bảo trì"
         subtitle={EQUIPMENT_SUBTITLE}
@@ -169,6 +168,6 @@ export function MaintenancePlansClient({
       </ModalShell>
 
       <ConfirmDialog open={!!deleteTarget} title="Xóa kế hoạch bảo trì" message="Bạn có chắc muốn xóa kế hoạch bảo trì này?" cancelLabel="Hủy" confirmLabel="Xóa" onCancel={() => setDeleteTarget(null)} onConfirm={handleDelete} />
-    </EquipmentAppShell>
+    </>
   );
 }

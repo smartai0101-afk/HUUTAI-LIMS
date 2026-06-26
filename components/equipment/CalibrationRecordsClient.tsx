@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Plus, Trash2, X } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
@@ -256,7 +255,7 @@ export function CalibrationRecordsClient({
     : "";
 
   return (
-    <EquipmentAppShell>
+    <>
       <EquipmentModuleShell
         title="Hồ sơ hiệu chuẩn"
         subtitle={EQUIPMENT_SUBTITLE}
@@ -726,6 +725,6 @@ export function CalibrationRecordsClient({
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
-    </EquipmentAppShell>
+    </>
   );
 }

@@ -1,3 +1,5 @@
+import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
+
 export default function EquipmentLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <EquipmentAppShell>{children}</EquipmentAppShell>;
 }

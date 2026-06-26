@@ -3,10 +3,11 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { PreparedStandardLevel } from "@prisma/client";
-import { Download, Edit, Plus, Printer, Search, Trash2, X } from "lucide-react";
+import { Download, Edit, Plus, Printer, Search, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
 import { PrintLabelButton } from "@/components/PrintLabelButton";
@@ -20,6 +21,7 @@ import {
   deletePreparedStandard,
   updatePreparedStandard,
 } from "@/lib/actions/prepared-standards";
+import { bulkImportPreparedStandards } from "@/lib/actions/prepared-import";
 import {
   buildPreparedStandardExportRows,
   formatComponentDropdownLabel,
@@ -41,7 +43,11 @@ import {
   preparedStandardToLabelData,
   printPreparedLabelsBulk,
 } from "@/lib/print-label";
-import { downloadCsv } from "@/lib/storage";
+import { exportToXlsx } from "@/lib/excel";
+import {
+  PREPARED_STANDARD_EXCEL_COLUMNS,
+  PREPARED_STANDARD_IMPORT_COLUMN_MAP,
+} from "@/lib/prepared-excel";
 import { formatDate } from "@/lib/utils";
 import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPicker";
 import { LOT_SELECTION_REQUIRED_MESSAGE } from "@/lib/inventory-lot-policy";
@@ -265,6 +271,7 @@ export function PreparedStandardsClient({
   const [solvents, setSolvents] = useState<SolventFormRow[]>([emptySolvent()]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PreparedStandardView | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -586,7 +593,17 @@ export function PreparedStandardsClient({
     const exportItems = filtered.map(({ stt: _stt, ...item }) => item);
     const suffix =
       levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL ? "all" : levelFilter.toLowerCase();
-    downloadCsv(`prepared-standards-${suffix}`, buildPreparedStandardExportRows(exportItems));
+    const rows = buildPreparedStandardExportRows(exportItems);
+    exportToXlsx(`chuan-pha-che-${suffix}`, rows, PREPARED_STANDARD_EXCEL_COLUMNS);
+    addToast("Đã export Excel", "success");
+  };
+
+  const handleImport = async (rows: Record<string, string>[]) => {
+    const fd = new FormData();
+    fd.set("user", role);
+    fd.set("rows", JSON.stringify(rows));
+    const result = await bulkImportPreparedStandards(fd);
+    return result;
   };
 
   const handleSubmit = () => {
@@ -758,8 +775,18 @@ export function PreparedStandardsClient({
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
             >
               <Download className="h-4 w-4" />
-              Export CSV
+              Export Excel
             </button>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setIsImportOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+              >
+                <Upload className="h-4 w-4" />
+                Import Excel
+              </button>
+            ) : null}
             {canEdit ? (
               <button
                 type="button"
@@ -1549,6 +1576,17 @@ export function PreparedStandardsClient({
           cancelLabel="Hủy"
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+
+        <ExcelImportDialog
+          open={isImportOpen}
+          onClose={() => setIsImportOpen(false)}
+          onImported={() => {
+            void router.refresh();
+          }}
+          title="Import chuẩn pha chế"
+          columnMap={PREPARED_STANDARD_IMPORT_COLUMN_MAP}
+          onImport={handleImport}
         />
       </div>
     </AppShell>

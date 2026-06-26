@@ -2,10 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Download, Edit, Plus, Search, Trash2, X } from "lucide-react";
+import { Download, Edit, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { FilterChipBar } from "@/components/FilterChipBar";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
@@ -13,18 +14,20 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { CoaLink } from "@/components/standards/CoaLink";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
+import { bulkImportStandards, previewStandardsImport } from "@/lib/actions/catalog-import";
 import { createStandard, deleteStandard, updateStandard } from "@/lib/actions/standards";
 import { deleteStockLot } from "@/lib/actions/stock-lot";
 import {
-  STANDARD_CSV_FIELD_KEYS,
   STANDARD_FORM_FIELD_KEYS,
   STANDARD_GROUP_FILTER_ALL,
   STANDARD_GROUP_FILTER_OPTIONS,
+  STANDARD_IMPORT_COLUMN_MAP,
   type StandardGroupFilter,
 } from "@/lib/standards-fields";
+import { CATALOG_EXCEL, buildCatalogExportRows } from "@/lib/catalog-excel";
+import { expandCatalogToLotRows, groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
+import { exportToXlsx } from "@/lib/excel";
 import { computeStandardStatus, STANDARD_STATUS_FILTERS, standardStatusLabel } from "@/lib/standard-status";
-import { expandCatalogToLotRows, exportGroupedValue, groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
-import { downloadCsv } from "@/lib/storage";
 import { formatDate } from "@/lib/utils";
 import type { StandardView } from "@/types";
 
@@ -137,6 +140,7 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
   const [coaFile, setCoaFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StandardLotRow | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -238,24 +242,31 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
   };
 
   const handleExport = () => {
-    downloadCsv(
-      "standards-export",
-      displayRows.map((item) => {
-        const row: Record<string, string | number> = {};
-        const masterKeys = new Set(["code", "name", "standardGroup", "manufacturer", "casNumber", "productCode"]);
-        STANDARD_CSV_FIELD_KEYS.forEach((key) => {
-          const value = item[key as keyof StandardView] ?? "";
-          row[key] =
-            masterKeys.has(key) && (typeof value === "string" || typeof value === "number")
-              ? exportGroupedValue(item.showMasterFields, value)
-              : typeof value === "string" || typeof value === "number"
-                ? value
-                : "";
-        });
-        return row;
-      }),
+    const cfg = CATALOG_EXCEL.standard;
+    exportToXlsx(
+      cfg.filename,
+      buildCatalogExportRows(filtered, cfg.fieldKeys, cfg.masterKeys),
+      [...cfg.columns],
     );
-    addToast("Đã export CSV thành công", "success");
+    addToast("Đã export Excel", "success");
+  };
+
+  const handlePreview = async (rows: Record<string, string>[]) => {
+    const fd = new FormData();
+    fd.set("rows", JSON.stringify(rows));
+    return previewStandardsImport(fd);
+  };
+
+  const handleImport = async (
+    rows: Record<string, string>[],
+    options?: { mergeDuplicates?: boolean },
+  ) => {
+    const fd = new FormData();
+    fd.set("user", role);
+    fd.set("rows", JSON.stringify(rows));
+    if (options?.mergeDuplicates) fd.set("mergeDuplicates", "true");
+    const result = await bulkImportStandards(fd);
+    return result;
   };
 
   return (
@@ -269,8 +280,14 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
           <div className="flex gap-2">
             <button type="button" onClick={handleExport} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700">
               <Download className="h-4 w-4" />
-              Export CSV
+              Export Excel
             </button>
+            {canEdit ? (
+              <button type="button" onClick={() => setIsImportOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700">
+                <Upload className="h-4 w-4" />
+                Import Excel
+              </button>
+            ) : null}
             {canEdit ? (
               <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white">
                 <Plus className="h-4 w-4" />
@@ -493,6 +510,18 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
           confirmLabel="Xóa"
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
+        />
+
+        <ExcelImportDialog
+          open={isImportOpen}
+          onClose={() => setIsImportOpen(false)}
+          onImported={() => {
+            void router.refresh();
+          }}
+          title="Import chất chuẩn gốc"
+          columnMap={STANDARD_IMPORT_COLUMN_MAP}
+          onPreview={handlePreview}
+          onImport={handleImport}
         />
       </div>
     </AppShell>

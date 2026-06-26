@@ -28,6 +28,42 @@ textarea {
   touch-action: pan-x pan-y pinch-zoom;
 }
 
+@media (max-width: 1023px) {
+  .touch-scroll-x-mobile-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .touch-scroll-x-mobile-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .touch-scroll-x-desktop {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184) rgb(241 245 249);
+  }
+
+  .touch-scroll-x-desktop::-webkit-scrollbar {
+    height: 10px;
+  }
+
+  .touch-scroll-x-desktop::-webkit-scrollbar-track {
+    background: rgb(241 245 249);
+    border-radius: 9999px;
+  }
+
+  .touch-scroll-x-desktop::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184);
+    border-radius: 9999px;
+  }
+
+  .touch-scroll-x-desktop::-webkit-scrollbar-thumb:hover {
+    background: rgb(100 116 139);
+  }
+}
+
 .touch-scroll-y {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;

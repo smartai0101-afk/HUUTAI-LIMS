@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Edit, Trash2, X } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
@@ -162,7 +161,7 @@ export function CalibrationEvaluationsClient({
   };
 
   return (
-    <EquipmentAppShell>
+    <>
       <EquipmentModuleShell
         title="Đánh giá sau hiệu chuẩn"
         subtitle={EQUIPMENT_SUBTITLE}
@@ -292,6 +291,6 @@ export function CalibrationEvaluationsClient({
       </ModalShell>
 
       <ConfirmDialog open={!!deleteTarget} title="Xóa đánh giá" message="Bạn có chắc muốn xóa đánh giá này?" cancelLabel="Hủy" confirmLabel="Xóa" onCancel={() => setDeleteTarget(null)} onConfirm={handleDelete} />
-    </EquipmentAppShell>
+    </>
   );
 }

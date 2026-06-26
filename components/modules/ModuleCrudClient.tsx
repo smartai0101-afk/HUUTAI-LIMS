@@ -2,10 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Edit, Plus, Search, Trash2, X } from "lucide-react";
+import { Download, Edit, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { FilterChipBar } from "@/components/FilterChipBar";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
@@ -17,7 +18,7 @@ import type { FieldDef, ModuleRow } from "@/lib/modules/shared";
 import { emptyStockLotSelection } from "@/lib/stock-lot-selection";
 import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPicker";
 import { missingFieldsMessage, STATUS_FILTERS } from "@/lib/modules/shared";
-import { downloadCsv } from "@/lib/storage";
+import { exportToXlsx, type ExcelColumn } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 
 type Props = {
@@ -33,10 +34,33 @@ type Props = {
   updateAction: (fd: FormData) => Promise<{ error?: string; success?: boolean }>;
   deleteAction: (fd: FormData) => Promise<{ error?: string; success?: boolean }>;
   stockLotMasters?: Array<{ id: string; stockLots: StockLotView[] }>;
+  importColumnMap?: Record<string, string>;
+  importTitle?: string;
+  onImport?: (rows: Record<string, string>[]) => Promise<{ error?: string; success?: boolean; count?: number; errors?: string[] }>;
+  exportRowsBuilder?: (items: ModuleRow[]) => Array<Record<string, string | number>>;
+  exportColumns?: ExcelColumn[];
 };
 
 export function ModuleCrudClient(props: Props) {
-  const { title, subtitle, exportName, items, fields, tableKeys, searchKeys, extraFilters, createAction, updateAction, deleteAction, stockLotMasters = [] } = props;
+  const {
+    title,
+    subtitle,
+    exportName,
+    items,
+    fields,
+    tableKeys,
+    searchKeys,
+    extraFilters,
+    createAction,
+    updateAction,
+    deleteAction,
+    stockLotMasters = [],
+    importColumnMap,
+    importTitle,
+    onImport,
+    exportRowsBuilder,
+    exportColumns,
+  } = props;
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
@@ -46,6 +70,7 @@ export function ModuleCrudClient(props: Props) {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [pending, start] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -118,13 +143,36 @@ export function ModuleCrudClient(props: Props) {
         : undefined,
   }));
 
+  const handleExport = () => {
+    if (exportRowsBuilder && exportColumns) {
+      exportToXlsx(exportName, exportRowsBuilder(filtered), exportColumns);
+    } else {
+      exportToXlsx(
+        exportName,
+        filtered as Array<Record<string, unknown>>,
+        tableKeys.map((c) => ({ key: c.key, header: c.header })),
+      );
+    }
+    addToast("Đã export Excel", "success");
+  };
+
+  const handleImport = async (rows: Record<string, string>[]) => {
+    if (!onImport) return { error: "Import chưa được cấu hình" };
+    const result = await onImport(rows);
+    if (!("error" in result)) router.refresh();
+    return result;
+  };
+
   return (
     <AppShell>
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-sm text-slate-500">{subtitle}</p><h1 className="text-2xl font-semibold">{title}</h1></div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => downloadCsv(exportName, items as Array<Record<string, string | number>>)} className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"><Download className="h-4 w-4" />Export</button>
+            <button type="button" onClick={handleExport} className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"><Download className="h-4 w-4" />Export Excel</button>
+            {canEdit && onImport && importColumnMap ? (
+              <button type="button" onClick={() => setIsImportOpen(true)} className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"><Upload className="h-4 w-4" />Import Excel</button>
+            ) : null}
             {canEdit ? <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm text-white"><Plus className="h-4 w-4" />Thêm mới</button> : null}
           </div>
         </div>
@@ -214,6 +262,15 @@ export function ModuleCrudClient(props: Props) {
               <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="rounded-xl border px-4 py-2 text-sm">Huỷ</button><button type="button" disabled={pending} onClick={submit} className="rounded-xl bg-slate-950 px-4 py-2 text-sm text-white">{pending ? "..." : "Lưu"}</button></div>
         </ModalShell>
         <ConfirmDialog open={confirm} title="Xoá?" message={`Xoá ${selected?.code}?`} onCancel={() => setConfirm(false)} onConfirm={remove} />
+        {importColumnMap && onImport ? (
+          <ExcelImportDialog
+            open={isImportOpen}
+            onClose={() => setIsImportOpen(false)}
+            title={importTitle ?? "Import Excel"}
+            columnMap={importColumnMap}
+            onImport={handleImport}
+          />
+        ) : null}
       </div>
     </AppShell>
   );

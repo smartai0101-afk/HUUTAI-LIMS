@@ -1,23 +1,16 @@
 "use server";
 
-import type { Prisma, StockInSourceType } from "@prisma/client";
+import type { StockInSourceType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { writeAuditLog } from "@/lib/audit";
 import { saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
-import {
-  chemicalIdentityMatches,
-  codesMatch,
-  identityCodeMismatchMessage,
-  parseStockInSourceType,
-  standardIdentityMatches,
-  strainIdentityMatches,
-} from "@/lib/services/stock-in-match";
-import { computeStandardStatus } from "@/lib/standard-status";
+import { parseStockInSourceType } from "@/lib/services/stock-in-match";
 import { STOCK_IN_VALIDATION } from "@/lib/stock-in-fields";
 import { describeUnitMismatch, unitsAreConvertible } from "@/lib/inventory-units";
-import { applyStockIn, findMasterByIdentity } from "@/lib/stock-lot";
+import { applyStockIn } from "@/lib/stock-lot";
+import { ensureMaster } from "@/lib/stock-in-master";
 
 const REVALIDATE_PATHS = [
   "/stock-in",
@@ -52,173 +45,6 @@ async function resolveCoaPath(fd: FormData): Promise<{ coaPath: string | null; e
   }
   const kept = str(fd, "coaPath");
   return { coaPath: kept || null };
-}
-
-async function ensureMaster(
-  tx: Prisma.TransactionClient,
-  sourceType: StockInSourceType,
-  fd: FormData,
-  coaPath: string | null,
-): Promise<{ id: string; code: string; name: string } | { error: string }> {
-  const code = str(fd, "code");
-  const name = str(fd, "name");
-  if (!code) return { error: STOCK_IN_VALIDATION.missingCode };
-  if (!name) return { error: STOCK_IN_VALIDATION.missingName };
-
-  const identity = {
-    name,
-    casNumber: str(fd, "casNumber"),
-    manufacturer: str(fd, "manufacturer"),
-    productCode: str(fd, "productCode"),
-    atccProductCode: str(fd, "atccProductCode"),
-  };
-
-  const existingMasterId = str(fd, "existingMasterId");
-  if (existingMasterId) {
-    if (sourceType === "Chemical") {
-      const row = await tx.chemical.findUnique({ where: { id: existingMasterId } });
-      if (!row) return { error: "Không tìm thấy hoá chất đã chọn" };
-      if (!codesMatch(row.code, code)) {
-        return { error: identityCodeMismatchMessage("Chemical", row.code) };
-      }
-      if (
-        !chemicalIdentityMatches(row, {
-          name: identity.name,
-          casNumber: identity.casNumber,
-          manufacturer: identity.manufacturer,
-          productCode: identity.productCode,
-        })
-      ) {
-        return { error: STOCK_IN_VALIDATION.identityMismatch };
-      }
-      return { id: row.id, code: row.code, name: row.name };
-    }
-    if (sourceType === "Standard") {
-      const row = await tx.standard.findUnique({ where: { id: existingMasterId } });
-      if (!row) return { error: "Không tìm thấy chất chuẩn đã chọn" };
-      if (!codesMatch(row.code, code)) {
-        return { error: identityCodeMismatchMessage("Standard", row.code) };
-      }
-      if (
-        !standardIdentityMatches(row, {
-          name: identity.name,
-          manufacturer: identity.manufacturer,
-          productCode: identity.productCode,
-        })
-      ) {
-        return { error: STOCK_IN_VALIDATION.identityMismatch };
-      }
-      return { id: row.id, code: row.code, name: row.name };
-    }
-    const row = await tx.microbialStrain.findUnique({ where: { id: existingMasterId } });
-    if (!row) return { error: "Không tìm thấy chủng đã chọn" };
-    if (!codesMatch(row.code, code)) {
-      return { error: identityCodeMismatchMessage("MicrobialStrain", row.code) };
-    }
-    if (
-      !strainIdentityMatches(row, {
-        name: identity.name,
-        atccProductCode: identity.atccProductCode,
-        manufacturer: identity.manufacturer,
-      })
-    ) {
-      return { error: STOCK_IN_VALIDATION.identityMismatch };
-    }
-    return { id: row.id, code: row.code, name: row.name };
-  }
-
-  const matched = await findMasterByIdentity(tx, sourceType, identity);
-  if (matched) {
-    if (!codesMatch(matched.code, code)) {
-      return { error: identityCodeMismatchMessage(sourceType, matched.code) };
-    }
-    return { id: matched.id, code: matched.code, name: matched.name };
-  }
-
-  const expiryDate = parseFormDate(str(fd, "expiryDate"));
-  const status = computeStandardStatus(expiryDate);
-
-  if (sourceType === "Chemical") {
-    if (await tx.chemical.findUnique({ where: { code } })) {
-      return { error: STOCK_IN_VALIDATION.duplicateCode };
-    }
-    const row = await tx.chemical.create({
-      data: {
-        code,
-        name,
-        chemicalGroup: str(fd, "chemicalGroup") || "Dung môi",
-        manufacturer: identity.manufacturer,
-        casNumber: identity.casNumber,
-        productCode: identity.productCode,
-        lot: "",
-        purity: str(fd, "purity"),
-        uncertainty: str(fd, "uncertainty"),
-        coaPath,
-        unit: str(fd, "unit"),
-        quantity: 0,
-        expiryDate,
-        storageCondition: str(fd, "storageCondition"),
-        storageLocation: str(fd, "storageLocation"),
-        notes: str(fd, "notes"),
-        status,
-      },
-    });
-    return { id: row.id, code: row.code, name: row.name };
-  }
-
-  if (sourceType === "Standard") {
-    if (await tx.standard.findUnique({ where: { code } })) {
-      return { error: STOCK_IN_VALIDATION.duplicateCode };
-    }
-    const row = await tx.standard.create({
-      data: {
-        code,
-        name,
-        standardGroup: str(fd, "standardGroup") || "CRM",
-        manufacturer: identity.manufacturer,
-        casNumber: str(fd, "casNumber"),
-        productCode: identity.productCode,
-        lot: "",
-        purity: str(fd, "purity"),
-        uncertainty: str(fd, "uncertainty"),
-        coaPath,
-        unit: str(fd, "unit"),
-        quantity: 0,
-        expiryDate,
-        afterOpenExpiry: parseFormDate(str(fd, "afterOpenExpiry")),
-        storageCondition: str(fd, "storageCondition"),
-        storageLocation: str(fd, "storageLocation"),
-        notes: str(fd, "notes"),
-        status,
-      },
-    });
-    return { id: row.id, code: row.code, name: row.name };
-  }
-
-  if (await tx.microbialStrain.findUnique({ where: { code } })) {
-    return { error: STOCK_IN_VALIDATION.duplicateCode };
-  }
-  const row = await tx.microbialStrain.create({
-    data: {
-      code,
-      name,
-      strainGroup: str(fd, "strainGroup") || "Vi khuẩn",
-      manufacturer: identity.manufacturer,
-      atccProductCode: identity.atccProductCode,
-      lot: "",
-      purity: str(fd, "purity"),
-      uncertainty: str(fd, "uncertainty"),
-      coaPath,
-      unit: str(fd, "unit"),
-      quantity: 0,
-      expiryDate,
-      storageCondition: str(fd, "storageCondition"),
-      storageLocation: str(fd, "storageLocation"),
-      notes: str(fd, "notes"),
-      status,
-    },
-  });
-  return { id: row.id, code: row.code, name: row.name };
 }
 
 export async function createStockIn(formData: FormData) {

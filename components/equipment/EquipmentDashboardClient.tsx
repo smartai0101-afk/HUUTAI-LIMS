@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { AlertTriangle, Wrench } from "lucide-react";
-import { EquipmentAppShell } from "@/components/equipment/EquipmentAppShell";
 import { DataTable } from "@/components/DataTable";
 import { StatCard } from "@/components/StatCard";
 import { ScheduleStatusBadge } from "@/components/equipment/ScheduleStatusBadge";
@@ -29,8 +28,7 @@ export function EquipmentDashboardClient({
   lowSpareParts,
 }: Props) {
   return (
-    <EquipmentAppShell>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div>
           <p className="text-sm text-slate-500">{EQUIPMENT_SUBTITLE}</p>
           <h1 className="text-2xl font-semibold text-slate-900">Dashboard thiết bị</h1>
@@ -108,6 +106,5 @@ export function EquipmentDashboardClient({
           />
         </div>
       </div>
-    </EquipmentAppShell>
   );
 }
