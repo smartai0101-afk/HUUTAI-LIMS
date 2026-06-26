@@ -325,7 +325,6 @@ export function ChemicalsClient({ items, groupOptions }: { items: ChemicalView[]
         </div>
 
         <DataTable
-          stickyLeadingColumns={2}
           columns={[
             { key: "code", header: "Mã hóa chất", render: (v, row) => groupedCell(row.showMasterFields, v) },
             { key: "name", header: "Tên hóa chất", render: (v, row) => groupedCell(row.showMasterFields, v) },

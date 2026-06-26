@@ -329,7 +329,6 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
         </div>
 
         <DataTable
-          stickyLeadingColumns={2}
           columns={[
             { key: "code", header: "Mã chuẩn", render: (v, row) => groupedCell(row.showMasterFields, v) },
             { key: "name", header: "Tên chuẩn", render: (v, row) => groupedCell(row.showMasterFields, v) },

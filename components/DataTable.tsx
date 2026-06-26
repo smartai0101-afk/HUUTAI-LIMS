@@ -26,7 +26,7 @@ interface DataTableProps<T extends object> {
   getRowKey?: (row: T, index: number) => string;
   expandedRowKeys?: string[];
   renderExpandedRow?: (row: T) => ReactNode | null;
-  /** Sticky leading data columns on mobile (lg+ uses 0). Default: 1 */
+  /** Sticky leading data columns on mobile (lg+ uses 0). Default: 0 */
   stickyLeadingColumns?: number;
 }
 
@@ -48,7 +48,7 @@ export function DataTable<T extends object>({
   getRowKey,
   expandedRowKeys = [],
   renderExpandedRow,
-  stickyLeadingColumns = 1,
+  stickyLeadingColumns = 0,
 }: DataTableProps<T>) {
   const visibleIds = useMemo(
     () => (selection ? rows.map((row) => selection.getRowId(row)) : []),

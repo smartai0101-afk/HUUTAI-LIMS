@@ -309,7 +309,6 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
         </div>
 
         <DataTable
-          stickyLeadingColumns={2}
           columns={[
             { key: "code", header: "Mã", render: (v, row) => groupedCell(row.showMasterFields, v) },
             { key: "name", header: "Tên chủng", render: (v, row) => groupedCell(row.showMasterFields, v) },
