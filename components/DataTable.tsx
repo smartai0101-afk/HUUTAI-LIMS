@@ -1,13 +1,13 @@
 "use client";
 
 import { Fragment, ReactNode, useMemo } from "react";
-import { TouchHorizontalScroll } from "@/components/TouchHorizontalScroll";
 import { cn } from "@/lib/utils";
 
-interface Column<T> {
+export interface DataTableColumn<T extends object> {
   key: keyof T;
   header: string;
   render?: (value: T[keyof T], row: T) => ReactNode;
+  minWidth?: number;
 }
 
 interface RowSelection<T> {
@@ -16,8 +16,8 @@ interface RowSelection<T> {
   onSelectedIdsChange: (ids: Set<string>) => void;
 }
 
-interface DataTableProps<T extends object> {
-  columns: Column<T>[];
+export interface DataTableProps<T extends object> {
+  columns: DataTableColumn<T>[];
   rows: T[];
   onRowClick?: (row: T) => void;
   rowActions?: (row: T) => ReactNode;
@@ -26,17 +26,10 @@ interface DataTableProps<T extends object> {
   getRowKey?: (row: T, index: number) => string;
   expandedRowKeys?: string[];
   renderExpandedRow?: (row: T) => ReactNode | null;
-  /** Sticky leading data columns on mobile (lg+ uses 0). Default: 0 */
-  stickyLeadingColumns?: number;
+  maxBodyHeight?: string;
 }
 
-function stickyCellClass(isSticky: boolean, isHeader: boolean) {
-  if (!isSticky) return undefined;
-  return cn(
-    "max-lg:sticky max-lg:z-10 max-lg:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
-    isHeader ? "max-lg:bg-slate-50" : "max-lg:bg-white",
-  );
-}
+const headerCellClass = "lg:sticky lg:top-0 lg:z-30 lg:bg-slate-50";
 
 export function DataTable<T extends object>({
   columns,
@@ -48,7 +41,7 @@ export function DataTable<T extends object>({
   getRowKey,
   expandedRowKeys = [],
   renderExpandedRow,
-  stickyLeadingColumns = 0,
+  maxBodyHeight = "min(70vh, calc(100vh - 14rem))",
 }: DataTableProps<T>) {
   const visibleIds = useMemo(
     () => (selection ? rows.map((row) => selection.getRowId(row)) : []),
@@ -76,22 +69,21 @@ export function DataTable<T extends object>({
     selection.onSelectedIdsChange(next);
   };
 
-  const stickyCount = Math.max(0, stickyLeadingColumns);
-
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <TouchHorizontalScroll showFade>
+      <div
+        className={cn(
+          "table-scroll-viewport",
+          "max-lg:touch-scroll-x max-lg:touch-scroll-x-mobile-hide max-lg:overflow-x-auto max-lg:overflow-y-hidden",
+          "lg:overflow-auto",
+        )}
+        style={{ ["--table-max-height" as string]: maxBodyHeight }}
+      >
         <table className="min-w-full border-separate border-spacing-0 text-sm">
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
               {selection ? (
-                <th
-                  className={cn(
-                    "w-10 whitespace-nowrap px-3 py-3 font-medium",
-                    stickyCellClass(true, true),
-                    "max-lg:left-0",
-                  )}
-                >
+                <th className={cn("w-10 whitespace-nowrap px-3 py-3 font-medium", headerCellClass)}>
                   <label className="inline-flex cursor-pointer items-center gap-2">
                     <input
                       type="checkbox"
@@ -106,31 +98,19 @@ export function DataTable<T extends object>({
                   </label>
                 </th>
               ) : null}
-              {columns.map((column, columnIndex) => {
-                const isSticky = columnIndex < stickyCount;
-                const leftOffset = selection ? 40 : 0;
-                const stickyLeft =
-                  isSticky && columnIndex > 0
-                    ? leftOffset + columnIndex * 120
-                    : isSticky
-                      ? leftOffset
-                      : undefined;
-
-                return (
-                  <th
-                    key={String(column.key)}
-                    className={cn(
-                      "whitespace-nowrap px-4 py-3 font-medium",
-                      stickyCellClass(isSticky, true),
-                    )}
-                    style={isSticky ? { left: stickyLeft } : undefined}
-                  >
-                    {column.header}
-                  </th>
-                );
-              })}
+              {columns.map((column) => (
+                <th
+                  key={String(column.key)}
+                  className={cn("whitespace-nowrap px-4 py-3 font-medium", headerCellClass)}
+                  style={column.minWidth ? { minWidth: column.minWidth } : undefined}
+                >
+                  {column.header}
+                </th>
+              ))}
               {rowActions ? (
-                <th className="whitespace-nowrap px-4 py-3 font-medium">{rowActionsHeader}</th>
+                <th className={cn("whitespace-nowrap px-4 py-3 font-medium", headerCellClass)}>
+                  {rowActionsHeader}
+                </th>
               ) : null}
             </tr>
           </thead>
@@ -153,12 +133,7 @@ export function DataTable<T extends object>({
                   >
                     {selection && selectionRowId ? (
                       <td
-                        className={cn(
-                          "whitespace-nowrap px-3 py-3 align-top",
-                          stickyCellClass(true, false),
-                          "max-lg:left-0",
-                          isSelected && "max-lg:bg-cyan-50/60",
-                        )}
+                        className="whitespace-nowrap px-3 py-3 align-top"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
@@ -169,32 +144,15 @@ export function DataTable<T extends object>({
                         />
                       </td>
                     ) : null}
-                    {columns.map((column, columnIndex) => {
-                      const isSticky = columnIndex < stickyCount;
-                      const leftOffset = selection ? 40 : 0;
-                      const stickyLeft =
-                        isSticky && columnIndex > 0
-                          ? leftOffset + columnIndex * 120
-                          : isSticky
-                            ? leftOffset
-                            : undefined;
-
-                      return (
-                        <td
-                          key={String(column.key)}
-                          className={cn(
-                            "whitespace-nowrap px-4 py-3 align-top text-slate-700",
-                            stickyCellClass(isSticky, false),
-                            isSelected && isSticky && "max-lg:bg-cyan-50/60",
-                          )}
-                          style={isSticky ? { left: stickyLeft } : undefined}
-                        >
-                          {column.render
-                            ? column.render(row[column.key], row)
-                            : String(row[column.key] ?? "")}
-                        </td>
-                      );
-                    })}
+                    {columns.map((column) => (
+                      <td
+                        key={String(column.key)}
+                        className="whitespace-nowrap px-4 py-3 align-top text-slate-700"
+                        style={column.minWidth ? { minWidth: column.minWidth } : undefined}
+                      >
+                        {column.render ? column.render(row[column.key], row) : String(row[column.key] ?? "")}
+                      </td>
+                    ))}
                     {rowActions ? (
                       <td className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         {rowActions(row)}
@@ -211,7 +169,7 @@ export function DataTable<T extends object>({
             })}
           </tbody>
         </table>
-      </TouchHorizontalScroll>
+      </div>
     </div>
   );
 }

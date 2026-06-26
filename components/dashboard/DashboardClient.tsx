@@ -11,6 +11,7 @@ import {
   Package,
   ShieldCheck,
   Syringe,
+  Wrench,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AlertPanel } from "@/components/AlertPanel";
@@ -18,7 +19,7 @@ import { DataTable } from "@/components/DataTable";
 import { StatCard } from "@/components/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate } from "@/lib/utils";
-import type { AlertItem, DashboardStats, UsageLogView } from "@/types";
+import type { AlertItem, DashboardStats, EquipmentDashboardStats, UsageLogView } from "@/types";
 
 type CriticalRow = {
   code: string;
@@ -36,18 +37,16 @@ export function DashboardClient({
   inventoryMix,
   recentLogs,
   criticalRows,
+  equipmentStats,
 }: {
   stats: DashboardStats;
   alerts: AlertItem[];
   inventoryMix: InventoryGroup[];
   recentLogs: UsageLogView[];
   criticalRows: CriticalRow[];
+  equipmentStats: EquipmentDashboardStats;
 }) {
-  const [alerts, setAlerts] = useState(initialAlerts);
-
-  const markReviewed = (id: string) => {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, reviewed: true } : a)));
-  };
+  const [alerts] = useState(initialAlerts);
 
   return (
     <AppShell>
@@ -73,15 +72,24 @@ export function DashboardClient({
           <StatCard title="HC pha chế" value={`${stats.preparedChemicalCount}`} change="Prepared" icon={Beaker} />
           <StatCard title="Chuẩn pha chế" value={`${stats.preparedStandardCount}`} change="Prepared" icon={ShieldCheck} />
           <StatCard title="Chủng pha chế" value={`${stats.preparedStrainCount}`} change="Prepared" icon={Syringe} />
-          <StatCard
-            title="Thống kê"
-            value={`${stats.chemicalCount + stats.standardCount + stats.microbialStrainCount}`}
-            change="Vật tư gốc"
-            icon={Package}
-          />
+          <StatCard title="Lot tồn kho" value={`${stats.containerCount}`} change="StockLot" icon={Package} />
           <StatCard title="Sắp hết hạn" value={`${stats.expiringSoon}`} change="30 ngày" icon={AlertTriangle} tone="warning" />
           <StatCard title="Tồn kho thấp" value={`${stats.lowStock}`} change="Review" icon={Boxes} tone="warning" />
           <StatCard title="Chờ huỷ" value={`${stats.pendingDisposal}`} change="Pending" icon={Syringe} tone="danger" />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Thiết bị" value={`${equipmentStats.totalCount}`} icon={Wrench} />
+          <StatCard title="HC quá hạn" value={`${equipmentStats.overdueCalibrationCount}`} icon={AlertTriangle} tone="danger" />
+          <StatCard title="BT quá hạn" value={`${equipmentStats.overdueMaintenanceCount}`} icon={AlertTriangle} tone="danger" />
+          <StatCard title="Phụ kiện thấp" value={`${equipmentStats.lowSparePartCount}`} icon={AlertTriangle} tone="warning" />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Link href="/stock-in" className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200">Nhập kho</Link>
+          <Link href="/containers" className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200">Thống kê</Link>
+          <Link href="/equipment/catalog" className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200">Danh mục TB</Link>
+          <Link href="/inventory-ledger" className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200">Sổ cái tồn</Link>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
@@ -113,7 +121,7 @@ export function DashboardClient({
             <h3 className="font-semibold text-slate-900">Compliance status</h3>
             <div className="mt-4 space-y-3">
               {[
-                { label: "Bình hoá chất", value: `${stats.containerCount - stats.standardCount > 0 ? stats.containerCount - (inventoryMix[1]?.value ?? 0) : stats.containerCount} active`, tone: "bg-cyan-500", width: "85%" },
+                { label: "Lot đang tồn", value: `${stats.containerCount} lot`, tone: "bg-cyan-500", width: "85%" },
                 { label: "Expiry risk", value: `${stats.expiringSoon} items`, tone: "bg-amber-500", width: `${Math.min(stats.expiringSoon * 15, 100)}%` },
                 { label: "Low stock", value: `${stats.lowStock} items`, tone: "bg-rose-500", width: `${Math.min(stats.lowStock * 20, 100)}%` },
                 { label: "Pending disposal", value: `${stats.pendingDisposal} items`, tone: "bg-violet-500", width: `${Math.min(stats.pendingDisposal * 25, 100)}%` },
@@ -157,7 +165,7 @@ export function DashboardClient({
             </div>
           </div>
 
-          <AlertPanel alerts={alerts.slice(0, 8)} showActions onMarkReviewed={markReviewed} />
+          <AlertPanel alerts={alerts.slice(0, 8)} showActions />
         </div>
 
         <div>

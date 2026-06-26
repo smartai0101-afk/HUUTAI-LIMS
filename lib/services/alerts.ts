@@ -1,4 +1,4 @@
-import { ContainerStatus } from "@prisma/client";
+import { StandardExpiryStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { toDateString } from "@/lib/mappers";
 import type { AlertItem } from "@/types";
@@ -10,68 +10,106 @@ export async function getAlerts(): Promise<AlertItem[]> {
   const soon = new Date(now.getTime() + THIRTY_DAYS_MS);
   const alerts: AlertItem[] = [];
 
-  const containers = await db.container.findMany({
-    include: { chemical: true, standard: true },
-    orderBy: { expiryDate: "asc" },
-  });
+  const [lots, chemicals, standards, strains] = await Promise.all([
+    db.stockLot.findMany({
+      where: { quantity: { gt: 0 } },
+      include: {
+        chemical: { select: { code: true, name: true } },
+        standard: { select: { code: true, name: true } },
+        microbialStrain: { select: { code: true, name: true } },
+      },
+      orderBy: { expiryDate: "asc" },
+    }),
+    db.chemical.findMany({ select: { code: true, name: true, quantity: true, unit: true, reorderLevel: true } }),
+    db.standard.findMany({ select: { code: true, name: true, quantity: true, unit: true } }),
+    db.microbialStrain.findMany({ select: { code: true, name: true, quantity: true, unit: true } }),
+  ]);
 
-  for (const container of containers) {
-    const item = container.chemical ?? container.standard;
-    if (!item) continue;
+  for (const lot of lots) {
+    const master = lot.chemical ?? lot.standard ?? lot.microbialStrain;
+    if (!master) continue;
 
-    const itemCode = item.code;
-    const itemRoute = container.chemicalId ? "/containers" : "/containers";
-    const expiry = container.expiryDate;
+    const itemRoute = lot.chemicalId ? "/chemicals" : lot.standardId ? "/standards" : "/containers";
+    const expiry = lot.expiryDate;
 
-    if (container.status === ContainerStatus.Expired) {
+    if (lot.status === StandardExpiryStatus.Expired || (expiry && expiry < now)) {
       alerts.push({
-        id: `exp-${container.id}`,
+        id: `exp-${lot.id}`,
         title: "Hết hạn",
-        description: `${item.name} (lot ${container.lot}) đã hết hạn`,
+        description: `${master.name} (lot ${lot.lot}) đã hết hạn`,
         severity: "Critical",
         type: "Expiry",
-        date: toDateString(expiry),
-        itemCode: container.code,
+        date: expiry ? toDateString(expiry) : toDateString(now),
+        itemCode: master.code,
         itemRoute,
       });
-    } else if (expiry >= now && expiry <= soon) {
+    } else if (expiry && expiry >= now && expiry <= soon) {
       alerts.push({
-        id: `soon-${container.id}`,
+        id: `soon-${lot.id}`,
         title: "Hết hạn trong 30 ngày",
-        description: `${item.name} sẽ hết hạn vào ${toDateString(expiry)}`,
-        severity: "Critical",
+        description: `${master.name} lot ${lot.lot} — ${toDateString(expiry)}`,
+        severity: "Warning",
         type: "Expiry",
         date: toDateString(expiry),
-        itemCode: container.code,
+        itemCode: master.code,
         itemRoute,
       });
     }
+  }
 
-    if (container.status === ContainerStatus.LowStock) {
-      alerts.push({
-        id: `low-${container.id}`,
-        title: "Tồn kho thấp",
-        description: `${item.name} còn ${container.quantity} ${container.unit}`,
-        severity: "Warning",
-        type: "Low Stock",
-        date: toDateString(expiry),
-        itemCode: container.code,
-        itemRoute,
-      });
-    }
+  for (const master of [...chemicals, ...standards, ...strains]) {
+    const threshold =
+      "reorderLevel" in master && typeof master.reorderLevel === "number" ? master.reorderLevel : 5;
+    if (master.quantity > threshold) continue;
+    alerts.push({
+      id: `low-${master.code}`,
+      title: "Tồn kho thấp",
+      description: `${master.name} còn ${master.quantity} ${master.unit}`,
+      severity: "Warning",
+      type: "Low Stock",
+      date: toDateString(now),
+      itemCode: master.code,
+      itemRoute: "/containers",
+    });
+  }
 
-    if (container.status === ContainerStatus.PendingDisposal) {
-      alerts.push({
-        id: `disp-${container.id}`,
-        title: "Chờ huỷ",
-        description: `${item.name} (lot ${container.lot}) đang chờ xử lý huỷ`,
-        severity: "Info",
-        type: "Pending Disposal",
-        date: toDateString(expiry),
-        itemCode: container.code,
-        itemRoute,
-      });
-    }
+  const [calPlans, maintPlans] = await Promise.all([
+    db.calibrationPlan.findMany({
+      where: { status: { in: ["Red", "Yellow"] } },
+      include: { equipment: { select: { code: true, name: true } } },
+      take: 10,
+    }),
+    db.maintenancePlan.findMany({
+      where: { status: { in: ["Red", "Yellow"] } },
+      include: { equipment: { select: { code: true, name: true } } },
+      take: 10,
+    }),
+  ]);
+
+  for (const plan of calPlans) {
+    alerts.push({
+      id: `cal-${plan.id}`,
+      title: plan.status === "Red" ? "HC quá hạn" : "HC sắp đến hạn",
+      description: `${plan.equipment.code} — ${plan.name}`,
+      severity: plan.status === "Red" ? "Critical" : "Warning",
+      type: "Calibration",
+      date: plan.nextDate ? toDateString(plan.nextDate) : toDateString(now),
+      itemCode: plan.equipment.code,
+      itemRoute: "/equipment/calibration-plans",
+    });
+  }
+
+  for (const plan of maintPlans) {
+    alerts.push({
+      id: `maint-${plan.id}`,
+      title: plan.status === "Red" ? "BT quá hạn" : "BT sắp đến hạn",
+      description: `${plan.equipment.code} — ${plan.name}`,
+      severity: plan.status === "Red" ? "Critical" : "Warning",
+      type: "Maintenance",
+      date: plan.nextDate ? toDateString(plan.nextDate) : toDateString(now),
+      itemCode: plan.equipment.code,
+      itemRoute: "/equipment/maintenance-plans",
+    });
   }
 
   return alerts.sort((a, b) => b.date.localeCompare(a.date));

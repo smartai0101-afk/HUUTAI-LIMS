@@ -229,11 +229,11 @@ export function ContainersClient({
             { key: "code", header: "Mã bình" },
             { key: "itemName", header: "Tên" },
             { key: "lot", header: "Lot" },
-            { key: "location", header: "Vị trí" },
             { key: "quantity", header: "SL" },
             { key: "unit", header: "ĐVT" },
             { key: "expiryDate", header: "Hạn dùng", render: (v) => formatDate(String(v)) },
             { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
+            { key: "location", header: "Vị trí" },
           ]}
           rows={filtered}
           onRowClick={(row) => { setSelected(row); setTab("Thông tin chung"); }}

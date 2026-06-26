@@ -15,6 +15,7 @@ export const NAV_PERMISSION_GROUPS = [
       { key: "prepared_strains" as const, label: "Chủng pha chế", href: "/prepared-strains" },
       { key: "containers" as const, label: "Thống kê", href: "/containers" },
       { key: "usage_logs" as const, label: "Nhật ký sử dụng", href: "/usage-logs" },
+      { key: "inventory_ledger" as const, label: "Sổ cái tồn", href: "/inventory-ledger" },
       { key: "reports" as const, label: "Báo cáo", href: "/reports" },
     ],
   },
@@ -60,6 +61,7 @@ export const NAV_PERMISSION_GROUPS = [
       { key: "admin_users" as const, label: "Người dùng", href: "/admin/users" },
       { key: "admin_permissions" as const, label: "Phân quyền", href: "/admin/permissions" },
       { key: "admin_tasks" as const, label: "Giao việc", href: "/admin/tasks" },
+      { key: "admin_staff" as const, label: "Nhân viên", href: "/admin/staff" },
     ],
   },
 ] as const;

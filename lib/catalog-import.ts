@@ -81,14 +81,30 @@ async function findExistingLotInDb(
   sourceType: StockInSourceType,
   code: string,
   lot: string,
+  cache?: Map<string, { quantity: number; unit: string } | null>,
 ): Promise<{ quantity: number; unit: string } | null> {
+  if (cache) {
+    for (const [key, value] of cache.entries()) {
+      const sep = key.indexOf("|");
+      if (sep <= 0) continue;
+      const cachedCode = key.slice(0, sep);
+      const cachedLot = key.slice(sep + 1);
+      if (cachedCode === code && catalogLotsMatch(cachedLot, lot)) {
+        return value;
+      }
+    }
+    return null;
+  }
+
   const master =
     sourceType === "Chemical"
       ? await db.chemical.findUnique({ where: { code } })
       : sourceType === "Standard"
         ? await db.standard.findUnique({ where: { code } })
         : await db.microbialStrain.findUnique({ where: { code } });
-  if (!master) return null;
+  if (!master) {
+    return null;
+  }
 
   const lots = await db.stockLot.findMany({
     where:
@@ -99,8 +115,39 @@ async function findExistingLotInDb(
           : { microbialStrainId: master.id },
   });
   const hit = lots.find((row) => catalogLotsMatch(row.lot, lot));
-  if (!hit) return null;
-  return { quantity: hit.quantity, unit: hit.unit };
+  return hit ? { quantity: hit.quantity, unit: hit.unit } : null;
+}
+
+async function buildLotLookupCache(
+  sourceType: StockInSourceType,
+  rows: Record<string, string>[],
+): Promise<Map<string, { quantity: number; unit: string } | null>> {
+  const cache = new Map<string, { quantity: number; unit: string } | null>();
+  const codes = [...new Set(rows.map((row) => strRow(row, "code")).filter(Boolean))];
+  if (!codes.length) return cache;
+
+  const masters =
+    sourceType === "Chemical"
+      ? await db.chemical.findMany({ where: { code: { in: codes } }, include: { stockLots: true } })
+      : sourceType === "Standard"
+        ? await db.standard.findMany({ where: { code: { in: codes } }, include: { stockLots: true } })
+        : await db.microbialStrain.findMany({ where: { code: { in: codes } }, include: { stockLots: true } });
+
+  for (const master of masters) {
+    for (const lotRow of master.stockLots) {
+      cache.set(`${master.code}|${lotRow.lot}`, { quantity: lotRow.quantity, unit: lotRow.unit });
+    }
+  }
+
+  for (const row of rows) {
+    const code = strRow(row, "code");
+    const lot = strRow(row, "lot");
+    if (!code || !lot) continue;
+    const key = `${code}|${lot}`;
+    if (!cache.has(key)) cache.set(key, null);
+  }
+
+  return cache;
 }
 
 export async function previewCatalogImport(params: {
@@ -117,6 +164,7 @@ export async function previewCatalogImport(params: {
     catalogRowDuplicateKey,
     catalogDuplicateLabel,
   );
+  const lotCache = await buildLotLookupCache(sourceType, normalized);
   const duplicates: CatalogDuplicateInDb[] = [];
 
   for (let i = 0; i < normalized.length; i++) {
@@ -127,7 +175,7 @@ export async function previewCatalogImport(params: {
     const lot = strRow(row, "lot");
     if (!code || !lot) continue;
 
-    const existing = await findExistingLotInDb(sourceType, code, lot);
+    const existing = await findExistingLotInDb(sourceType, code, lot, lotCache);
     if (existing) {
       duplicates.push({
         line,
@@ -162,6 +210,7 @@ export async function importCatalogLotRows(params: {
     catalogRowDuplicateKey,
     catalogDuplicateLabel,
   );
+  const lotCache = await buildLotLookupCache(sourceType, normalized);
   const errors: string[] = [...fileDup.errors];
   let count = 0;
 
@@ -208,7 +257,7 @@ export async function importCatalogLotRows(params: {
     }
 
     if (!mergeDuplicates) {
-      const existing = await findExistingLotInDb(sourceType, code, lot);
+      const existing = await findExistingLotInDb(sourceType, code, lot, lotCache);
       if (existing) {
         errors.push(
           `Dòng ${line}: lot "${lot}" của mã ${code} đã tồn tại (tồn ${existing.quantity} ${existing.unit}) — bỏ qua`,

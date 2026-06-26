@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { mapAuditLog, mapContainer, mapUsageLog, toDateString } from "@/lib/mappers";
+import { mapAuditLog, toDateString } from "@/lib/mappers";
+import { getDashboardStats } from "@/lib/services/dashboard";
 
 export async function getAuditLogs(limit = 50) {
   const logs = await db.auditLog.findMany({
@@ -10,58 +11,109 @@ export async function getAuditLogs(limit = 50) {
   return logs.map(mapAuditLog);
 }
 
-export async function getContainerExportRows() {
-  const containers = await db.container.findMany({
-    include: { chemical: true, standard: true },
-    orderBy: { code: "asc" },
+export async function getReportsStats() {
+  const [dashboard, usageLogCount, stockInCount, txnCount] = await Promise.all([
+    getDashboardStats(),
+    db.usageLog.count(),
+    db.stockInLog.count(),
+    db.inventoryTransaction.count(),
+  ]);
+
+  return {
+    ...dashboard,
+    usageLogCount,
+    stockInCount,
+    inventoryTransactionCount: txnCount,
+    disposeCount: dashboard.pendingDisposal,
+  };
+}
+
+export async function getStockLotExportRows() {
+  const lots = await db.stockLot.findMany({
+    include: {
+      chemical: { select: { code: true, name: true } },
+      standard: { select: { code: true, name: true } },
+      microbialStrain: { select: { code: true, name: true } },
+    },
+    orderBy: [{ chemicalId: "asc" }, { standardId: "asc" }, { lot: "asc" }],
   });
 
-  return containers.map((c) => {
-    const item = c.chemical ?? c.standard!;
+  return lots.map((lot) => {
+    const master = lot.chemical ?? lot.standard ?? lot.microbialStrain!;
+    const sourceType = lot.chemicalId ? "Chemical" : lot.standardId ? "Standard" : "MicrobialStrain";
     return {
-      code: c.code,
-      itemType: c.chemicalId ? "Chemical" : "Standard",
-      itemCode: item.code,
-      itemName: item.name,
-      lot: c.lot,
-      location: c.location,
-      quantity: c.quantity,
-      unit: c.unit,
-      expiryDate: toDateString(c.expiryDate),
-      status: c.status,
+      sourceType,
+      itemCode: master.code,
+      itemName: master.name,
+      lot: lot.lot,
+      quantity: lot.quantity,
+      unit: lot.unit,
+      expiryDate: lot.expiryDate ? toDateString(lot.expiryDate) : "",
+      storageLocation: lot.storageLocation,
+      status: lot.status,
     };
   });
 }
 
 export async function getUsageExportRows() {
   const logs = await db.usageLog.findMany({
-    include: {
-      container: { include: { chemical: true, standard: true } },
-    },
     orderBy: { date: "desc" },
   });
 
-  return logs.map((log) => {
-    const mapped = mapUsageLog(log);
-    return {
-      date: mapped.date,
-      type: mapped.type,
-      containerCode: mapped.containerCode,
-      itemCode: mapped.itemCode,
-      itemName: mapped.itemName,
-      quantity: mapped.quantity,
-      unit: mapped.unit,
-      performedBy: mapped.performedBy,
-      purpose: mapped.purpose,
-    };
-  });
+  return logs.map((log) => ({
+    date: toDateString(log.date),
+    type: log.type,
+    sourceType: log.sourceType,
+    sourceId: log.sourceId,
+    quantity: log.quantity,
+    unit: log.unit,
+    performedBy: log.performedBy,
+    purpose: log.purpose,
+    referenceCode: log.referenceCode,
+  }));
 }
 
-export async function getExpiryExportRows() {
-  const containers = await db.container.findMany({
-    include: { chemical: true, standard: true },
-    orderBy: { expiryDate: "asc" },
+export async function getStockInExportRows() {
+  const logs = await db.stockInLog.findMany({
+    include: { stockLot: true },
+    orderBy: { time: "desc" },
   });
 
-  return containers.map((c) => mapContainer(c));
+  return logs.map((log) => ({
+    time: log.time.toISOString(),
+    user: log.user,
+    sourceType: log.sourceType,
+    sourceCode: log.sourceCode,
+    sourceName: log.sourceName,
+    lot: log.lot,
+    quantityBefore: log.quantityBefore,
+    quantityIn: log.quantityIn,
+    quantityAfter: log.quantityAfter,
+    unit: log.unit,
+    notes: log.notes,
+  }));
+}
+
+export async function getInventoryTransactionExportRows(limit = 500) {
+  const rows = await db.inventoryTransaction.findMany({
+    orderBy: { time: "desc" },
+    take: limit,
+  });
+
+  return rows.map((row) => ({
+    time: row.time.toISOString(),
+    user: row.user,
+    module: row.module,
+    sourceType: row.sourceType,
+    sourceCode: row.sourceCode,
+    stockLotId: row.stockLotId ?? "",
+    quantityBefore: row.quantityBefore,
+    quantityUsed: row.quantityUsed,
+    quantityAfter: row.quantityAfter,
+    unit: row.unit,
+    actionType: row.actionType,
+    referenceType: row.referenceType,
+    referenceId: row.referenceId,
+    notes: row.notes,
+  }));
 }

@@ -22,6 +22,10 @@ import type { AuditLogView } from "@/types";
 export function ReportsClient({
   auditLogs,
   stats,
+  stockExport,
+  usageExport,
+  stockInExport,
+  transactionExport,
 }: {
   auditLogs: AuditLogView[];
   stats: {
@@ -33,11 +37,16 @@ export function ReportsClient({
     preparedStandardCount: number;
     preparedStrainCount: number;
     usageLogCount: number;
-    expiringCount: number;
+    stockInCount: number;
+    inventoryTransactionCount: number;
+    expiringSoon: number;
     disposeCount: number;
+    lowStock: number;
   };
-  containerExport: Array<Record<string, string | number>>;
+  stockExport: Array<Record<string, string | number>>;
   usageExport: Array<Record<string, string | number>>;
+  stockInExport: Array<Record<string, string | number>>;
+  transactionExport: Array<Record<string, string | number>>;
 }) {
   const [query, setQuery] = useState("");
   const { canViewAuditReports } = useRole();
@@ -58,11 +67,12 @@ export function ReportsClient({
     { id: "pchem", title: "HC pha chế", icon: Beaker, value: `${stats.preparedChemicalCount}` },
     { id: "pstd", title: "Chuẩn pha chế", icon: Archive, value: `${stats.preparedStandardCount}` },
     { id: "pstrain", title: "Chủng pha chế", icon: Archive, value: `${stats.preparedStrainCount}` },
-    { id: "containers", title: "Thống kê", icon: Boxes, value: `${stats.chemicalCount + stats.standardCount + stats.microbialStrainCount}` },
-    { id: "expiry", title: "Sắp hết hạn", icon: CalendarRange, value: `${stats.expiringCount} items` },
-    { id: "usage", title: "Lịch sử sử dụng", icon: Boxes, value: `${stats.usageLogCount} events` },
-    { id: "dispose", title: "Chờ huỷ", icon: ShieldAlert, value: `${stats.disposeCount} items` },
-    { id: "audit", title: "Audit trail", icon: AlertTriangle, value: `${auditLogs.length} logs` },
+    { id: "lots", title: "Lot tồn kho", icon: Boxes, value: `${stats.containerCount}` },
+    { id: "expiry", title: "Sắp hết hạn", icon: CalendarRange, value: `${stats.expiringSoon}` },
+    { id: "usage", title: "Nhật ký sử dụng", icon: Boxes, value: `${stats.usageLogCount}` },
+    { id: "stockin", title: "Nhập kho", icon: Archive, value: `${stats.stockInCount}` },
+    { id: "ledger", title: "Sổ cái", icon: ShieldAlert, value: `${stats.inventoryTransactionCount}` },
+    { id: "audit", title: "Audit trail", icon: AlertTriangle, value: `${auditLogs.length}` },
   ];
 
   const handleExportAudit = () => {
@@ -77,7 +87,7 @@ export function ReportsClient({
         after: log.after,
       })),
     );
-    addToast("Đã export CSV thành công", "success");
+    addToast("Đã export audit CSV", "success");
   };
 
   return (
@@ -88,14 +98,23 @@ export function ReportsClient({
             <p className="text-sm text-slate-500">Analytics</p>
             <h1 className="text-2xl font-semibold text-slate-900">Báo cáo</h1>
           </div>
-          <button
-            type="button"
-            onClick={handleExportAudit}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700"
-          >
-            <FileDown className="h-4 w-4" />
-            Export audit CSV
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { downloadCsv("ton-kho-lot", stockExport); addToast("Đã export tồn kho", "success"); }} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <FileDown className="h-4 w-4" /> Tồn lot
+            </button>
+            <button type="button" onClick={() => { downloadCsv("nhat-ky-su-dung", usageExport); addToast("Đã export nhật ký", "success"); }} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <FileDown className="h-4 w-4" /> Nhật ký
+            </button>
+            <button type="button" onClick={() => { downloadCsv("nhap-kho", stockInExport); addToast("Đã export nhập kho", "success"); }} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <FileDown className="h-4 w-4" /> Nhập kho
+            </button>
+            <button type="button" onClick={() => { downloadCsv("so-cai", transactionExport); addToast("Đã export sổ cái", "success"); }} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <FileDown className="h-4 w-4" /> Sổ cái
+            </button>
+            <button type="button" onClick={handleExportAudit} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm text-white">
+              <FileDown className="h-4 w-4" /> Audit
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -123,7 +142,7 @@ export function ReportsClient({
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <p className="font-medium text-slate-900">Audit trail không khả dụng</p>
             <p className="mt-1 text-sm text-slate-500">
-              Role hiện tại không có quyền xem audit trail. Chuyển sang QA/QC, Analyst, Admin hoặc Lab Manager.
+              Role hiện tại không có quyền xem audit trail.
             </p>
           </div>
         )}

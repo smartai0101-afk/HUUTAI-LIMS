@@ -3,6 +3,7 @@
 import type { StockInSourceType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/audit";
+import { requireSessionCanEdit } from "@/lib/auth/guards";
 import { saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
@@ -48,7 +49,10 @@ async function resolveCoaPath(fd: FormData): Promise<{ coaPath: string | null; e
 }
 
 export async function createStockIn(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanEdit();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const performedBy = str(formData, "performedBy") || user;
   const sourceType = parseStockInSourceType(String(formData.get("sourceType") ?? ""));
 

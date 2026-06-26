@@ -3,6 +3,7 @@ import { getChemicals } from "@/lib/services/chemicals";
 import { getMicrobialStrains } from "@/lib/services/microbial-strains";
 import { getStandards } from "@/lib/services/standards";
 import { usageSourceLabel } from "@/lib/usage-source";
+import type { StockLotView } from "@/types";
 
 export type UsageLogItemOption = {
   id: string;
@@ -13,10 +14,18 @@ export type UsageLogItemOption = {
   sourceType: UsageSourceType;
   sourceLabel: string;
   label: string;
+  stockLots: StockLotView[];
 };
 
 function formatOption(
-  item: { id: string; code: string; name: string; quantity: number; unit: string },
+  item: {
+    id: string;
+    code: string;
+    name: string;
+    quantity: number;
+    unit: string;
+    stockLots: StockLotView[];
+  },
   sourceType: UsageSourceType,
 ): UsageLogItemOption {
   const sourceLabel = usageSourceLabel(sourceType);
@@ -30,6 +39,7 @@ function formatOption(
     sourceType,
     sourceLabel,
     label: `${item.code} — ${item.name} (còn ${item.quantity}${unitSuffix})`,
+    stockLots: item.stockLots,
   };
 }
 

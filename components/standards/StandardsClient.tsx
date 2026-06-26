@@ -350,8 +350,8 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
             { key: "afterOpenExpiry", header: "Hạn sau mở nắp", render: (v) => (v ? formatDate(String(v)) : "-") },
             { key: "storageCondition", header: "Điều kiện bảo quản" },
             { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
-            { key: "storageLocation", header: "Vị trí lưu" },
             { key: "notes", header: "Ghi chú" },
+            { key: "storageLocation", header: "Vị trí lưu" },
           ]}
           rows={filtered}
           getRowKey={(row) => row.rowKey}

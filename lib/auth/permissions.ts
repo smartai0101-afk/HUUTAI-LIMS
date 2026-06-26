@@ -54,6 +54,7 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     ...writeAll(MATERIALS_KEYS),
     ...writeAll(EQUIPMENT_KEYS),
     admin_tasks: "write",
+    admin_staff: "write",
   },
   Analyst: {
     ...writeAll(MATERIALS_KEYS),

@@ -3,6 +3,7 @@
 import { UsageLogType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/audit";
+import { requireSessionCanEdit, requireSessionCanManage } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import {
   applyInventoryStockChange,
@@ -10,6 +11,7 @@ import {
   microbialStrainStockLine,
   standardStockLine,
 } from "@/lib/inventory-stock";
+import { LOT_SELECTION_REQUIRED_MESSAGE } from "@/lib/inventory-lot-policy";
 import { parseUsageSourceType } from "@/lib/usage-source";
 
 const REVALIDATE_PATHS = [
@@ -19,6 +21,7 @@ const REVALIDATE_PATHS = [
   "/chemicals",
   "/standards",
   "/microbial-strains",
+  "/inventory-ledger",
   "/",
   "/reports",
 ];
@@ -40,10 +43,12 @@ function stockLine(
   sourceId: string,
   quantity: number,
   unit: string,
+  stockLotId?: string | null,
 ) {
-  if (sourceType === "Standard") return standardStockLine(sourceId, quantity, unit);
-  if (sourceType === "MicrobialStrain") return microbialStrainStockLine(sourceId, quantity, unit);
-  return chemicalStockLine(sourceId, quantity, unit);
+  const opts = stockLotId ? { stockLotId } : undefined;
+  if (sourceType === "Standard") return standardStockLine(sourceId, quantity, unit, opts);
+  if (sourceType === "MicrobialStrain") return microbialStrainStockLine(sourceId, quantity, unit, opts);
+  return chemicalStockLine(sourceId, quantity, unit, opts);
 }
 
 async function resolveItemName(sourceType: NonNullable<ReturnType<typeof parseUsageSourceType>>, sourceId: string) {
@@ -59,12 +64,35 @@ async function resolveItemName(sourceType: NonNullable<ReturnType<typeof parseUs
   return row ? `${row.code} ${row.name}` : sourceId;
 }
 
+async function validateLotSelection(
+  sourceType: NonNullable<ReturnType<typeof parseUsageSourceType>>,
+  sourceId: string,
+  stockLotId: string | null,
+): Promise<string | null> {
+  const lotCount = await db.stockLot.count({
+    where:
+      sourceType === "Chemical"
+        ? { chemicalId: sourceId }
+        : sourceType === "Standard"
+          ? { standardId: sourceId }
+          : { microbialStrainId: sourceId },
+  });
+
+  if (lotCount >= 2 && !stockLotId) {
+    return LOT_SELECTION_REQUIRED_MESSAGE;
+  }
+  return null;
+}
+
 function revalidateAll() {
   for (const path of REVALIDATE_PATHS) revalidatePath(path);
 }
 
 export async function createUsageLog(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanEdit();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const sourceType = parseUsageSourceType(String(formData.get("sourceType") ?? ""));
   const sourceId = String(formData.get("sourceId") ?? "");
   const type = parseUsageType(String(formData.get("type") ?? ""));
@@ -76,6 +104,7 @@ export async function createUsageLog(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim();
   const referenceCode = String(formData.get("referenceCode") ?? "").trim();
   const date = parseDate(String(formData.get("date") ?? "")) ?? new Date();
+  const stockLotId = String(formData.get("stockLotId") ?? "").trim() || null;
 
   if (!sourceType || !sourceId || !type || quantity <= 0 || !unit || !performedBy.trim()) {
     return { error: "Thiếu thông tin bắt buộc hoặc số lượng không hợp lệ" };
@@ -85,9 +114,12 @@ export async function createUsageLog(formData: FormData) {
     return { error: "Ghi chú là bắt buộc khi huỷ/thanh lý" };
   }
 
+  const lotError = await validateLotSelection(sourceType, sourceId, stockLotId);
+  if (lotError) return { error: lotError };
+
   try {
     const log = await db.$transaction(async (tx) => {
-      const line = stockLine(sourceType, sourceId, quantity, unit);
+      const line = stockLine(sourceType, sourceId, quantity, unit, stockLotId);
       const stockError =
         type === UsageLogType.IN
           ? await applyInventoryStockChange(tx, {
@@ -134,7 +166,7 @@ export async function createUsageLog(formData: FormData) {
       entityType: "UsageLog",
       entityId: log.id,
       object: log.id,
-      after: `${type} ${quantity} ${unit} ${itemName}`,
+      after: `${type} ${quantity} ${unit} ${itemName}${stockLotId ? ` lot:${stockLotId}` : ""}`,
     });
 
     revalidateAll();
@@ -145,7 +177,10 @@ export async function createUsageLog(formData: FormData) {
 }
 
 export async function deleteUsageLog(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanManage();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const id = String(formData.get("id") ?? "");
 
   const log = await db.usageLog.findUnique({ where: { id } });

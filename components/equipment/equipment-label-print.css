@@ -1,0 +1,117 @@
+.label-card {
+  box-sizing: border-box;
+  width: var(--label-width, 7cm);
+  height: var(--label-height, 5cm);
+  border: 1px solid #333;
+  padding: 2.5mm;
+  position: relative;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  font-size: var(--label-font-size, 7.5pt);
+  line-height: var(--label-line-height, 1.15);
+  background: #fff;
+  color: #000;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+  display: flex;
+  flex-direction: column;
+}
+
+.label-watermark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%;
+  max-height: 55%;
+  object-fit: contain;
+  opacity: 0.08;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.label-content {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+.label-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: var(--label-title-size, 8.5pt);
+  margin-bottom: var(--label-title-gap, 1mm);
+}
+
+.label-row {
+  word-break: break-word;
+  margin-bottom: var(--label-row-gap, 0.4mm);
+}
+
+.label-row strong {
+  font-weight: 700;
+}
+
+.label-preview-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: visible;
+}
+
+.equipment-print-area-host {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 7cm);
+    gap: 3mm;
+    padding: 5mm;
+    width: auto;
+    height: auto;
+    overflow: visible;
+  }
+
+  .equipment-print-area-host {
+    position: static;
+    left: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    pointer-events: auto;
+  }
+
+  .label-card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  @page {
+    size: A4;
+    margin: 5mm;
+  }
+}

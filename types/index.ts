@@ -8,7 +8,7 @@ export type AlertItem = {
   type: string;
   date: string;
   itemCode?: string;
-  itemRoute?: "/chemicals" | "/standards" | "/solutions" | "/containers";
+  itemRoute?: "/chemicals" | "/standards" | "/solutions" | "/containers" | "/equipment/calibration-plans" | "/equipment/maintenance-plans";
   reviewed?: boolean;
 };
 

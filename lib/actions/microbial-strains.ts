@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { deleteCoaFile, saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/audit";
+import { requireSessionCanEdit, requireSessionCanManage } from "@/lib/auth/guards";
+import { masterHasStockLots, quantityChangeBlocked } from "@/lib/catalog-quantity-guard";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import { computeStandardStatus, type StandardExpiryStatus } from "@/lib/standard-status";
 
@@ -87,7 +89,10 @@ async function isInUse(id: string) {
 }
 
 export async function createMicrobialStrain(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanEdit();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const code = str(formData, "code");
   const name = str(formData, "name");
 
@@ -108,7 +113,10 @@ export async function createMicrobialStrain(formData: FormData) {
 }
 
 export async function updateMicrobialStrain(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanEdit();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const id = str(formData, "id");
   const code = str(formData, "code");
   const name = str(formData, "name");
@@ -122,7 +130,12 @@ export async function updateMicrobialStrain(formData: FormData) {
   const resolved = await resolveCoaPathString(formData, before.coaPath);
   if (resolved.error) return { error: resolved.error };
 
-  const row = await db.microbialStrain.update({ where: { id }, data: toPrisma(buildData(formData, resolved.coaPath)) });
+  const writeData = buildData(formData, resolved.coaPath);
+  const hasLots = await masterHasStockLots(db, "MicrobialStrain", id);
+  const qtyBlock = quantityChangeBlocked(hasLots, before.quantity, writeData.quantity);
+  if (qtyBlock) return { error: qtyBlock };
+
+  const row = await db.microbialStrain.update({ where: { id }, data: toPrisma(writeData) });
 
   await logActivity({ user, action: "Updated", entityType: "MicrobialStrain", entityId: id, object: code, before, after: row });
   revalidatePath("/microbial-strains");
@@ -133,7 +146,10 @@ export async function updateMicrobialStrain(formData: FormData) {
 }
 
 export async function deleteMicrobialStrain(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanManage();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const id = String(formData.get("id") ?? "");
 
   const before = await db.microbialStrain.findUnique({ where: { id } });

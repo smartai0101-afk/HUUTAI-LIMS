@@ -414,7 +414,6 @@ export function PreparedChemicalsClient({
             { key: "preparedDate", header: "Ngày pha chế", render: (v) => (v ? formatDate(String(v)) : "-") },
             { key: "expiryDate", header: "Ngày hết hạn", render: (v) => (v ? formatDate(String(v)) : "-") },
             { key: "preparedBy", header: "Người pha" },
-            { key: "storageLocation", header: "Vị trí lưu" },
             {
               key: "ingredientsSummary",
               header: "Hóa chất gốc sử dụng",
@@ -427,6 +426,7 @@ export function PreparedChemicalsClient({
               ),
             },
             { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
+            { key: "storageLocation", header: "Vị trí lưu" },
           ]}
           rows={filtered}
           onRowClick={setSelected}

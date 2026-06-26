@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Plus, Search, Upload } from "lucide-react";
+import { Download, Plus, Printer, Search, Upload } from "lucide-react";
 import { ReactNode } from "react";
 
 type Props = {
@@ -13,6 +13,9 @@ type Props = {
   onExport?: () => void;
   exportLabel?: string;
   onImport?: () => void;
+  onPrintLabels?: () => void;
+  printLabelsDisabled?: boolean;
+  printLabelsLabel?: string;
   onCreate?: () => void;
   createLabel?: string;
   canEdit?: boolean;
@@ -29,6 +32,9 @@ export function EquipmentModuleShell({
   onExport,
   exportLabel = "Export Excel",
   onImport,
+  onPrintLabels,
+  printLabelsDisabled = true,
+  printLabelsLabel = "In tem nhãn",
   onCreate,
   createLabel = "Thêm mới",
   canEdit = false,
@@ -50,6 +56,17 @@ export function EquipmentModuleShell({
             >
               <Download className="h-4 w-4" />
               {exportLabel}
+            </button>
+          ) : null}
+          {onPrintLabels ? (
+            <button
+              type="button"
+              onClick={onPrintLabels}
+              disabled={printLabelsDisabled}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Printer className="h-4 w-4" />
+              {printLabelsLabel}
             </button>
           ) : null}
           {onImport && canEdit ? (

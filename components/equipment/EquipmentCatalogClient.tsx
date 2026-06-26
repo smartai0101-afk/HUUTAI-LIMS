@@ -10,6 +10,7 @@ import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
 import { FilterChipBar } from "@/components/FilterChipBar";
 import { EquipmentFileUpload } from "@/components/equipment/EquipmentFileUpload";
+import { EquipmentLabelPreviewModal } from "@/components/equipment/EquipmentLabelPreviewModal";
 import { EquipmentModuleShell } from "@/components/equipment/EquipmentModuleShell";
 import { EquipmentStatusBadge } from "@/components/equipment/EquipmentStatusBadge";
 import { USER_DISPLAY_NAME, useRole } from "@/components/RoleProvider";
@@ -114,6 +115,8 @@ export function EquipmentCatalogClient({
   const [manualFile, setManualFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EquipmentView | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set());
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -157,6 +160,11 @@ export function EquipmentCatalogClient({
       return matchQuery && matchDept && matchStatus && matchManager && matchCal;
     });
   }, [items, query, deptFilter, statusFilter, managerFilter, calExpiryFilter]);
+
+  const selectedRows = useMemo(
+    () => filtered.filter((item) => selectedRowIds.has(item.id)),
+    [filtered, selectedRowIds],
+  );
 
   const submitFormData = () => {
     const fd = new FormData();
@@ -245,6 +253,8 @@ export function EquipmentCatalogClient({
         searchPlaceholder="Tìm theo mã, tên, model, serial..."
         onExport={handleExport}
         onImport={() => setIsImportOpen(true)}
+        onPrintLabels={() => setPrintPreviewOpen(true)}
+        printLabelsDisabled={selectedRowIds.size === 0}
         onCreate={openCreate}
         createLabel="Thêm thiết bị"
         canEdit={canEdit}
@@ -328,6 +338,11 @@ export function EquipmentCatalogClient({
           rows={filtered}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
+          selection={{
+            getRowId: (row) => row.id,
+            selectedIds: selectedRowIds,
+            onSelectedIdsChange: setSelectedRowIds,
+          }}
           rowActionsHeader="Hành động"
           rowActions={
             canManage
@@ -500,6 +515,12 @@ export function EquipmentCatalogClient({
         confirmLabel="Xóa"
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
+      />
+
+      <EquipmentLabelPreviewModal
+        open={printPreviewOpen}
+        onClose={() => setPrintPreviewOpen(false)}
+        items={selectedRows}
       />
     </>
   );

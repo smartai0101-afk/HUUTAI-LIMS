@@ -12,7 +12,14 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { UsageStatsPanel } from "@/components/usage-logs/UsageStatsPanel";
 import { USER_DISPLAY_NAME, useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
+import { StockLotPicker } from "@/components/StockLotPicker";
 import { createUsageLog, deleteUsageLog } from "@/lib/actions/usage-logs";
+import {
+  emptyStockLotSelection,
+  pickDefaultStockLot,
+  requiresLotSelection,
+  type StockLotSelection,
+} from "@/lib/stock-lot-selection";
 import type { UsageLogItemOption } from "@/lib/services/usage-log-options";
 import type {
   UsageEmployeeStatRow,
@@ -52,6 +59,7 @@ type FormState = {
   purposeCustom: string;
   notes: string;
   referenceCode: string;
+  stockLot: StockLotSelection;
 };
 
 function buildInitialForm(defaultPerformer: string): FormState {
@@ -69,6 +77,7 @@ function buildInitialForm(defaultPerformer: string): FormState {
     purposeCustom: "",
     notes: "",
     referenceCode: "",
+    stockLot: emptyStockLotSelection(),
   };
 }
 
@@ -138,6 +147,7 @@ export function UsageLogsClient({
       sourceType: option.sourceType,
       sourceId: option.id,
       unit: option.unit || prev.unit,
+      stockLot: pickDefaultStockLot(option.stockLots) ?? emptyStockLotSelection(),
     }));
     setIsFormOpen(true);
     setActiveTab("journal");
@@ -170,6 +180,7 @@ export function UsageLogsClient({
       sourceType,
       sourceId: "",
       unit: "L",
+      stockLot: emptyStockLotSelection(),
     }));
   };
 
@@ -179,6 +190,7 @@ export function UsageLogsClient({
       ...prev,
       sourceId,
       unit: item?.unit ?? prev.unit,
+      stockLot: item ? pickDefaultStockLot(item.stockLots) ?? emptyStockLotSelection() : emptyStockLotSelection(),
     }));
   };
 
@@ -207,6 +219,11 @@ export function UsageLogsClient({
       return;
     }
 
+    if (selectedItem && requiresLotSelection(selectedItem.stockLots) && !form.stockLot.stockLotId) {
+      addToast("Vui lòng chọn lot khi vật tư có nhiều lot", "error");
+      return;
+    }
+
     const fd = new FormData();
     fd.set("user", role);
     fd.set("sourceType", form.sourceType);
@@ -222,6 +239,9 @@ export function UsageLogsClient({
     fd.set("purpose", purpose);
     fd.set("notes", form.notes);
     fd.set("referenceCode", form.referenceCode);
+    if (form.stockLot.stockLotId) {
+      fd.set("stockLotId", form.stockLot.stockLotId);
+    }
 
     startTransition(async () => {
       const result = await createUsageLog(fd);
@@ -478,6 +498,15 @@ export function UsageLogsClient({
                   ))}
                 </select>
               </div>
+              {selectedItem && selectedItem.stockLots.length > 0 ? (
+                <div className="sm:col-span-2">
+                  <StockLotPicker
+                    stockLots={selectedItem.stockLots}
+                    value={form.stockLot}
+                    onChange={(stockLot) => setForm((prev) => ({ ...prev, stockLot }))}
+                  />
+                </div>
+              ) : null}
               <div>
                 <label className="mb-1 block text-sm text-slate-600">Loại giao dịch</label>
                 <select

@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { deleteCoaFile, saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/audit";
+import { requireSessionCanEdit, requireSessionCanManage } from "@/lib/auth/guards";
+import { masterHasStockLots, quantityChangeBlocked } from "@/lib/catalog-quantity-guard";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import {
   codesMatch,
@@ -104,7 +106,10 @@ async function isInUse(id: string) {
 }
 
 export async function createChemical(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanEdit();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const code = str(formData, "code");
   const name = str(formData, "name");
 
@@ -140,7 +145,10 @@ export async function createChemical(formData: FormData) {
 }
 
 export async function updateChemical(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanEdit();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const id = str(formData, "id");
   const code = str(formData, "code");
   const name = str(formData, "name");
@@ -154,7 +162,12 @@ export async function updateChemical(formData: FormData) {
   const resolved = await resolveCoaPathString(formData, before.coaPath);
   if (resolved.error) return { error: resolved.error };
 
-  const chemical = await db.chemical.update({ where: { id }, data: toPrisma(buildData(formData, resolved.coaPath)) });
+  const writeData = buildData(formData, resolved.coaPath);
+  const hasLots = await masterHasStockLots(db, "Chemical", id);
+  const qtyBlock = quantityChangeBlocked(hasLots, before.quantity, writeData.quantity);
+  if (qtyBlock) return { error: qtyBlock };
+
+  const chemical = await db.chemical.update({ where: { id }, data: toPrisma(writeData) });
 
   await logActivity({ user, action: "Updated", entityType: "Chemical", entityId: id, object: code, before, after: chemical });
   revalidatePath("/chemicals");
@@ -165,7 +178,10 @@ export async function updateChemical(formData: FormData) {
 }
 
 export async function deleteChemical(formData: FormData) {
-  const user = String(formData.get("user") ?? "System");
+  const auth = await requireSessionCanManage();
+  if ("error" in auth) return { error: auth.error };
+
+  const user = auth.user.name || auth.user.email;
   const id = String(formData.get("id") ?? "");
 
   const before = await db.chemical.findUnique({ where: { id } });

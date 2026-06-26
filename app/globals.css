@@ -62,6 +62,33 @@ textarea {
   .touch-scroll-x-desktop::-webkit-scrollbar-thumb:hover {
     background: rgb(100 116 139);
   }
+
+  .table-scroll-viewport {
+    --table-max-height: min(70vh, calc(100vh - 14rem));
+    max-height: var(--table-max-height);
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184) rgb(241 245 249);
+    overscroll-behavior: contain;
+  }
+
+  .table-scroll-viewport::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .table-scroll-viewport::-webkit-scrollbar-track {
+    background: rgb(241 245 249);
+    border-radius: 9999px;
+  }
+
+  .table-scroll-viewport::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184);
+    border-radius: 9999px;
+  }
+
+  .table-scroll-viewport::-webkit-scrollbar-thumb:hover {
+    background: rgb(100 116 139);
+  }
 }
 
 .touch-scroll-y {

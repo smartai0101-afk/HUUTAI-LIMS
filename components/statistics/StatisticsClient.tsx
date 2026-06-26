@@ -19,24 +19,38 @@ const sourceFilters: Array<{ value: "all" | InventoryStatSourceType; label: stri
   { value: "microbial", label: "Chủng gốc vi sinh" },
 ];
 
+const riskFilters = ["All", "expiring", "low"] as const;
+
 export function StatisticsClient({ items }: { items: InventoryStatRow[] }) {
   const router = useRouter();
   const { addToast } = useToast();
   const [query, setQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<(typeof sourceFilters)[number]["value"]>("all");
   const [statusFilter, setStatusFilter] = useState<(typeof STANDARD_STATUS_FILTERS)[number]>("All");
+  const [riskFilter, setRiskFilter] = useState<(typeof riskFilters)[number]>("All");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
+    const now = Date.now();
+    const soon = now + 30 * 24 * 60 * 60 * 1000;
     return items.filter((item) => {
       const matchQuery = [item.code, item.name, item.manufacturer, item.casOrProductNumber, item.lot, item.notes].some(
         (value) => value.toLowerCase().includes(query.toLowerCase()),
       );
       const matchSource = sourceFilter === "all" || item.sourceType === sourceFilter;
       const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchSource && matchStatus;
+      const matchRisk =
+        riskFilter === "All" ||
+        (riskFilter === "expiring" &&
+          item.stockLots.some((lot) => {
+            if (!lot.expiryDate) return false;
+            const t = new Date(lot.expiryDate).getTime();
+            return t >= now && t <= soon;
+          })) ||
+        (riskFilter === "low" && item.quantity <= 5);
+      return matchQuery && matchSource && matchStatus && matchRisk;
     });
-  }, [items, query, sourceFilter, statusFilter]);
+  }, [items, query, sourceFilter, statusFilter, riskFilter]);
 
   const handleExport = () => {
     downloadCsv(
@@ -129,6 +143,20 @@ export function StatisticsClient({ items }: { items: InventoryStatRow[] }) {
               ))}
             </div>
             <div className="flex flex-wrap gap-2">
+              {riskFilters.map((risk) => (
+                <button
+                  key={risk}
+                  type="button"
+                  onClick={() => setRiskFilter(risk)}
+                  className={`rounded-xl px-3 py-2 text-sm ${
+                    riskFilter === risk ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {risk === "All" ? "Tất cả rủi ro" : risk === "expiring" ? "Sắp hết hạn" : "Tồn thấp"}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
               {STANDARD_STATUS_FILTERS.map((status) => (
                 <button
                   key={status}
@@ -186,9 +214,9 @@ export function StatisticsClient({ items }: { items: InventoryStatRow[] }) {
             { key: "coaPath", header: "COA", render: (_v, row) => <CoaLink path={row.coaPath} /> },
             { key: "unit", header: "Đơn vị" },
             { key: "quantity", header: "Số lượng tồn" },
-            { key: "storageLocation", header: "Vị trí lưu" },
             { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
             { key: "notes", header: "Ghi chú" },
+            { key: "storageLocation", header: "Vị trí lưu" },
           ]}
           rows={filtered}
           onRowClick={handleRowClick}
