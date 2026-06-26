@@ -13,6 +13,7 @@ import { formatCasProductSnapshot } from "../lib/chemicals-fields";
 import { addCycleMonths, computeScheduleStatus } from "../lib/equipment-schedule";
 import { computeStandardStatus } from "../lib/standard-status";
 import { db as prisma } from "../lib/db";
+import { seedExtendedCatalog, seedExtendedEquipmentAll, seedExtendedPostStockLots } from "./seed-data";
 
 function parseDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
@@ -962,8 +963,11 @@ async function main() {
     },
   });
 
+  await seedExtendedCatalog(prisma);
   await seedEquipment();
+  await seedExtendedEquipmentAll(prisma);
   await seedStockLotsFromCatalog();
+  await seedExtendedPostStockLots(prisma);
   await seedAuth();
 
   console.log("Seed completed.");
