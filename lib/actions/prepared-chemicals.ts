@@ -12,6 +12,11 @@ import {
   STOCK_SHORTAGE_MESSAGE,
 } from "@/lib/inventory-stock";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
+import {
+  archivePreparedCode,
+  findActivePreparedChemicalByCode,
+  releaseSoftDeletedPreparedChemicalCode,
+} from "@/lib/prepared-code-guard";
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
 
 import { resolveStockLotSelection } from "@/lib/resolve-stock-lot-selection";
@@ -196,9 +201,10 @@ export async function createPreparedChemical(fd: FormData) {
     return { error: "Thể tích/khối lượng pha chế không hợp lệ" };
   }
   if (!data.unit) return { error: "ĐVT là bắt buộc" };
-  if (await db.preparedChemical.findUnique({ where: { code: data.code } })) {
+  if (await findActivePreparedChemicalByCode(data.code)) {
     return { error: "Mã hóa chất pha đã tồn tại" };
   }
+  await releaseSoftDeletedPreparedChemicalCode(data.code);
 
   const newId = randomUUID();
 
@@ -292,10 +298,10 @@ export async function updatePreparedChemical(fd: FormData) {
     if (amendError) return { error: amendError };
   }
 
-  const duplicate = await db.preparedChemical.findFirst({
-    where: { code: data.code, NOT: { id } },
-  });
-  if (duplicate) return { error: "Mã hóa chất pha đã tồn tại" };
+  if (await findActivePreparedChemicalByCode(data.code, id)) {
+    return { error: "Mã hóa chất pha đã tồn tại" };
+  }
+  await releaseSoftDeletedPreparedChemicalCode(data.code);
 
   const restoreLines = before.ingredients.map((ing) =>
     chemicalStockLine(ing.chemicalId, ing.quantityUsed, ing.unit, {
@@ -406,7 +412,11 @@ export async function deletePreparedChemical(fd: FormData) {
 
       await tx.preparedChemical.update({
         where: { id },
-        data: { deletedAt: new Date(), workflowStatus: "Cancelled" },
+        data: {
+          deletedAt: new Date(),
+          workflowStatus: "Cancelled",
+          code: archivePreparedCode(before.code, id),
+        },
       });
     });
 

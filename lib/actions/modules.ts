@@ -4,6 +4,11 @@ import { InventoryItemStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/audit";
 import { isValidFormDate, missingFieldsMessage, parseFormDate, statusFromLabel } from "@/lib/modules/shared";
+import {
+  archivePreparedCode,
+  findActivePreparedStrainByCode,
+  releaseSoftDeletedPreparedStrainCode,
+} from "@/lib/prepared-code-guard";
 import { computeStandardStatus } from "@/lib/standard-status";
 import { db } from "@/lib/db";
 import {
@@ -127,6 +132,11 @@ export async function createPreparedStrain(fd: FormData) {
   const preparedDate = parseFormDate(preparedDateStr)!;
   const expiryDate = parseFormDate(expiryDateStr)!;
 
+  if (await findActivePreparedStrainByCode(code)) {
+    return { error: "Mã chủng pha chế đã tồn tại" };
+  }
+  await releaseSoftDeletedPreparedStrainCode(code);
+
   try {
     const row = await db.$transaction(async (tx) => {
       const sourceStrain = await tx.microbialStrain.findUnique({ where: { id: sourceStrainId } });
@@ -201,6 +211,12 @@ export async function updatePreparedStrain(fd: FormData) {
   const sourceStrainId = str(fd, "sourceStrainId");
   const sourceStockLotId = str(fd, "sourceStockLotId");
   if (!sourceStockLotId) return { error: "Lot chủng gốc là bắt buộc" };
+
+  const nextCode = str(fd, "code");
+  if (await findActivePreparedStrainByCode(nextCode, id)) {
+    return { error: "Mã chủng pha chế đã tồn tại" };
+  }
+  await releaseSoftDeletedPreparedStrainCode(nextCode);
 
   try {
     const row = await db.$transaction(async (tx) => {
@@ -322,7 +338,11 @@ export async function deletePreparedStrain(fd: FormData) {
 
       await tx.preparedStrain.update({
         where: { id },
-        data: { deletedAt: new Date(), workflowStatus: "Cancelled" },
+        data: {
+          deletedAt: new Date(),
+          workflowStatus: "Cancelled",
+          code: archivePreparedCode(before.code, id),
+        },
       });
     });
     await audit(user, "Deleted", "PreparedStrain", id, before.code, before);

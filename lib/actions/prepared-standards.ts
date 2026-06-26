@@ -16,6 +16,11 @@ import {
   STOCK_SHORTAGE_MESSAGE,
 } from "@/lib/inventory-stock";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
+import {
+  archivePreparedCode,
+  findActivePreparedStandardByCode,
+  releaseSoftDeletedPreparedStandardCode,
+} from "@/lib/prepared-code-guard";
 import { computePreparedStandardStatus } from "@/lib/prepared-standard-status";
 import {
   PARENT_LEVEL_REQUIRED_MESSAGE,
@@ -465,9 +470,10 @@ export async function createPreparedStandard(fd: FormData) {
   const validationError = validateBase(data, components, solvents);
   if (validationError) return { error: validationError };
 
-  if (await db.preparedStandard.findUnique({ where: { code: data.code } })) {
+  if (await findActivePreparedStandardByCode(data.code)) {
     return { error: "Mã chuẩn pha chế đã tồn tại" };
   }
+  await releaseSoftDeletedPreparedStandardCode(data.code);
 
   const newId = randomUUID();
   const initialQuantity = Number.isFinite(data.solventVolume) ? data.solventVolume : 0;
@@ -567,10 +573,10 @@ export async function updatePreparedStandard(fd: FormData) {
     if (amendError) return { error: amendError };
   }
 
-  const duplicate = await db.preparedStandard.findFirst({
-    where: { code: data.code, NOT: { id } },
-  });
-  if (duplicate) return { error: "Mã chuẩn pha chế đã tồn tại" };
+  if (await findActivePreparedStandardByCode(data.code, id)) {
+    return { error: "Mã chuẩn pha chế đã tồn tại" };
+  }
+  await releaseSoftDeletedPreparedStandardCode(data.code);
 
   try {
     const row = await db.$transaction(async (tx) => {
@@ -693,7 +699,11 @@ export async function deletePreparedStandard(fd: FormData) {
 
       await tx.preparedStandard.update({
         where: { id },
-        data: { deletedAt: new Date(), workflowStatus: "Cancelled" },
+        data: {
+          deletedAt: new Date(),
+          workflowStatus: "Cancelled",
+          code: archivePreparedCode(before.code, id),
+        },
       });
     });
 

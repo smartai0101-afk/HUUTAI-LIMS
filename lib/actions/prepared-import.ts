@@ -9,6 +9,14 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/audit";
 import { requireSessionCanEdit } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
+import {
+  findActivePreparedChemicalByCode,
+  findActivePreparedStandardByCode,
+  findActivePreparedStrainByCode,
+  releaseSoftDeletedPreparedChemicalCode,
+  releaseSoftDeletedPreparedStandardCode,
+  releaseSoftDeletedPreparedStrainCode,
+} from "@/lib/prepared-code-guard";
 import { parseQuantityWithUnit } from "@/lib/excel-import-utils";
 import { isValidFormDate, parseFormDate, statusFromLabel } from "@/lib/modules/shared";
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
@@ -159,7 +167,8 @@ export async function bulkImportPreparedChemicals(formData: FormData) {
       continue;
     }
 
-    const exists = await db.preparedChemical.findUnique({ where: { code } });
+    await releaseSoftDeletedPreparedChemicalCode(code);
+    const exists = await findActivePreparedChemicalByCode(code);
     if (exists) {
       errors.push(`Dòng ${line}: mã ${code} đã tồn tại`);
       continue;
@@ -243,7 +252,8 @@ export async function bulkImportPreparedStandards(formData: FormData) {
       continue;
     }
 
-    const exists = await db.preparedStandard.findUnique({ where: { code } });
+    await releaseSoftDeletedPreparedStandardCode(code);
+    const exists = await findActivePreparedStandardByCode(code);
     if (exists) {
       errors.push(`Dòng ${firstLine}: mã ${code} đã tồn tại`);
       continue;
@@ -391,7 +401,8 @@ export async function bulkImportPreparedStrains(formData: FormData) {
       continue;
     }
 
-    const exists = await db.preparedStrain.findUnique({ where: { code } });
+    await releaseSoftDeletedPreparedStrainCode(code);
+    const exists = await findActivePreparedStrainByCode(code);
     if (exists) {
       errors.push(`Dòng ${line}: mã ${code} đã tồn tại`);
       continue;
