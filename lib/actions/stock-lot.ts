@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { deleteCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
 import { deleteStockLotInTransaction } from "@/lib/stock-lot";
@@ -38,7 +38,7 @@ export async function deleteStockLot(formData: FormData) {
     const { ref } = result;
     if (ref.coaPath) await deleteCoaFile(ref.coaPath);
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Deleted",
       entityType: "StockLot",

@@ -88,6 +88,8 @@ const ROUTE_ENTRIES: RouteEntry[] = NAV_PERMISSION_GROUPS.flatMap((g) =>
 export function routePermission(pathname: string): PermissionKey | null {
   if (pathname === "/login" || pathname === "/access-denied") return null;
   if (pathname === "/account" || pathname.startsWith("/account/")) return null;
+  if (pathname === "/notifications" || pathname.startsWith("/notifications/")) return null;
+  if (pathname.startsWith("/api/notifications")) return null;
 
   for (const item of ROUTE_ENTRIES) {
     if (item.href === "/") {

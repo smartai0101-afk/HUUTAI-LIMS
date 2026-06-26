@@ -2,7 +2,7 @@
 
 import type { StockInSourceType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
@@ -120,7 +120,7 @@ export async function createStockIn(formData: FormData) {
 
     if ("error" in result) return { error: result.error };
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "StockIn",
       entityType: sourceType,

@@ -2,7 +2,7 @@
 
 import { UsageLogType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import {
   applyInventoryStockChange,
@@ -128,7 +128,7 @@ export async function createUsageLog(formData: FormData) {
 
     const itemName = await resolveItemName(sourceType, sourceId);
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Created",
       entityType: "UsageLog",
@@ -177,7 +177,7 @@ export async function deleteUsageLog(formData: FormData) {
       await tx.usageLog.delete({ where: { id } });
     });
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Deleted",
       entityType: "UsageLog",

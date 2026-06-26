@@ -2,7 +2,7 @@
 
 import type { EquipmentDisposalStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { requireApproveRole, requireEditRole, requireManageRole } from "@/lib/equipment-auth";
 import { appendEquipmentHistory } from "@/lib/equipment-history";
@@ -86,7 +86,7 @@ export async function createDisposal(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "EquipmentDisposal",
@@ -131,7 +131,7 @@ export async function updateDisposal(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "EquipmentDisposal",
@@ -165,7 +165,7 @@ export async function deleteDisposal(formData: FormData) {
     await tx.equipmentDisposal.delete({ where: { id } });
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "EquipmentDisposal",
@@ -229,7 +229,7 @@ export async function approveDisposal(formData: FormData) {
     return disposal;
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: newStatus === "Approved" ? "Approved" : "Rejected",
     entityType: "EquipmentDisposal",

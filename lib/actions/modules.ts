@@ -2,7 +2,7 @@
 
 import { InventoryItemStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { isValidFormDate, missingFieldsMessage, parseFormDate, statusFromLabel } from "@/lib/modules/shared";
 import { computeStandardStatus } from "@/lib/standard-status";
 import { db } from "@/lib/db";
@@ -31,7 +31,7 @@ function revalidateAll(paths: string[]) {
 const COMMON_PATHS = ["/", "/reports"];
 
 async function audit(user: string, action: string, entityType: string, entityId: string, object: string, before?: unknown, after?: unknown) {
-  await writeAuditLog({ user, action, entityType, entityId, object, before, after });
+  await logActivity({ user, action, entityType, entityId, object, before, after });
 }
 
 export async function createMicrobialStrain(fd: FormData) {

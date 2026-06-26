@@ -3,7 +3,7 @@
 import type { PreparedStandardLevel, Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { formatCasProductSnapshot } from "@/lib/chemicals-fields";
 import { db } from "@/lib/db";
 import {
@@ -517,7 +517,7 @@ export async function createPreparedStandard(fd: FormData) {
       });
     });
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Created",
       entityType: "PreparedStandard",
@@ -620,7 +620,7 @@ export async function updatePreparedStandard(fd: FormData) {
       });
     });
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Updated",
       entityType: "PreparedStandard",
@@ -677,7 +677,7 @@ export async function deletePreparedStandard(fd: FormData) {
       await tx.preparedStandard.delete({ where: { id } });
     });
 
-    await writeAuditLog({
+    await logActivity({
       action: "Deleted",
       entityType: "PreparedStandard",
       entityId: id,

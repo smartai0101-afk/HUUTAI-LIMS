@@ -1,6 +1,7 @@
 import type { EquipmentStatus, PrismaClient } from "@prisma/client";
 import { addCycleMonths, computeScheduleStatus } from "../../lib/equipment-schedule";
 import { parseDate } from "./helpers";
+import { equipmentSpecificationsForCode } from "./equipment-specifications";
 
 type DeviceSeed = {
   code: string;
@@ -75,6 +76,7 @@ export async function seedExtendedEquipment(prisma: PrismaClient) {
         model: dev.model,
         serialNumber: dev.serialNumber,
         manufacturer: dev.manufacturer,
+        specifications: equipmentSpecificationsForCode(dev.code),
         department: dev.department,
         location: dev.location,
         manager: dev.manager,

@@ -2,7 +2,7 @@
 
 import type { EquipmentHistoryEventType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { requireEditRole, requireManageRole } from "@/lib/equipment-auth";
 import { isAutoSyncedHistory } from "@/lib/equipment-history";
@@ -93,7 +93,7 @@ export async function createHistoryEvent(formData: FormData) {
   const uploadResult = await saveHistoryAttachmentsFromForm(formData, row.id, user);
   if (uploadResult.error) return { error: uploadResult.error };
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "EquipmentHistoryEvent",
@@ -138,7 +138,7 @@ export async function updateHistoryEvent(formData: FormData) {
   const uploadResult = await saveHistoryAttachmentsFromForm(formData, id, user);
   if (uploadResult.error) return { error: uploadResult.error };
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "EquipmentHistoryEvent",
@@ -171,7 +171,7 @@ export async function addHistoryEventImages(formData: FormData) {
   const uploadResult = await saveHistoryAttachmentsFromForm(formData, eventId, user);
   if (uploadResult.error) return { error: uploadResult.error };
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "EquipmentHistoryEvent",
@@ -204,7 +204,7 @@ export async function deleteHistoryEventImage(formData: FormData) {
   await db.equipmentAttachment.delete({ where: { id: attachmentId } });
 
   if (event) {
-    await writeAuditLog({
+    await logActivity({ actorUserId: auth.user.id,
       user,
       action: "Deleted",
       entityType: "EquipmentAttachment",
@@ -244,7 +244,7 @@ export async function deleteHistoryEvent(formData: FormData) {
   });
 
   await db.equipmentHistoryEvent.delete({ where: { id } });
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "EquipmentHistoryEvent",

@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { formatCasProductSnapshot } from "@/lib/chemicals-fields";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import {
   applyInventoryStockChange,
@@ -238,7 +238,7 @@ export async function createPreparedChemical(fd: FormData) {
       });
     });
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Created",
       entityType: MODULE_NAME,
@@ -339,7 +339,7 @@ export async function updatePreparedChemical(fd: FormData) {
       });
     });
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Updated",
       entityType: MODULE_NAME,
@@ -391,7 +391,7 @@ export async function deletePreparedChemical(fd: FormData) {
       await tx.preparedChemical.delete({ where: { id } });
     });
 
-    await writeAuditLog({
+    await logActivity({
       user,
       action: "Deleted",
       entityType: MODULE_NAME,

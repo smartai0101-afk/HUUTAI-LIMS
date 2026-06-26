@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, LogOut, Search } from "lucide-react";
+import { LogOut, Search } from "lucide-react";
 import { useSession, useUserDisplayName } from "@/components/SessionProvider";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { logout } from "@/lib/actions/auth";
 
 function initialsFromName(name: string) {
@@ -36,14 +37,7 @@ export function Topbar() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="relative rounded-xl border border-slate-200 p-2.5 text-slate-600"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500" />
-          </button>
+          <NotificationBell />
           {user ? (
             <Link
               href="/account"

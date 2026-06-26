@@ -4,6 +4,7 @@ import type { TaskStatus, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requireRole } from "@/lib/auth/guards";
 import { roleToLabel } from "@/lib/auth/roles";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 
 const TASK_PATH = "/admin/tasks";
@@ -85,7 +86,7 @@ export async function createTask(formData: FormData): Promise<{ error?: string }
 
   if (!title || !assignedToId) return { error: "Vui lòng điền tiêu đề và người nhận" };
 
-  await db.task.create({
+  const task = await db.task.create({
     data: {
       title,
       description,
@@ -94,6 +95,16 @@ export async function createTask(formData: FormData): Promise<{ error?: string }
       dueDate,
       status: "Pending",
     },
+  });
+
+  await logActivity({
+    actorUserId: auth.user.id,
+    user: auth.user.name,
+    action: "Created",
+    entityType: "Task",
+    entityId: task.id,
+    recordLabel: title,
+    object: title,
   });
 
   revalidatePath(TASK_PATH);
@@ -129,6 +140,18 @@ export async function updateTaskStatus(formData: FormData): Promise<{ error?: st
   }
 
   await db.task.update({ where: { id }, data: { status } });
+
+  await logActivity({
+    actorUserId: auth.user.id,
+    user: auth.user.name,
+    action: "StatusChanged",
+    entityType: "Task",
+    entityId: id,
+    recordLabel: task.title,
+    object: task.title,
+    metadata: { from: task.status, to: status },
+  });
+
   revalidatePath(TASK_PATH);
   return {};
 }
@@ -140,7 +163,22 @@ export async function deleteTask(formData: FormData): Promise<{ error?: string }
   const id = str(formData, "id");
   if (!id) return { error: "Thiếu id task" };
 
+  const task = await db.task.findUnique({ where: { id } });
+  if (!task) return { error: "Task không tồn tại" };
+
   await db.task.delete({ where: { id } });
+
+  await logActivity({
+    actorUserId: auth.user.id,
+    user: auth.user.name,
+    action: "Deleted",
+    entityType: "Task",
+    entityId: id,
+    recordLabel: task.title,
+    object: task.title,
+    before: task,
+  });
+
   revalidatePath(TASK_PATH);
   return {};
 }

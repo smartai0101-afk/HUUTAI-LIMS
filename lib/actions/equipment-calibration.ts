@@ -2,7 +2,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { requireEditRole, requireManageRole, requireApproveRole } from "@/lib/equipment-auth";
 import { appendEquipmentHistory } from "@/lib/equipment-history";
@@ -136,7 +136,7 @@ export async function createCalibrationPlan(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "CalibrationPlan",
@@ -177,7 +177,7 @@ export async function updateCalibrationPlan(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "CalibrationPlan",
@@ -200,7 +200,7 @@ export async function deleteCalibrationPlan(formData: FormData) {
   if (!before) return { error: "Không tìm thấy kế hoạch hiệu chuẩn" };
 
   await db.calibrationPlan.delete({ where: { id } });
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "CalibrationPlan",
@@ -281,7 +281,7 @@ export async function createCalibrationRecord(formData: FormData) {
     return record;
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "CalibrationRecord",
@@ -352,7 +352,7 @@ export async function updateCalibrationRecord(formData: FormData) {
     return record;
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "CalibrationRecord",
@@ -389,7 +389,7 @@ export async function deleteCalibrationRecord(formData: FormData) {
     await tx.calibrationRecord.delete({ where: { id } });
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "CalibrationRecord",
@@ -435,7 +435,7 @@ export async function createPostCalibrationEvaluation(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "PostCalibrationEvaluation",
@@ -467,7 +467,7 @@ export async function updatePostCalibrationEvaluation(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "PostCalibrationEvaluation",
@@ -490,7 +490,7 @@ export async function deletePostCalibrationEvaluation(formData: FormData) {
   if (!before) return { error: "Không tìm thấy đánh giá sau hiệu chuẩn" };
 
   await db.postCalibrationEvaluation.delete({ where: { id } });
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "PostCalibrationEvaluation",
@@ -525,7 +525,7 @@ export async function approvePostCalibrationEvaluation(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: approved ? "Approved" : "Rejected",
     entityType: "PostCalibrationEvaluation",

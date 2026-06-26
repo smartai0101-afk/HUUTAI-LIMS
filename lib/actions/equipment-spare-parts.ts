@@ -2,7 +2,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { requireEditRole, requireManageRole } from "@/lib/equipment-auth";
 import { appendEquipmentHistory } from "@/lib/equipment-history";
@@ -57,7 +57,7 @@ export async function createSparePart(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "SparePart",
@@ -100,7 +100,7 @@ export async function updateSparePart(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "SparePart",
@@ -123,7 +123,7 @@ export async function deleteSparePart(formData: FormData) {
   if (!before) return { error: "Không tìm thấy phụ kiện" };
 
   await db.sparePart.delete({ where: { id } });
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "SparePart",
@@ -163,7 +163,7 @@ export async function linkSparePartToEquipment(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Linked",
     entityType: "EquipmentSparePartLink",
@@ -189,7 +189,7 @@ export async function unlinkSparePartFromEquipment(formData: FormData) {
   if (!before) return { error: "Không tìm thấy liên kết" };
 
   await db.equipmentSparePartLink.delete({ where: { id } });
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Unlinked",
     entityType: "EquipmentSparePartLink",
@@ -261,7 +261,7 @@ export async function recordSparePartUsage(formData: FormData) {
     return usage;
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Used",
     entityType: "SparePartUsage",

@@ -2,7 +2,7 @@
 
 import { ContainerStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { computeContainerStatus } from "@/lib/container-status";
 import { db } from "@/lib/db";
 
@@ -71,7 +71,7 @@ export async function createContainer(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Created",
     entityType: "Container",
@@ -140,7 +140,7 @@ export async function updateContainer(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Updated",
     entityType: "Container",
@@ -167,7 +167,7 @@ export async function deleteContainer(formData: FormData) {
 
   await db.container.delete({ where: { id } });
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Deleted",
     entityType: "Container",

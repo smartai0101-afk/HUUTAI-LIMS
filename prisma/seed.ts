@@ -14,6 +14,7 @@ import { addCycleMonths, computeScheduleStatus } from "../lib/equipment-schedule
 import { computeStandardStatus } from "../lib/standard-status";
 import { db as prisma } from "../lib/db";
 import { seedExtendedCatalog, seedExtendedEquipmentAll, seedExtendedPostStockLots } from "./seed-data";
+import { equipmentSpecificationsForCode } from "./seed-data/equipment-specifications";
 
 function parseDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
@@ -267,6 +268,7 @@ async function seedEquipment() {
         model: dev.model,
         serialNumber: dev.serialNumber,
         manufacturer: dev.manufacturer,
+        specifications: equipmentSpecificationsForCode(dev.code),
         department: dev.department,
         location: dev.location,
         manager: dev.manager,

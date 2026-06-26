@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { deleteCoaFile, saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import { computeStandardStatus, type StandardExpiryStatus } from "@/lib/standard-status";
 
@@ -142,7 +142,7 @@ export async function createStandard(formData: FormData) {
   const writeData = buildStandardData(formData, resolved.coaPath);
   const standard = await db.standard.create({ data: toPrismaCreateData(writeData) });
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Created",
     entityType: "Standard",
@@ -185,7 +185,7 @@ export async function updateStandard(formData: FormData) {
   const writeData = buildStandardData(formData, resolved.coaPath);
   const standard = await db.standard.update({ where: { id }, data: toPrismaCreateData(writeData) });
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Updated",
     entityType: "Standard",
@@ -221,7 +221,7 @@ export async function deleteStandard(formData: FormData) {
   if (before.coaPath) await deleteCoaFile(before.coaPath);
   await db.standard.delete({ where: { id } });
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Deleted",
     entityType: "Standard",

@@ -58,6 +58,7 @@ const formFields: { key: keyof FormState; label: string; type?: "text" | "date" 
   { key: "model", label: "Model" },
   { key: "serialNumber", label: "Số serial" },
   { key: "manufacturer", label: "Hãng SX" },
+  { key: "specifications", label: "Thông số kỹ thuật", type: "textarea" },
   { key: "countryOfOrigin", label: "Xuất xứ" },
   { key: "manufacturingYear", label: "Năm SX", type: "number" },
   { key: "purchaseDate", label: "Ngày mua", type: "date" },
@@ -67,7 +68,6 @@ const formFields: { key: keyof FormState; label: string; type?: "text" | "date" 
   { key: "location", label: "Vị trí" },
   { key: "manager", label: "Người quản lý" },
   { key: "calibrator", label: EQUIPMENT_COLUMN.calibrationVendor },
-  { key: "specifications", label: "Thông số kỹ thuật", type: "textarea" },
   { key: "iqOqPqNotes", label: "Ghi chú IQ/OQ/PQ", type: "textarea" },
 ];
 
@@ -137,6 +137,7 @@ export function EquipmentCatalogClient({
         item.model.toLowerCase().includes(q) ||
         item.serialNumber.toLowerCase().includes(q) ||
         item.manufacturer.toLowerCase().includes(q) ||
+        item.specifications.toLowerCase().includes(q) ||
         item.department.toLowerCase().includes(q) ||
         item.location.toLowerCase().includes(q) ||
         item.manager.toLowerCase().includes(q);
@@ -307,12 +308,22 @@ export function EquipmentCatalogClient({
             { key: "model", header: "Model" },
             { key: "serialNumber", header: "Số serial" },
             { key: "manufacturer", header: "Hãng SX" },
+            {
+              key: "specifications",
+              header: "Thông số kỹ thuật",
+              minWidth: 250,
+              render: (v) => (
+                <span className="block max-w-[280px] whitespace-normal break-words text-slate-700">
+                  {String(v ?? "").trim() || "-"}
+                </span>
+              ),
+            },
             { key: "department", header: "Bộ phận" },
-            { key: "location", header: "Vị trí" },
             { key: "manager", header: "Người quản lý" },
             { key: "status", header: "Tình trạng", render: (v) => <EquipmentStatusBadge status={String(v)} /> },
             { key: "lastCalibrationDate", header: EQUIPMENT_COLUMN.latestCalibration, render: (v) => (v ? formatDate(String(v)) : "-") },
             { key: "calibrationExpiryDate", header: EQUIPMENT_COLUMN.calibrationExpiry, render: (v) => (v ? formatDate(String(v)) : "-") },
+            { key: "location", header: "Vị trí" },
           ]}
           rows={filtered}
           getRowKey={(row) => row.id}
@@ -373,6 +384,7 @@ export function EquipmentCatalogClient({
                 ["model", "Model"],
                 ["serialNumber", "Số serial"],
                 ["manufacturer", "Hãng SX"],
+                ["specifications", "Thông số kỹ thuật"],
                 ["department", "Bộ phận"],
                 ["location", "Vị trí"],
                 ["manager", "Người quản lý"],
@@ -380,7 +392,6 @@ export function EquipmentCatalogClient({
                 ["lastCalibrationDate", EQUIPMENT_COLUMN.latestCalibration],
                 ["calibrationExpiryDate", EQUIPMENT_COLUMN.calibrationExpiry],
                 ["calibrator", EQUIPMENT_COLUMN.calibrationVendor],
-                ["specifications", "Thông số"],
                 ["iqOqPqNotes", "IQ/OQ/PQ"],
               ].map(([key, label]) => (
                 <div key={key} className={key === "specifications" || key === "iqOqPqNotes" ? "sm:col-span-2" : ""}>

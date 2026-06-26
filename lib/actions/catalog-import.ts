@@ -7,7 +7,7 @@ import {
   type CatalogImportKind,
 } from "@/lib/catalog-import";
 import { requireSessionCanEdit } from "@/lib/auth/guards";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 
 const REVALIDATE_PATHS = [
   "/chemicals",
@@ -65,7 +65,7 @@ async function bulkImportCatalog(kind: CatalogImportKind, formData: FormData) {
   const entityType =
     kind === "chemical" ? "Chemical" : kind === "standard" ? "Standard" : "MicrobialStrain";
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Imported",
     entityType,

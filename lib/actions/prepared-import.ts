@@ -6,7 +6,7 @@ import {
   PreparedStandardLevel,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { requireSessionCanEdit } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { parseQuantityWithUnit } from "@/lib/excel-import-utils";
@@ -194,7 +194,7 @@ export async function bulkImportPreparedChemicals(formData: FormData) {
     return { error: errors.length ? errors.slice(0, 5).join("; ") : "Không có dòng hợp lệ để import" };
   }
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Imported",
     entityType: "PreparedChemical",
@@ -342,7 +342,7 @@ export async function bulkImportPreparedStandards(formData: FormData) {
     return { error: errors.length ? errors.slice(0, 5).join("; ") : "Không có dòng hợp lệ để import" };
   }
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Imported",
     entityType: "PreparedStandard",
@@ -436,7 +436,7 @@ export async function bulkImportPreparedStrains(formData: FormData) {
     return { error: errors.length ? errors.slice(0, 5).join("; ") : "Không có dòng hợp lệ để import" };
   }
 
-  await writeAuditLog({
+  await logActivity({
     user,
     action: "Imported",
     entityType: "PreparedStrain",

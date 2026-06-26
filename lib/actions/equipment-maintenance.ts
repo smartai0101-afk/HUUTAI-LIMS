@@ -2,7 +2,7 @@
 
 import type { Prisma, RepairProposalPriority, RepairProposalStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { requireApproveRole, requireEditRole, requireManageRole } from "@/lib/equipment-auth";
 import { appendEquipmentHistory } from "@/lib/equipment-history";
@@ -140,7 +140,7 @@ export async function createMaintenancePlan(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "MaintenancePlan",
@@ -181,7 +181,7 @@ export async function updateMaintenancePlan(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "MaintenancePlan",
@@ -204,7 +204,7 @@ export async function deleteMaintenancePlan(formData: FormData) {
   if (!before) return { error: "Không tìm thấy kế hoạch bảo trì" };
 
   await db.maintenancePlan.delete({ where: { id } });
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "MaintenancePlan",
@@ -275,7 +275,7 @@ export async function createMaintenanceLog(formData: FormData) {
     return log;
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "MaintenanceLog",
@@ -328,7 +328,7 @@ export async function updateMaintenanceLog(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "MaintenanceLog",
@@ -390,7 +390,7 @@ export async function completeMaintenanceLog(formData: FormData) {
     return log;
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Completed",
     entityType: "MaintenanceLog",
@@ -425,7 +425,7 @@ export async function deleteMaintenanceLog(formData: FormData) {
     await tx.maintenanceLog.delete({ where: { id } });
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "MaintenanceLog",
@@ -465,7 +465,7 @@ export async function createRepairProposal(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "RepairProposal",
@@ -507,7 +507,7 @@ export async function updateRepairProposal(formData: FormData) {
     },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "RepairProposal",
@@ -540,7 +540,7 @@ export async function approveRepairCompletion(formData: FormData) {
     data: { status: "Completed", updatedBy: user },
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Approved",
     entityType: "RepairProposal",
@@ -566,7 +566,7 @@ export async function deleteRepairProposal(formData: FormData) {
   if (!before) return { error: "Không tìm thấy phiếu sửa chữa" };
 
   await db.repairProposal.delete({ where: { id } });
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "RepairProposal",
@@ -640,7 +640,7 @@ export async function convertProposalToLog(formData: FormData) {
     return log;
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Converted",
     entityType: "RepairProposal",

@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { deleteCoaFile, saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import {
   codesMatch,
@@ -132,7 +132,7 @@ export async function createChemical(formData: FormData) {
 
   const chemical = await db.chemical.create({ data: toPrisma(buildData(formData, resolved.coaPath)) });
 
-  await writeAuditLog({ user, action: "Created", entityType: "Chemical", entityId: chemical.id, object: code, after: chemical });
+  await logActivity({ user, action: "Created", entityType: "Chemical", entityId: chemical.id, object: code, after: chemical });
   revalidatePath("/chemicals");
   revalidatePath("/");
   revalidatePath("/reports");
@@ -156,7 +156,7 @@ export async function updateChemical(formData: FormData) {
 
   const chemical = await db.chemical.update({ where: { id }, data: toPrisma(buildData(formData, resolved.coaPath)) });
 
-  await writeAuditLog({ user, action: "Updated", entityType: "Chemical", entityId: id, object: code, before, after: chemical });
+  await logActivity({ user, action: "Updated", entityType: "Chemical", entityId: id, object: code, before, after: chemical });
   revalidatePath("/chemicals");
   revalidatePath("/containers");
   revalidatePath("/");
@@ -175,7 +175,7 @@ export async function deleteChemical(formData: FormData) {
   if (before.coaPath) await deleteCoaFile(before.coaPath);
   await db.chemical.delete({ where: { id } });
 
-  await writeAuditLog({ user, action: "Deleted", entityType: "Chemical", entityId: id, object: before.code, before });
+  await logActivity({ user, action: "Deleted", entityType: "Chemical", entityId: id, object: before.code, before });
   revalidatePath("/chemicals");
   revalidatePath("/containers");
   revalidatePath("/");

@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { deleteCoaFile, saveCoaFile } from "@/lib/coa-upload";
 import { db } from "@/lib/db";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import { computeStandardStatus, type StandardExpiryStatus } from "@/lib/standard-status";
 
@@ -100,7 +100,7 @@ export async function createMicrobialStrain(formData: FormData) {
 
   const row = await db.microbialStrain.create({ data: toPrisma(buildData(formData, resolved.coaPath)) });
 
-  await writeAuditLog({ user, action: "Created", entityType: "MicrobialStrain", entityId: row.id, object: code, after: row });
+  await logActivity({ user, action: "Created", entityType: "MicrobialStrain", entityId: row.id, object: code, after: row });
   revalidatePath("/microbial-strains");
   revalidatePath("/");
   revalidatePath("/reports");
@@ -124,7 +124,7 @@ export async function updateMicrobialStrain(formData: FormData) {
 
   const row = await db.microbialStrain.update({ where: { id }, data: toPrisma(buildData(formData, resolved.coaPath)) });
 
-  await writeAuditLog({ user, action: "Updated", entityType: "MicrobialStrain", entityId: id, object: code, before, after: row });
+  await logActivity({ user, action: "Updated", entityType: "MicrobialStrain", entityId: id, object: code, before, after: row });
   revalidatePath("/microbial-strains");
   revalidatePath("/prepared-strains");
   revalidatePath("/");
@@ -143,7 +143,7 @@ export async function deleteMicrobialStrain(formData: FormData) {
   if (before.coaPath) await deleteCoaFile(before.coaPath);
   await db.microbialStrain.delete({ where: { id } });
 
-  await writeAuditLog({ user, action: "Deleted", entityType: "MicrobialStrain", entityId: id, object: before.code, before });
+  await logActivity({ user, action: "Deleted", entityType: "MicrobialStrain", entityId: id, object: before.code, before });
   revalidatePath("/microbial-strains");
   revalidatePath("/prepared-strains");
   revalidatePath("/");

@@ -2,7 +2,7 @@
 
 import type { EquipmentStatus, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { writeAuditLog } from "@/lib/audit";
+import { logActivity } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { requireEditRole, requireManageRole } from "@/lib/equipment-auth";
 import {
@@ -142,7 +142,7 @@ export async function createEquipment(formData: FormData) {
   const data = buildEquipmentData(formData, resolved.userManualPath);
   const row = await db.equipment.create({ data: toPrisma(data, user) });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Created",
     entityType: "Equipment",
@@ -179,7 +179,7 @@ export async function updateEquipment(formData: FormData) {
     data: toPrismaUpdate(data, user),
   });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Updated",
     entityType: "Equipment",
@@ -204,7 +204,7 @@ export async function deleteEquipment(formData: FormData) {
   if (before.userManualPath) await deleteEquipmentFile(before.userManualPath);
   await db.equipment.delete({ where: { id } });
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Deleted",
     entityType: "Equipment",
@@ -254,6 +254,7 @@ export async function importEquipmentBulk(formData: FormData) {
         model: row.model ?? "",
         serialNumber: row.serialNumber ?? "",
         manufacturer: row.manufacturer ?? "",
+        specifications: row.specifications ?? "",
         department: row.department ?? "",
         location: row.location ?? "",
         manager: row.manager ?? "",
@@ -269,7 +270,7 @@ export async function importEquipmentBulk(formData: FormData) {
     return { error: errors.length ? errors.join("; ") : "Không có dòng hợp lệ để nhập" };
   }
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Imported",
     entityType: "Equipment",
@@ -341,7 +342,7 @@ export async function bulkImportEquipment(formData: FormData) {
     return { error: errors.length ? errors.join("; ") : "Không có dòng hợp lệ để nhập" };
   }
 
-  await writeAuditLog({
+  await logActivity({ actorUserId: auth.user.id,
     user,
     action: "Imported",
     entityType: "Equipment",
