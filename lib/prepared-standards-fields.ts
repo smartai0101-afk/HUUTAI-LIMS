@@ -158,6 +158,7 @@ export function buildPreparedStandardExportRows(
         "Ngày hết hạn pha chế": i === 0 ? item.expiryDate : "",
         "Người pha": i === 0 ? item.preparedBy : "",
         "Trạng thái": i === 0 ? item.status : "",
+        "Trạng thái quy trình": i === 0 ? item.workflowStatusLabel : "",
         "Vị trí lưu": i === 0 ? item.storageLocation : "",
         "Điều kiện bảo quản": i === 0 ? item.storageCondition : "",
         "Ghi chú": i === 0 ? item.notes : "",

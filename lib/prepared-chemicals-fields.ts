@@ -26,6 +26,7 @@ export const PREPARED_CHEMICAL_CSV_FIELD_KEYS = [
   "Vị trí lưu",
   "Điều kiện bảo quản",
   "Trạng thái",
+  "Trạng thái quy trình",
   "Ghi chú",
   "Hóa chất gốc sử dụng",
 ] as const;
@@ -58,6 +59,7 @@ export function buildPreparedChemicalExportRows(
     "Vị trí lưu": item.storageLocation,
     "Điều kiện bảo quản": item.storageCondition,
     "Trạng thái": item.status,
+    "Trạng thái quy trình": item.workflowStatusLabel,
     "Ghi chú": item.notes,
     "Hóa chất gốc sử dụng": item.ingredientsSummary,
   }));

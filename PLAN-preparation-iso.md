@@ -1,7 +1,7 @@
 # Lịch sử quá trình pha chế — ISO/IEC 17025
 
-> **Trạng thái:** Phase 1–3 done · Phase 4 pending  
-> **Cập nhật:** 2026-06-27 (HEAD `4bbcb0b` · soft-delete code fix)  
+> **Trạng thái:** Phase 1–4 done · QA browser pass (2026-06-27)  
+> **Cập nhật:** 2026-06-27 (Phase 4 commit · QA workflow + soft delete TG2 + export Excel)  
 > **Quyết định:** Không tạo `PreparationBatch` trùng — mở rộng `PreparedChemical` / `PreparedStandard` / `PreparedStrain` + `PreparationHistory` + `PreparationAuditLog`  
 > **Backfill:** Dữ liệu cũ → `workflowStatus = Approved`
 
@@ -16,7 +16,7 @@
 | `phase2-ui-workflow` | 2 | Workflow UI: transitions, amendment dialog, soft delete, Staff pickers (3 Prepared*Client) | done (`0d9518f`) |
 | `phase3-traceability` | 3 | `preparation-traceability.ts` + tree UI + reverse lookup catalog + `/preparation/[type]/[id]` | done (`aa305a5`) |
 | `phase3-soft-delete-code` | 3 | `prepared-code-guard.ts` — archive mã ghost · release on create/update | done (`4bbcb0b`) |
-| `phase4-reports` | 4 | `/preparation-history`, Excel export, prepared-excel/import, seed chain, HANDOFF | pending |
+| `phase4-reports` | 4 | `/preparation-history`, Excel export, prepared-excel/import, seed chain, HANDOFF | done |
 
 ---
 
@@ -134,7 +134,7 @@ Script: `scripts/backfill-preparation-history.ts`
 1. **Foundation** — schema, backfill, workflow service, hook actions  
 2. **Workflow UI** — transitions, amendment, Staff pickers, tabs  
 3. **Traceability** — tree, reverse lookup, detail page ✅ (`aa305a5`)  
-4. **Reports** — `/preparation-history`, Excel, import/export, seed, HANDOFF
+4. **Reports** — `/preparation-history`, Excel, import/export, seed, HANDOFF ✅
 
 ---
 
