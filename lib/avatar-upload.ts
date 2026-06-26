@@ -1,8 +1,5 @@
-import { randomBytes } from "crypto";
-import { mkdir, unlink, writeFile } from "fs/promises";
-import path from "path";
+import { deleteStoredFile, saveStoredFile } from "@/lib/file-storage";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "avatars");
 const MAX_BYTES = 2 * 1024 * 1024;
 
 const ALLOWED_TYPES: Record<string, string> = {
@@ -20,29 +17,24 @@ function extFromName(name: string): string | null {
 }
 
 export async function saveAvatarFile(file: File): Promise<{ path?: string; error?: string }> {
-  if (!file || file.size === 0) return { error: "Vui lòng chọn ảnh" };
-
-  if (file.size > MAX_BYTES) {
+  const result = await saveStoredFile({
+    file,
+    localSubdir: "avatars",
+    blobPrefix: "avatars",
+    maxBytes: MAX_BYTES,
+    allowedTypes: ALLOWED_TYPES,
+    extFromName,
+    emptyError: "Vui lòng chọn ảnh",
+  });
+  if (result.error === "File không được vượt quá 2MB") {
     return { error: "Ảnh đại diện không được vượt quá 2MB" };
   }
-
-  const ext = ALLOWED_TYPES[file.type] ?? extFromName(file.name);
-  if (!ext) {
+  if (result.error === "Định dạng file không được hỗ trợ") {
     return { error: "Ảnh đại diện chỉ chấp nhận jpg, jpeg, png, webp" };
   }
-
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const filename = `${Date.now()}-${randomBytes(8).toString("hex")}${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, filename), buffer);
-  return { path: `/uploads/avatars/${filename}` };
+  return result;
 }
 
 export async function deleteAvatarFile(avatarPath: string) {
-  if (!avatarPath.startsWith("/uploads/avatars/")) return;
-  try {
-    await unlink(path.join(process.cwd(), "public", avatarPath));
-  } catch {
-    // ignore missing files
-  }
+  await deleteStoredFile(avatarPath, "/uploads/avatars/");
 }

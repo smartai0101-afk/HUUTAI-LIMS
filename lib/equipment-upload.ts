@@ -1,9 +1,6 @@
-import { randomBytes } from "crypto";
-import { mkdir, unlink, writeFile } from "fs/promises";
-import path from "path";
 import type { Prisma } from "@prisma/client";
+import { deleteStoredFile, saveStoredFile } from "@/lib/file-storage";
 
-const BASE_DIR = path.join(process.cwd(), "public", "uploads", "equipment");
 const MAX_BYTES = 15 * 1024 * 1024;
 
 const ALLOWED_TYPES: Record<string, string> = {
@@ -30,36 +27,31 @@ export async function saveEquipmentFile(
   file: File,
   entityType: string,
 ): Promise<{ path?: string; fileName?: string; error?: string }> {
-  if (!file || file.size === 0) return {};
-
-  if (file.size > MAX_BYTES) {
+  const safeType = entityType.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const result = await saveStoredFile({
+    file,
+    localSubdir: `equipment/${safeType}`,
+    blobPrefix: `equipment/${safeType}`,
+    maxBytes: MAX_BYTES,
+    allowedTypes: ALLOWED_TYPES,
+    extFromName,
+    allowEmpty: true,
+  });
+  if (result.error === "File không được vượt quá 15MB") {
     return { error: "File không được vượt quá 15MB" };
   }
-
-  const ext = ALLOWED_TYPES[file.type] ?? extFromName(file.name);
-  if (!ext) {
+  if (result.error === "Định dạng file không được hỗ trợ") {
     return { error: "Chỉ chấp nhận pdf, doc/docx, xlsx, jpg/png" };
   }
-
-  const safeType = entityType.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const uploadDir = path.join(BASE_DIR, safeType);
-  await mkdir(uploadDir, { recursive: true });
-  const filename = `${Date.now()}-${randomBytes(8).toString("hex")}${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(uploadDir, filename), buffer);
+  if (!result.path) return {};
   return {
-    path: `/uploads/equipment/${safeType}/${filename}`,
+    path: result.path,
     fileName: file.name,
   };
 }
 
 export async function deleteEquipmentFile(filePath: string) {
-  if (!filePath.startsWith("/uploads/equipment/")) return;
-  try {
-    await unlink(path.join(process.cwd(), "public", filePath));
-  } catch {
-    // ignore missing files
-  }
+  await deleteStoredFile(filePath, "/uploads/equipment/");
 }
 
 type SaveAttachmentsParams = {

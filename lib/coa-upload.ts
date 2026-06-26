@@ -1,8 +1,5 @@
-import { randomBytes } from "crypto";
-import { mkdir, unlink, writeFile } from "fs/promises";
-import path from "path";
+import { deleteStoredFile, saveStoredFile } from "@/lib/file-storage";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "coa");
 const MAX_BYTES = 10 * 1024 * 1024;
 
 const ALLOWED_TYPES: Record<string, string> = {
@@ -22,29 +19,24 @@ function extFromName(name: string): string | null {
 }
 
 export async function saveCoaFile(file: File): Promise<{ path?: string; error?: string }> {
-  if (!file || file.size === 0) return {};
-
-  if (file.size > MAX_BYTES) {
+  const result = await saveStoredFile({
+    file,
+    localSubdir: "coa",
+    blobPrefix: "coa",
+    maxBytes: MAX_BYTES,
+    allowedTypes: ALLOWED_TYPES,
+    extFromName,
+    allowEmpty: true,
+  });
+  if (result.error === "File không được vượt quá 10MB") {
     return { error: "COA không được vượt quá 10MB" };
   }
-
-  const ext = ALLOWED_TYPES[file.type] ?? extFromName(file.name);
-  if (!ext) {
+  if (result.error === "Định dạng file không được hỗ trợ") {
     return { error: "COA chỉ chấp nhận jpg, jpeg, png, webp, pdf" };
   }
-
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const filename = `${Date.now()}-${randomBytes(8).toString("hex")}${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, filename), buffer);
-  return { path: `/uploads/coa/${filename}` };
+  return result;
 }
 
 export async function deleteCoaFile(coaPath: string) {
-  if (!coaPath.startsWith("/uploads/coa/")) return;
-  try {
-    await unlink(path.join(process.cwd(), "public", coaPath));
-  } catch {
-    // ignore missing files
-  }
+  await deleteStoredFile(coaPath, "/uploads/coa/");
 }
