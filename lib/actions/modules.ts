@@ -9,6 +9,10 @@ import {
   findActivePreparedStrainByCode,
   releaseSoftDeletedPreparedStrainCode,
 } from "@/lib/prepared-code-guard";
+import {
+  assertValidParentCode,
+  resolvePreparedBatchIdentity,
+} from "@/lib/prepared-batch-code";
 import { computeStandardStatus } from "@/lib/standard-status";
 import { db } from "@/lib/db";
 import {
@@ -23,7 +27,7 @@ import {
   recordPreparationUpdated,
   assertAmendmentAllowed,
 } from "@/lib/services/preparation-workflow";
-import { preparationHasStockDeducted, restorePreparationStock } from "@/lib/services/preparation-transition-stock";
+import { preparationHasStockDeducted } from "@/lib/services/preparation-transition-stock";
 
 const PREPARED_STRAIN_USE_QTY = 1;
 
@@ -112,16 +116,25 @@ export async function deleteMicrobialStrain(fd: FormData) {
   return { success: true };
 }
 
+export async function previewNextPreparedStrainBatchCode(fd: FormData) {
+  const parentCode = str(fd, "parentCode");
+  const parentError = assertValidParentCode(parentCode);
+  if (parentError) return { error: parentError };
+  const resolved = await resolvePreparedBatchIdentity(db, "PreparedStrain", parentCode);
+  if ("error" in resolved) return { error: resolved.error };
+  return { success: true, ...resolved };
+}
+
 export async function createPreparedStrain(fd: FormData) {
   const user = str(fd, "user") || "System";
-  const code = str(fd, "code");
+  const parentCode = str(fd, "parentCode");
   const name = str(fd, "name");
   const sourceStrainId = str(fd, "sourceStrainId");
   const sourceStockLotId = str(fd, "sourceStockLotId");
   const preparedDateStr = str(fd, "preparedDate");
   const expiryDateStr = str(fd, "expiryDate");
   const missing = collectMissing([
-    { label: "Mã", ok: !!code },
+    { label: "Mã nhóm", ok: !!parentCode },
     { label: "Tên", ok: !!name },
     { label: "Chủng gốc", ok: !!sourceStrainId },
     { label: "Lot chủng gốc", ok: !!sourceStockLotId },
@@ -129,16 +142,16 @@ export async function createPreparedStrain(fd: FormData) {
     { label: "Hạn dùng sau pha", ok: isValidFormDate(expiryDateStr) },
   ]);
   if (missing) return { error: missing };
+  const parentError = assertValidParentCode(parentCode);
+  if (parentError) return { error: parentError };
   const preparedDate = parseFormDate(preparedDateStr)!;
   const expiryDate = parseFormDate(expiryDateStr)!;
 
-  if (await findActivePreparedStrainByCode(code)) {
-    return { error: "Mã chủng pha chế đã tồn tại" };
-  }
-  await releaseSoftDeletedPreparedStrainCode(code);
-
   try {
     const row = await db.$transaction(async (tx) => {
+      const batchIdentity = await resolvePreparedBatchIdentity(tx, "PreparedStrain", parentCode);
+      if ("error" in batchIdentity) throw new Error(batchIdentity.error);
+
       const sourceStrain = await tx.microbialStrain.findUnique({ where: { id: sourceStrainId } });
       if (!sourceStrain) throw new Error("Không tìm thấy chủng gốc");
 
@@ -153,7 +166,9 @@ export async function createPreparedStrain(fd: FormData) {
 
       const row = await tx.preparedStrain.create({
         data: {
-          code,
+          parentCode: batchIdentity.parentCode,
+          batchNumber: batchIdentity.batchNumber,
+          code: batchIdentity.code,
           name,
           sourceStrainId,
           sourceStockLotId: lotResolved.stockLotId,
@@ -177,7 +192,7 @@ export async function createPreparedStrain(fd: FormData) {
       await recordPreparationCreated(tx, "STRAIN", row, user);
       return row;
     });
-    await audit(user, "Created", "PreparedStrain", row.id, code, undefined, row);
+    await audit(user, "Created", "PreparedStrain", row.id, row.code, undefined, row);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Không thể tạo chủng pha chế";
     if (message.includes(STOCK_SHORTAGE_MESSAGE) || message.startsWith("Lot ")) return { error: message };
@@ -211,12 +226,6 @@ export async function updatePreparedStrain(fd: FormData) {
   const sourceStrainId = str(fd, "sourceStrainId");
   const sourceStockLotId = str(fd, "sourceStockLotId");
   if (!sourceStockLotId) return { error: "Lot chủng gốc là bắt buộc" };
-
-  const nextCode = str(fd, "code");
-  if (await findActivePreparedStrainByCode(nextCode, id)) {
-    return { error: "Mã chủng pha chế đã tồn tại" };
-  }
-  await releaseSoftDeletedPreparedStrainCode(nextCode);
 
   try {
     const row = await db.$transaction(async (tx) => {
@@ -277,7 +286,6 @@ export async function updatePreparedStrain(fd: FormData) {
       const row = await tx.preparedStrain.update({
         where: { id },
         data: {
-          code: str(fd, "code"),
           name: str(fd, "name"),
           sourceStrainId,
           sourceStockLotId: lotResolved.stockLotId,
@@ -329,11 +337,6 @@ export async function deletePreparedStrain(fd: FormData) {
 
   try {
     await db.$transaction(async (tx) => {
-      if (preparationHasStockDeducted(before.workflowStatus)) {
-        const stockError = await restorePreparationStock(tx, "STRAIN", id, user);
-        if (stockError) throw new Error(stockError);
-      }
-
       await recordPreparationDeleted(tx, "STRAIN", before, user);
 
       await tx.preparedStrain.update({

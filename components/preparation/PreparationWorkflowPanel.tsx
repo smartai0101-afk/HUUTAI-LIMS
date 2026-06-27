@@ -41,7 +41,9 @@ export function PreparationWorkflowPanel({
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
   const [staffId, setStaffId] = useState("");
 
   const status = workflowStatus as PreparationWorkflowStatus;
@@ -73,7 +75,9 @@ export function PreparationWorkflowPanel({
       }
       onSuccess(`Đã chuyển sang ${PREPARATION_WORKFLOW_STATUS_LABELS[to]}`);
       setCancelOpen(false);
+      setRejectOpen(false);
       setCancelReason("");
+      setRejectReason("");
       setStaffId("");
       onChanged();
     });
@@ -124,6 +128,16 @@ export function PreparationWorkflowPanel({
                 >
                   {transitionActionLabel(status, to)}
                 </button>
+              ) : to === "Rejected" ? (
+                <button
+                  key={to}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setRejectOpen(true)}
+                  className="rounded-xl border border-orange-200 px-3 py-2 text-sm text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+                >
+                  {transitionActionLabel(status, to)}
+                </button>
               ) : (
                 <button
                   key={to}
@@ -165,6 +179,37 @@ export function PreparationWorkflowPanel({
             className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white disabled:opacity-60"
           >
             {pending ? "Đang xử lý..." : "Xác nhận hủy"}
+          </button>
+        </div>
+      </ModalShell>
+
+      <ModalShell
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        className="max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+      >
+        <h3 className="text-lg font-semibold">Từ chối lô pha (pha sai)</h3>
+        <p className="mt-2 text-sm text-slate-600">
+          Nguyên liệu đã trừ tồn sẽ không được hoàn lại. Bắt buộc nhập lý do.
+        </p>
+        <textarea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          rows={3}
+          className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          placeholder="Lý do từ chối..."
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={() => setRejectOpen(false)} className="rounded-xl border px-4 py-2 text-sm">
+            Đóng
+          </button>
+          <button
+            type="button"
+            disabled={pending || !rejectReason.trim()}
+            onClick={() => runTransition("Rejected", rejectReason)}
+            className="rounded-xl bg-orange-600 px-4 py-2 text-sm text-white disabled:opacity-60"
+          >
+            {pending ? "Đang xử lý..." : "Xác nhận từ chối"}
           </button>
         </div>
       </ModalShell>

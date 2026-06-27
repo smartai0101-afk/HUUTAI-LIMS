@@ -124,6 +124,8 @@ export async function getPreparedStandards(): Promise<PreparedStandardView[]> {
     const solvents = row.solvents.map(mapSolvent);
     return {
       id: row.id,
+      parentCode: row.parentCode || row.code,
+      batchNumber: row.batchNumber,
       code: row.code,
       name: row.name,
       level: row.level,
@@ -140,6 +142,7 @@ export async function getPreparedStandards(): Promise<PreparedStandardView[]> {
       storageCondition: row.storageCondition,
       quantity: row.quantity,
       unit: row.unit || row.solventUnit,
+      inventoryStatus: row.inventoryStatus ?? "Active",
       notes: row.notes,
       components,
       solvents,

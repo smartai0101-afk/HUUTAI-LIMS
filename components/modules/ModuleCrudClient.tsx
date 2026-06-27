@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Edit, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -29,6 +29,9 @@ import {
 } from "@/lib/preparation-workflow-labels";
 import type { PreparationRecordType } from "@/lib/services/preparation-workflow";
 import type { StaffView } from "@/lib/services/staff";
+import {
+  previewNextPreparedStrainBatchCode,
+} from "@/lib/actions/modules";
 
 type Props = {
   title: string;
@@ -89,6 +92,7 @@ export function ModuleCrudClient(props: Props) {
   const [pendingAmendmentReason, setPendingAmendmentReason] = useState("");
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [pending, start] = useTransition();
+  const [previewBatchCode, setPreviewBatchCode] = useState("");
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
@@ -101,6 +105,27 @@ export function ModuleCrudClient(props: Props) {
     const matchExtra = !extraFilters?.length || extraFilters.every((f) => !extra[f.key] || extra[f.key] === "All" || row[f.key] === extra[f.key]);
     return matchQ && matchS && matchWorkflow && matchExtra;
   }), [items, query, status, workflowFilter, extra, searchKeys, extraFilters, preparationType]);
+
+  useEffect(() => {
+    if (!preparationType || edit || !open) return;
+    const parentCode = String(form.parentCode ?? "").trim();
+    if (!parentCode) {
+      setPreviewBatchCode("");
+      setForm((p) => ({ ...p, code: "" }));
+      return;
+    }
+    const fd = new FormData();
+    fd.set("parentCode", parentCode);
+    const previewAction =
+      preparationType === "STRAIN" ? previewNextPreparedStrainBatchCode : null;
+    if (!previewAction) return;
+    void previewAction(fd).then((result) => {
+      if ("success" in result && result.success && result.code) {
+        setPreviewBatchCode(result.code);
+        setForm((p) => ({ ...p, code: result.code }));
+      }
+    });
+  }, [form.parentCode, edit, open, preparationType]);
 
   const openCreate = () => {
     setEdit(false);
@@ -132,14 +157,22 @@ export function ModuleCrudClient(props: Props) {
   };
 
   const submit = () => {
-    const missing = fields.filter((f) => f.required && !String(form[f.key] ?? "").trim());
+    const missing = fields.filter((f) => {
+      if (f.readOnly) return false;
+      if (!edit && f.key === "code") return false;
+      return f.required && !String(form[f.key] ?? "").trim();
+    });
     if (missing.length) {
       addToast(missingFieldsMessage(missing.map((f) => f.label)), "error");
       return;
     }
     const fd = new FormData();
     fd.set("user", role);
-    fields.forEach((f) => fd.set(f.key, String(form[f.key] ?? "")));
+    fields.forEach((f) => {
+      if (f.readOnly) return;
+      if (!edit && f.key === "code") return;
+      fd.set(f.key, String(form[f.key] ?? ""));
+    });
     if (edit) fd.set("id", String(form.id ?? ""));
     if (pendingAmendmentReason) fd.set("amendmentReason", pendingAmendmentReason);
     start(async () => {
@@ -346,6 +379,17 @@ export function ModuleCrudClient(props: Props) {
                     />
                   ) : f.type === "textarea" ? (
                     <textarea value={String(form[f.key] ?? "")} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} className="min-h-20 w-full rounded-xl border px-3 py-2 text-sm" />
+                  ) : f.readOnly || (f.key === "code" && preparationType) || (f.key === "parentCode" && edit && preparationType) ? (
+                    <input
+                      readOnly
+                      value={
+                        f.key === "code" && !edit
+                          ? previewBatchCode
+                          : String(form[f.key] ?? "")
+                      }
+                      placeholder={f.key === "code" && !edit ? "Nhập mã nhóm để xem mã lô" : ""}
+                      className="h-11 w-full rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm"
+                    />
                   ) : (
                     <input type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} value={String(form[f.key] ?? "")} onChange={(e) => setForm((p) => ({ ...p, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))} className="h-11 w-full rounded-xl border px-3 text-sm" />
                   )}

@@ -17,6 +17,10 @@ import {
   findActivePreparedChemicalByCode,
   releaseSoftDeletedPreparedChemicalCode,
 } from "@/lib/prepared-code-guard";
+import {
+  assertValidParentCode,
+  resolvePreparedBatchIdentity,
+} from "@/lib/prepared-batch-code";
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
 
 import { resolveStockLotSelection } from "@/lib/resolve-stock-lot-selection";
@@ -26,7 +30,7 @@ import {
   recordPreparationUpdated,
   assertAmendmentAllowed,
 } from "@/lib/services/preparation-workflow";
-import { preparationHasStockDeducted, restorePreparationStock } from "@/lib/services/preparation-transition-stock";
+import { preparationHasStockDeducted } from "@/lib/services/preparation-transition-stock";
 
 const REVALIDATE_PATHS = ["/prepared-chemicals", "/chemicals", "/", "/reports"];
 const MODULE_NAME = "PreparedChemical";
@@ -163,6 +167,7 @@ function buildBaseData(fd: FormData) {
   const expiryDate = parseFormDate(str(fd, "expiryDate"));
   const preparedQuantity = parseQuantity(str(fd, "preparedQuantity"));
   return {
+    parentCode: str(fd, "parentCode"),
     code: str(fd, "code"),
     name: str(fd, "name"),
     concentration: str(fd, "concentration"),
@@ -187,13 +192,24 @@ function isStockError(message: string) {
   );
 }
 
+export async function previewNextPreparedChemicalBatchCode(fd: FormData) {
+  const parentCode = str(fd, "parentCode");
+  const parentError = assertValidParentCode(parentCode);
+  if (parentError) return { error: parentError };
+  const resolved = await resolvePreparedBatchIdentity(db, "PreparedChemical", parentCode);
+  if ("error" in resolved) return { error: resolved.error };
+  return { success: true, ...resolved };
+}
+
 export async function createPreparedChemical(fd: FormData) {
   const user = str(fd, "user") || "System";
   const data = buildBaseData(fd);
   const ingredients = parseIngredients(fd);
   if ("error" in ingredients) return { error: ingredients.error };
 
-  if (!data.code || !data.name) return { error: "Mã và tên hóa chất pha là bắt buộc" };
+  const parentError = assertValidParentCode(data.parentCode);
+  if (parentError) return { error: parentError };
+  if (!data.name) return { error: "Tên hóa chất pha là bắt buộc" };
   if (!data.preparedDate || !data.expiryDate) return { error: "Ngày pha chế và ngày hết hạn không hợp lệ" };
   const preparedDate = data.preparedDate;
   const expiryDate = data.expiryDate;
@@ -201,15 +217,14 @@ export async function createPreparedChemical(fd: FormData) {
     return { error: "Thể tích/khối lượng pha chế không hợp lệ" };
   }
   if (!data.unit) return { error: "ĐVT là bắt buộc" };
-  if (await findActivePreparedChemicalByCode(data.code)) {
-    return { error: "Mã hóa chất pha đã tồn tại" };
-  }
-  await releaseSoftDeletedPreparedChemicalCode(data.code);
 
   const newId = randomUUID();
 
   try {
     const row = await db.$transaction(async (tx) => {
+      const batchIdentity = await resolvePreparedBatchIdentity(tx, "PreparedChemical", data.parentCode);
+      if ("error" in batchIdentity) throw new Error(batchIdentity.error);
+
       const resolved = await resolveIngredientUnits(tx, ingredients);
       if ("error" in resolved) throw new Error(resolved.error);
 
@@ -222,7 +237,9 @@ export async function createPreparedChemical(fd: FormData) {
       const row = await tx.preparedChemical.create({
         data: {
           id: newId,
-          code: data.code,
+          parentCode: batchIdentity.parentCode,
+          batchNumber: batchIdentity.batchNumber,
+          code: batchIdentity.code,
           name: data.name,
           concentration: data.concentration,
           concentrationUnit: data.concentrationUnit,
@@ -250,7 +267,7 @@ export async function createPreparedChemical(fd: FormData) {
       action: "Created",
       entityType: MODULE_NAME,
       entityId: row.id,
-      object: data.code,
+      object: row.code,
       after: row,
     });
   } catch (e) {
@@ -270,7 +287,7 @@ export async function updatePreparedChemical(fd: FormData) {
   const ingredients = parseIngredients(fd);
   if ("error" in ingredients) return { error: ingredients.error };
 
-  if (!id || !data.code || !data.name) return { error: "Thiếu thông tin bắt buộc" };
+  if (!id || !data.name) return { error: "Thiếu thông tin bắt buộc" };
   if (!isValidFormDate(str(fd, "preparedDate")) || !isValidFormDate(str(fd, "expiryDate"))) {
     return { error: "Ngày pha chế và ngày hết hạn không hợp lệ" };
   }
@@ -298,11 +315,6 @@ export async function updatePreparedChemical(fd: FormData) {
     if (amendError) return { error: amendError };
   }
 
-  if (await findActivePreparedChemicalByCode(data.code, id)) {
-    return { error: "Mã hóa chất pha đã tồn tại" };
-  }
-  await releaseSoftDeletedPreparedChemicalCode(data.code);
-
   const restoreLines = before.ingredients.map((ing) =>
     chemicalStockLine(ing.chemicalId, ing.quantityUsed, ing.unit, {
       stockLotId: ing.stockLotId,
@@ -326,7 +338,7 @@ export async function updatePreparedChemical(fd: FormData) {
           referenceId: id,
           restores: restoreLines,
           deducts: ingredientStockLines(withLots),
-          notes: `Cập nhật ${data.code}`,
+          notes: `Cập nhật ${before.code}`,
         });
         if (stockError) throw new Error(stockError);
       }
@@ -339,7 +351,6 @@ export async function updatePreparedChemical(fd: FormData) {
       const row = await tx.preparedChemical.update({
         where: { id },
         data: {
-          code: data.code,
           name: data.name,
           concentration: data.concentration,
           concentrationUnit: data.concentrationUnit,
@@ -403,11 +414,6 @@ export async function deletePreparedChemical(fd: FormData) {
 
   try {
     await db.$transaction(async (tx) => {
-      if (preparationHasStockDeducted(before.workflowStatus)) {
-        const stockError = await restorePreparationStock(tx, "CHEMICAL", id, user);
-        if (stockError) throw new Error(stockError);
-      }
-
       await recordPreparationDeleted(tx, "CHEMICAL", before, user);
 
       await tx.preparedChemical.update({

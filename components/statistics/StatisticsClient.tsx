@@ -213,7 +213,7 @@ export function StatisticsClient({ items }: { items: InventoryStatRow[] }) {
             { key: "purity", header: "Purity" },
             { key: "coaPath", header: "COA", render: (_v, row) => <CoaLink path={row.coaPath} /> },
             { key: "unit", header: "Đơn vị" },
-            { key: "quantity", header: "Số lượng tồn" },
+            { key: "quantity", header: "Khả dụng" },
             { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
             { key: "notes", header: "Ghi chú" },
             { key: "storageLocation", header: "Vị trí lưu" },
@@ -245,7 +245,7 @@ export function StatisticsClient({ items }: { items: InventoryStatRow[] }) {
                     <thead>
                       <tr className="text-left text-slate-500">
                         <th className="px-3 py-2">Lot</th>
-                        <th className="px-3 py-2">Số lượng</th>
+                        <th className="px-3 py-2">Khả dụng</th>
                         <th className="px-3 py-2">Đơn vị</th>
                         <th className="px-3 py-2">Hạn dùng</th>
                         <th className="px-3 py-2">Vị trí</th>
@@ -256,7 +256,7 @@ export function StatisticsClient({ items }: { items: InventoryStatRow[] }) {
                       {row.stockLots.map((lot) => (
                         <tr key={lot.id} className="border-t border-slate-100">
                           <td className="px-3 py-2 font-medium text-slate-800">{lot.lot}</td>
-                          <td className="px-3 py-2">{lot.quantity}</td>
+                          <td className="px-3 py-2">{lot.availableQuantity ?? lot.quantity}</td>
                           <td className="px-3 py-2">{lot.unit}</td>
                           <td className="px-3 py-2">{lot.expiryDate || "—"}</td>
                           <td className="px-3 py-2">{lot.storageLocation || "—"}</td>

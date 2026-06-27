@@ -26,6 +26,8 @@ function assertModuleDelegates() {
 
 const mapBase = (row: {
   id: string;
+  parentCode: string;
+  batchNumber: number;
   code: string;
   name: string;
   lot: string;
@@ -35,6 +37,8 @@ const mapBase = (row: {
   expiryDate?: Date | null;
 }) => ({
   id: row.id,
+  parentCode: row.parentCode || row.code,
+  batchNumber: row.batchNumber,
   code: row.code,
   name: row.name,
   lot: row.lot,

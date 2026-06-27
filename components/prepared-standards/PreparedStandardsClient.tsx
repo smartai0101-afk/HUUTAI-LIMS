@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { PreparedStandardLevel } from "@prisma/client";
 import { Download, Edit, Plus, Printer, Search, Trash2, Upload, X } from "lucide-react";
@@ -19,6 +19,7 @@ import { useToast } from "@/components/ToastProvider";
 import {
   createPreparedStandard,
   deletePreparedStandard,
+  previewNextPreparedStandardBatchCode,
   updatePreparedStandard,
 } from "@/lib/actions/prepared-standards";
 import { bulkImportPreparedStandards } from "@/lib/actions/prepared-import";
@@ -43,6 +44,7 @@ import {
   preparedStandardToLabelData,
   printPreparedLabelsBulk,
 } from "@/lib/print-label";
+import { expandPreparedToBatchRows, groupedPreparedCell, type PreparedBatchRowMeta } from "@/lib/prepared-batch-rows";
 import { exportToXlsx } from "@/lib/excel";
 import {
   PREPARED_STANDARD_EXCEL_COLUMNS,
@@ -57,6 +59,7 @@ import {
 } from "@/lib/stock-lot-selection";
 import type { PreparedStandardView, StockLotView } from "@/types";
 import { PreparationDrawerTabContent } from "@/components/preparation/PreparationDrawerTabContent";
+import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
 import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
 import {
@@ -141,6 +144,7 @@ type SolventFormRow = {
 };
 
 const initialForm = {
+  parentCode: "",
   code: "",
   name: "",
   concentration: "",
@@ -251,6 +255,8 @@ function buildComponentSubmitRow(
   };
 }
 
+type PreparedStandardBatchRow = PreparedStandardView & PreparedBatchRowMeta & { stt: number };
+
 export function PreparedStandardsClient({
   items,
   standards,
@@ -279,6 +285,7 @@ export function PreparedStandardsClient({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState(initialForm);
+  const [previewBatchCode, setPreviewBatchCode] = useState("");
   const [components, setComponents] = useState<ComponentFormRow[]>([emptyComponent("RootPrepared")]);
   const [solvents, setSolvents] = useState<SolventFormRow[]>([emptySolvent()]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -361,24 +368,42 @@ export function PreparedStandardsClient({
     [chemicals],
   );
 
+  useEffect(() => {
+    if (isEditing || !isFormOpen) return;
+    const parentCode = form.parentCode.trim();
+    if (!parentCode) {
+      setPreviewBatchCode("");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("parentCode", parentCode);
+    void previewNextPreparedStandardBatchCode(fd).then((result) => {
+      if ("success" in result && result.success && result.code) {
+        setPreviewBatchCode(result.code);
+      } else {
+        setPreviewBatchCode("");
+      }
+    });
+  }, [form.parentCode, isEditing, isFormOpen]);
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return items
-      .filter((item) => {
-        const matchLevel = levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL || item.level === levelFilter;
-        const matchQuery =
-          !q ||
-          item.code.toLowerCase().includes(q) ||
-          item.name.toLowerCase().includes(q) ||
-          item.concentration.toLowerCase().includes(q) ||
-          item.componentsSummary.toLowerCase().includes(q) ||
-          item.solventsSummary.toLowerCase().includes(q);
-        const matchStatus = statusFilter === "All" || item.status === statusFilter;
-        const matchWorkflow =
-          workflowFilter === "All" || item.workflowStatus === workflowFilter;
-        return matchLevel && matchQuery && matchStatus && matchWorkflow;
-      })
-      .map((item, index) => ({ ...item, stt: index + 1 }));
+    const base = items.filter((item) => {
+      const matchLevel = levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL || item.level === levelFilter;
+      const matchQuery =
+        !q ||
+        item.parentCode.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        item.name.toLowerCase().includes(q) ||
+        item.concentration.toLowerCase().includes(q) ||
+        item.componentsSummary.toLowerCase().includes(q) ||
+        item.solventsSummary.toLowerCase().includes(q);
+      const matchStatus = statusFilter === "All" || item.status === statusFilter;
+      const matchWorkflow =
+        workflowFilter === "All" || item.workflowStatus === workflowFilter;
+      return matchLevel && matchQuery && matchStatus && matchWorkflow;
+    });
+    return expandPreparedToBatchRows(base).map((item, index) => ({ ...item, stt: index + 1 }));
   }, [items, query, statusFilter, levelFilter, workflowFilter]);
 
   const selectedRows = useMemo(
@@ -415,16 +440,71 @@ export function PreparedStandardsClient({
     addToast("Đã mở cửa sổ in tem nhãn", "success");
   };
 
-  const openCreate = () => {
+  const openCreate = (prefill?: Partial<typeof initialForm>) => {
     setSelected(null);
     setIsEditing(false);
     setEditingId(null);
     const defaultLevel =
       levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL ? "RootPrepared" : levelFilter;
-    setForm({ ...initialForm, level: defaultLevel });
+    setForm({ ...initialForm, level: defaultLevel, ...prefill });
+    setPreviewBatchCode("");
     setComponents([emptyComponent(defaultLevel)]);
     setSolvents([emptySolvent()]);
     setIsFormOpen(true);
+  };
+
+  const openReprepare = (item: PreparedStandardView) => {
+    openCreate({
+      parentCode: item.parentCode || item.code.replace(/-\d{3}$/, ""),
+      name: item.name,
+      concentration: item.concentration,
+      concentrationUnit: item.concentrationUnit,
+      solventVolume: String(item.solventVolume || ""),
+      solventUnit: item.solventUnit,
+      level: item.level as PreparedStandardLevel,
+      storageLocation: item.storageLocation,
+      storageCondition: item.storageCondition,
+    });
+    setComponents(
+      item.components.length
+        ? item.components.map((c) => ({
+            key: crypto.randomUUID(),
+            sourceType: c.sourceType,
+            sourceLevel: (c.sourceLevel as PreparedStandardLevel) ?? "",
+            standardId: c.standardId ?? "",
+            sourcePreparedStandardId: c.sourcePreparedStandardId ?? "",
+            standardCode: c.standardCode,
+            standardName: c.standardName,
+            manufacturer: c.manufacturer,
+            productCode: c.productCode,
+            lotNumber: c.lotNumber,
+            stockLotId: c.stockLotId ?? "",
+            purity: c.purity,
+            concentration: c.concentration,
+            concentrationUnit: c.concentrationUnit,
+            levelLabel: c.levelLabel,
+            preparedDate: c.preparedDate,
+            expiryDate: c.expiryDate,
+            quantityUsed: String(c.quantityUsed),
+            unit: c.unit,
+          }))
+        : [emptyComponent(item.level as PreparedStandardLevel)],
+    );
+    setSolvents(
+      item.solvents.length
+        ? item.solvents.map((s) => ({
+            key: crypto.randomUUID(),
+            chemicalId: s.chemicalId,
+            chemicalCode: s.chemicalCode,
+            chemicalName: s.chemicalName,
+            casProductCode: s.casProductCode,
+            stockLotId: s.stockLotId ?? "",
+            lotNumber: s.lotNumber,
+            quantityUsed: String(s.quantityUsed),
+            unit: s.unit,
+          }))
+        : [emptySolvent()],
+    );
   };
 
   const openEdit = (item: PreparedStandardView) => {
@@ -436,6 +516,7 @@ export function PreparedStandardsClient({
     setIsEditing(true);
     setEditingId(item.id);
     setForm({
+      parentCode: item.parentCode,
       code: item.code,
       name: item.name,
       concentration: item.concentration,
@@ -635,8 +716,12 @@ export function PreparedStandardsClient({
       addToast(parentLevelMessage, "error");
       return;
     }
-    if (!form.code.trim() || !form.name.trim()) {
-      addToast("Mã và tên chuẩn pha chế là bắt buộc", "error");
+    if (!form.parentCode.trim() || !form.name.trim()) {
+      addToast("Mã nhóm và tên chuẩn pha chế là bắt buộc", "error");
+      return;
+    }
+    if (isEditing && !form.code.trim()) {
+      addToast("Mã lô không hợp lệ", "error");
       return;
     }
     if (!form.concentration.trim()) {
@@ -819,7 +904,7 @@ export function PreparedStandardsClient({
             {canEdit ? (
               <button
                 type="button"
-                onClick={openCreate}
+                onClick={() => openCreate()}
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white"
               >
                 <Plus className="h-4 w-4" />
@@ -911,9 +996,20 @@ export function PreparedStandardsClient({
         <DataTable
           columns={[
             { key: "stt", header: "STT" },
-            { key: "levelLabel", header: "Cấp chuẩn" },
-            { key: "code", header: "Mã chuẩn pha chế" },
-            { key: "name", header: "Tên chuẩn pha chế" },
+            {
+              key: "parentCode",
+              header: "Mã nhóm",
+              render: (_v, row: PreparedStandardBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.parentCode),
+            },
+            { key: "code", header: "Mã lô" },
+            {
+              key: "name",
+              header: "Tên chuẩn pha chế",
+              render: (_v, row: PreparedStandardBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.name),
+            },
+            { key: "levelLabel", header: "Cấp chuẩn", render: (_v, row: PreparedStandardBatchRow) => groupedPreparedCell(row.showGroupFields, row.levelLabel) },
             {
               key: "concentration",
               header: "Nồng độ",
@@ -988,8 +1084,8 @@ export function PreparedStandardsClient({
           open={!!selected}
           onClose={() => setSelected(null)}
           title={selected?.name ?? ""}
-          subtitle={selected?.code}
-          tabs={["Chi tiết", "Lịch sử", "Truy xuất"]}
+          subtitle={selected ? `${selected.parentCode} · ${selected.code}` : undefined}
+          tabs={["Chi tiết", "Tồn kho", "Lịch sử", "Truy xuất"]}
           activeTab={drawerTab}
           onTabChange={setDrawerTab}
           layout="stacked"
@@ -1001,6 +1097,19 @@ export function PreparedStandardsClient({
                   template="prepared-standard"
                   data={preparedStandardToLabelData(selected)}
                 />
+                {canEdit && selected.workflowStatus === "Rejected" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openReprepare(selected);
+                      setSelected(null);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 px-3 py-2 text-sm text-cyan-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Pha lại
+                  </button>
+                ) : null}
                 {canEdit ? (
                   <button
                     type="button"
@@ -1026,6 +1135,19 @@ export function PreparedStandardsClient({
           }
           tabContent={
             selected ? (
+              drawerTab === "Tồn kho" ? (
+                <InventoryItemPanel
+                  sourceType="PreparedStandard"
+                  sourceId={selected.id}
+                  sourceCode={selected.code}
+                  unit={selected.unit}
+                  inventoryStatus={selected.inventoryStatus}
+                  canEdit={canEdit}
+                  canManage={canManage}
+                  onSuccess={(msg) => addToast(msg, "success")}
+                  onError={(msg) => addToast(msg, "error")}
+                />
+              ) : (
               <PreparationDrawerTabContent
                 tab={drawerTab}
                 preparationType="STANDARD"
@@ -1044,7 +1166,11 @@ export function PreparedStandardsClient({
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs text-slate-500">Mã chuẩn pha chế</p>
+                    <p className="text-xs text-slate-500">Mã nhóm</p>
+                    <p className="font-medium">{selected.parentCode}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Mã lô</p>
                     <p className="font-medium">{selected.code}</p>
                   </div>
                   <div>
@@ -1156,6 +1282,7 @@ export function PreparedStandardsClient({
               </div>
                 }
               />
+              )
             ) : null
           }
         />
@@ -1176,11 +1303,22 @@ export function PreparedStandardsClient({
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm text-slate-600">Mã chuẩn pha chế *</label>
+              <label className="mb-1 block text-sm text-slate-600">Mã nhóm *</label>
               <input
-                value={form.code}
-                onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
-                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+                value={form.parentCode}
+                onChange={(e) => setForm((p) => ({ ...p, parentCode: e.target.value }))}
+                disabled={isEditing}
+                placeholder="VD: CG01"
+                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Mã lô {isEditing ? "" : "(tự sinh)"}</label>
+              <input
+                readOnly
+                value={isEditing ? form.code : previewBatchCode}
+                placeholder={isEditing ? "" : "Nhập mã nhóm để xem mã lô"}
+                className="h-11 w-full rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm"
               />
             </div>
             <div>
@@ -1639,7 +1777,7 @@ export function PreparedStandardsClient({
         <ConfirmDialog
           open={!!deleteTarget}
           title="Xóa chuẩn pha chế"
-          message={`Xác nhận xóa mềm "${deleteTarget?.name}"? Tồn kho sẽ được hoàn lại nếu đã trừ.`}
+          message={`Xác nhận xóa mềm "${deleteTarget?.name}"? Nguyên liệu đã tiêu hao sẽ không được hoàn lại.`}
           confirmLabel="Xóa"
           cancelLabel="Hủy"
           onConfirm={handleDelete}

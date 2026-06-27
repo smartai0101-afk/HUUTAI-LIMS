@@ -52,6 +52,8 @@ export async function getPreparedChemicals(): Promise<PreparedChemicalView[]> {
     const ingredients = row.ingredients.map(mapIngredient);
     return {
       id: row.id,
+      parentCode: row.parentCode || row.code,
+      batchNumber: row.batchNumber,
       code: row.code,
       name: row.name,
       concentration: row.concentration,

@@ -15,6 +15,8 @@ export type TraceRole = "ROOT" | "MAIN" | "SOLVENT" | "SOURCE";
 export type TraceTreeNode = {
   id: string;
   kind: TraceNodeKind;
+  parentCode?: string;
+  batchNumber?: number;
   code: string;
   name: string;
   lot?: string;
@@ -187,6 +189,8 @@ async function buildStandardSubtree(
   }
 
   return preparedNode("STANDARD", record.id, record.code, record.name, {
+    parentCode: record.parentCode || record.code,
+    batchNumber: record.batchNumber,
     concentration: record.concentration,
     concentrationUnit: record.concentrationUnit,
     role,
@@ -216,6 +220,8 @@ async function buildChemicalTree(id: string): Promise<TraceTreeNode | null> {
   }));
 
   return preparedNode("CHEMICAL", record.id, record.code, record.name, {
+    parentCode: record.parentCode || record.code,
+    batchNumber: record.batchNumber,
     concentration: record.concentration,
     concentrationUnit: record.concentrationUnit,
     role: "ROOT",
@@ -250,6 +256,8 @@ async function buildStrainTree(id: string): Promise<TraceTreeNode | null> {
   }
 
   return preparedNode("STRAIN", record.id, record.code, record.name, {
+    parentCode: record.parentCode || record.code,
+    batchNumber: record.batchNumber,
     role: "ROOT",
     children,
   });

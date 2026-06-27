@@ -28,6 +28,7 @@ const WORKFLOW_FILTER_LABELS: Record<(typeof PREPARATION_WORKFLOW_FILTERS)[numbe
   Prepared: "Đã pha chế",
   Checked: "Đã kiểm tra",
   Approved: "Đã duyệt",
+  Rejected: "Bị từ chối",
   Cancelled: "Đã hủy",
 };
 
@@ -51,6 +52,7 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
       const matchQuery =
         !q ||
         [
+          row.parentCode,
           row.code,
           row.name,
           row.preparedBy,
@@ -146,8 +148,12 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
         <DataTable
           columns={[
             {
+              key: "parentCode",
+              header: "Mã nhóm",
+            },
+            {
               key: "code",
-              header: "Mã pha chế",
+              header: "Mã lô",
               render: (_value, row) => (
                 <Link href={row.detailHref} className="text-sky-700 hover:underline">
                   {row.code}

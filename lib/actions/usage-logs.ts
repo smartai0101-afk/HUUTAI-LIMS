@@ -128,16 +128,29 @@ export async function createUsageLog(formData: FormData) {
               referenceType: "UsageLog",
               referenceId: "pending",
               restores: [line],
+              restoreTransactionType: "CREATE",
               notes: purpose || notes,
             })
-          : await applyInventoryStockChange(tx, {
-              user,
-              module: "UsageLog",
-              referenceType: "UsageLog",
-              referenceId: "pending",
-              deducts: [line],
-              notes: purpose || notes,
-            });
+          : type === UsageLogType.DISPOSE
+            ? await applyInventoryStockChange(tx, {
+                user,
+                module: "UsageLog",
+                referenceType: "UsageLog",
+                referenceId: "pending",
+                reason: notes,
+                deductTransactionType: "DISCARD",
+                deducts: [line],
+                notes: purpose || notes,
+              })
+            : await applyInventoryStockChange(tx, {
+                user,
+                module: "UsageLog",
+                referenceType: "UsageLog",
+                referenceId: "pending",
+                deductTransactionType: "CONSUME",
+                deducts: [line],
+                notes: purpose || notes,
+              });
 
       if (stockError) throw new Error(stockError);
 
@@ -154,6 +167,7 @@ export async function createUsageLog(formData: FormData) {
           notes,
           referenceCode,
           date,
+          stockLotId,
         },
       });
     });

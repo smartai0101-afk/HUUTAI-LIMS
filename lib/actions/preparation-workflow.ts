@@ -10,14 +10,15 @@ import {
   type CatalogSourceKind,
 } from "@/lib/services/preparation-traceability";
 import {
+  creditPreparedStandardOutput,
   deductPreparationStock,
-  preparationHasStockDeducted,
-  restorePreparationStock,
 } from "@/lib/services/preparation-transition-stock";
+import { recordRejectPreparationTransaction } from "@/lib/services/inventory-transaction-engine";
 import type { PreparationRecordType } from "@/lib/services/preparation-workflow";
 import {
   assertSeparationOfDuties,
   assertWorkflowTransition,
+  PREPARATION_TYPE_MAP,
   recordPreparationTransition,
   WORKFLOW_TRANSITIONS,
 } from "@/lib/services/preparation-workflow";
@@ -105,6 +106,9 @@ export async function transitionPreparationWorkflow(fd: FormData) {
   if (to === "Cancelled" && !reason) {
     return { error: "Bắt buộc nhập lý do hủy" };
   }
+  if (to === "Rejected" && !reason) {
+    return { error: "Bắt buộc nhập lý do từ chối lô pha" };
+  }
 
   try {
     await db.$transaction(async (tx) => {
@@ -112,17 +116,21 @@ export async function transitionPreparationWorkflow(fd: FormData) {
         const stockError = await deductPreparationStock(tx, type, id, user);
         if (stockError) throw new Error(stockError);
       }
-      if (to === "Cancelled" && preparationHasStockDeducted(before.workflowStatus)) {
-        const stockError = await restorePreparationStock(tx, type, id, user);
-        if (stockError) throw new Error(stockError);
+      // Materials consumed at Draft→Prepared are never restored on Cancel/Reject (GLP).
+
+      if (to === "Approved" && type === "STANDARD" && before.workflowStatus !== "Approved") {
+        const creditError = await creditPreparedStandardOutput(tx, id, user);
+        if (creditError) throw new Error(creditError);
       }
 
       const patch: {
         workflowStatus: PreparationWorkflowStatus;
+        inventoryStatus?: "Active" | "Rejected";
         preparedByStaffId?: string | null;
         checkedByStaffId?: string | null;
         approvedByStaffId?: string | null;
       } = { workflowStatus: to };
+      if (to === "Rejected") patch.inventoryStatus = "Rejected";
       if (to === "Prepared" && staffId) patch.preparedByStaffId = staffId;
       if (to === "Checked" && staffId) patch.checkedByStaffId = staffId;
       if (to === "Approved" && staffId) patch.approvedByStaffId = staffId;
@@ -154,6 +162,18 @@ export async function transitionPreparationWorkflow(fd: FormData) {
         user,
         reason || undefined,
       );
+
+      if (to === "Rejected" && type === "STANDARD") {
+        await recordRejectPreparationTransaction(tx, {
+          user,
+          preparationType: PREPARATION_TYPE_MAP.STANDARD,
+          preparationId: id,
+          sourceCode: before.code,
+          reason,
+          referenceType: "PreparedStandard",
+          referenceId: id,
+        });
+      }
     });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Không thể chuyển trạng thái" };

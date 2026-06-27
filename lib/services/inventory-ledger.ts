@@ -15,6 +15,8 @@ export type InventoryLedgerRow = {
   quantityAfter: number;
   unit: string;
   actionType: string;
+  transactionType: string;
+  reason: string;
   referenceType: string;
   referenceId: string;
   notes: string;
@@ -50,6 +52,8 @@ export async function getInventoryLedgerRows(limit = 200): Promise<InventoryLedg
     quantityAfter: row.quantityAfter,
     unit: row.unit,
     actionType: row.actionType,
+    transactionType: row.transactionType ?? "",
+    reason: row.reason,
     referenceType: row.referenceType,
     referenceId: row.referenceId,
     notes: row.notes,

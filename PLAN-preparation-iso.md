@@ -16,7 +16,9 @@
 | `phase2-ui-workflow` | 2 | Workflow UI: transitions, amendment dialog, soft delete, Staff pickers (3 Prepared*Client) | done (`0d9518f`) |
 | `phase3-traceability` | 3 | `preparation-traceability.ts` + tree UI + reverse lookup catalog + `/preparation/[type]/[id]` | done (`aa305a5`) |
 | `phase3-soft-delete-code` | 3 | `prepared-code-guard.ts` — archive mã ghost · release on create/update | done (`4bbcb0b`) |
-| `phase4-reports` | 4 | `/preparation-history`, Excel export, prepared-excel/import, seed chain, HANDOFF | done |
+| `phase4-reports` | 4 | `/preparation-history`, Excel export, prepared-excel/import, seed chain, HANDOFF | done (`16d1efb`) |
+| `phase4-qa-workflow` | 4 | QA browser: FSM · soft delete TG2 · export Excel 14 cột | done (2026-06-27 local) |
+| `phase3-qa-traceability` | 3 | QA browser: tab Truy xuất PSTD-0006 · reverse STD-0007 | pending |
 
 ---
 
@@ -35,15 +37,12 @@
 | Excel | `lib/prepared-excel.ts`, `prepared-import.ts` |
 | UI | `PreparedChemicalsClient`, `PreparedStandardsClient`, `PreparedStrainsClient` |
 
-### Thiếu (ISO 17025)
+### Thiếu / chưa QA
 
-- Workflow Draft → Prepared → Checked → Approved → Cancelled
-- `checkedBy` / `approvedBy` trên HC/Chuẩn pha chế; không có lịch sử bất biến theo version
-- Amendment sau duyệt (bắt buộc lý do) — pattern tham khảo `equipment-calibration.ts`, `equipment-disposal.ts`
-- Soft delete (hiện hard delete)
-- UI truy xuất: tab lịch sử, cây nguồn gốc, reverse lookup từ catalog gốc
-- Báo cáo export lịch sử pha chế
-- Đính kèm (`attachmentUrl`)
+- Amendment sau duyệt — **code có** · QA browser pending
+- Đính kèm (`attachmentUrl`) — schema có · UI chưa
+- Tab Truy xuất + reverse lookup — **code có** (`aa305a5`) · QA browser pending
+- PDF print view — chưa thêm thư viện PDF (HTML `@media print` only)
 
 ---
 
@@ -121,11 +120,14 @@ Script: `scripts/backfill-preparation-history.ts`
 
 ## 6. Checklist test (tóm tắt)
 
-- Migration + History v0 cho bản ghi cũ
-- Draft → Prepared → Checked → Approved; amend có reason; cancel soft
-- PSTD-0006 tree → PSTD-0005 → STD-0007
-- Export Excel 14 cột; regression nhập kho/nhật ký/tem nhãn
-- `npx tsc --noEmit` pass
+- [x] Migration + History v0 cho bản ghi cũ
+- [x] Draft → Prepared → Checked → Approved (`PCHEM-QA-001`, local 2026-06-27)
+- [x] Soft delete + tái sử dụng mã TG2 (local 2026-06-27)
+- [x] Export Excel 14 cột · 26 dòng · toast OK (local 2026-06-27)
+- [ ] Amend có reason · cancel soft (chưa QA browser)
+- [ ] PSTD-0006 tree → PSTD-0005 → STD-0007 (chưa QA browser)
+- [ ] Regression nhập kho/nhật ký/tem nhãn
+- [x] `npx tsc --noEmit` pass
 
 ---
 
@@ -134,9 +136,18 @@ Script: `scripts/backfill-preparation-history.ts`
 1. **Foundation** — schema, backfill, workflow service, hook actions  
 2. **Workflow UI** — transitions, amendment, Staff pickers, tabs  
 3. **Traceability** — tree, reverse lookup, detail page ✅ (`aa305a5`)  
-4. **Reports** — `/preparation-history`, Excel, import/export, seed, HANDOFF ✅
+4. **Reports** — `/preparation-history`, Excel, import/export, seed, HANDOFF ✅ (`16d1efb`)
 
 ---
+
+## 8. Việc tiếp theo
+
+| Ưu tiên | Việc |
+|---------|------|
+| **Prod** | Redeploy từ `16d1efb` · merge PR → `main` |
+| **QA ISO** | Tab Truy xuất PSTD-0006 · reverse STD-0007 · amend · filter đầy đủ |
+| **QA khác** | §8 HANDOFF: dashboard · notification · import Excel · in tem nhãn |
+| **Tương lai** | UI `attachmentUrl` · PDF library · prod regression |
 
 ## File đọc trước khi implement
 

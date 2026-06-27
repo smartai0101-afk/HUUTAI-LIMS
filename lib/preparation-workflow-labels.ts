@@ -5,6 +5,7 @@ export const PREPARATION_WORKFLOW_STATUS_LABELS: Record<PreparationWorkflowStatu
   Prepared: "Đã pha chế",
   Checked: "Đã kiểm tra",
   Approved: "Đã duyệt",
+  Rejected: "Bị từ chối",
   Cancelled: "Đã hủy",
 };
 
@@ -14,6 +15,7 @@ export const PREPARATION_WORKFLOW_FILTERS = [
   "Prepared",
   "Checked",
   "Approved",
+  "Rejected",
   "Cancelled",
 ] as const;
 
@@ -24,6 +26,7 @@ export const PREPARATION_WORKFLOW_BADGE_CLASS: Record<PreparationWorkflowStatus,
   Prepared: "bg-sky-100 text-sky-800",
   Checked: "bg-amber-100 text-amber-900",
   Approved: "bg-emerald-100 text-emerald-800",
+  Rejected: "bg-orange-100 text-orange-900",
   Cancelled: "bg-rose-100 text-rose-800",
 };
 
@@ -33,8 +36,10 @@ export const TRANSITION_ACTION_LABELS: Partial<
   "Draft->Prepared": "Xác nhận đã pha chế",
   "Draft->Cancelled": "Hủy nháp",
   "Prepared->Checked": "Ghi nhận đã kiểm tra",
+  "Prepared->Rejected": "Từ chối lô pha (pha sai)",
   "Prepared->Cancelled": "Hủy phiếu",
   "Checked->Approved": "Duyệt",
+  "Checked->Rejected": "Từ chối lô pha (pha sai)",
   "Checked->Cancelled": "Hủy phiếu",
   "Approved->Cancelled": "Hủy bản ghi đã duyệt",
 };

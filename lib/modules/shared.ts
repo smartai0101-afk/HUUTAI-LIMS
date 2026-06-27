@@ -56,6 +56,7 @@ export type FieldDef = {
   type?: "text" | "number" | "date" | "select" | "textarea" | "stockLot";
   options?: { value: string; label: string }[];
   required?: boolean;
+  readOnly?: boolean;
   colSpan?: 2;
   /** Master field for stockLot picker (e.g. sourceStrainId). */
   masterFieldKey?: string;

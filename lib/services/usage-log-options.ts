@@ -1,8 +1,10 @@
 import type { UsageSourceType } from "@prisma/client";
 import { getChemicals } from "@/lib/services/chemicals";
+import { enrichItemWithAvailable } from "@/lib/services/inventory-available-enrichment";
 import { getMicrobialStrains } from "@/lib/services/microbial-strains";
 import { getStandards } from "@/lib/services/standards";
 import { usageSourceLabel } from "@/lib/usage-source";
+import { formatStockQty } from "@/lib/inventory-units";
 import type { StockLotView } from "@/types";
 
 export type UsageLogItemOption = {
@@ -30,6 +32,7 @@ function formatOption(
 ): UsageLogItemOption {
   const sourceLabel = usageSourceLabel(sourceType);
   const unitSuffix = item.unit.trim() ? ` ${item.unit.trim()}` : "";
+  const availableLabel = formatStockQty(item.quantity);
   return {
     id: item.id,
     code: item.code,
@@ -38,7 +41,7 @@ function formatOption(
     unit: item.unit,
     sourceType,
     sourceLabel,
-    label: `${item.code} — ${item.name} (còn ${item.quantity}${unitSuffix})`,
+    label: `${item.code} — ${item.name} (còn ${availableLabel}${unitSuffix})`,
     stockLots: item.stockLots,
   };
 }
@@ -50,11 +53,22 @@ export async function getUsageLogItemOptions(): Promise<UsageLogItemOption[]> {
     getMicrobialStrains(),
   ]);
 
-  return [
-    ...chemicals.map((item) => formatOption(item, "Chemical")),
-    ...standards.map((item) => formatOption(item, "Standard")),
-    ...strains.map((item) => formatOption(item, "MicrobialStrain")),
-  ].sort((a, b) => a.code.localeCompare(b.code));
+  const options: UsageLogItemOption[] = [];
+
+  for (const item of chemicals) {
+    const enriched = await enrichItemWithAvailable("Chemical", item.id, item.stockLots);
+    options.push(formatOption({ ...item, ...enriched }, "Chemical"));
+  }
+  for (const item of standards) {
+    const enriched = await enrichItemWithAvailable("Standard", item.id, item.stockLots);
+    options.push(formatOption({ ...item, ...enriched }, "Standard"));
+  }
+  for (const item of strains) {
+    const enriched = await enrichItemWithAvailable("MicrobialStrain", item.id, item.stockLots);
+    options.push(formatOption({ ...item, ...enriched }, "MicrobialStrain"));
+  }
+
+  return options.sort((a, b) => a.code.localeCompare(b.code));
 }
 
 export async function findUsageLogItemByCode(

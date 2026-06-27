@@ -6,7 +6,8 @@ import { PREPARATION_WORKFLOW_STATUS_LABELS } from "@/lib/preparation-workflow-l
 import type { ExcelColumn } from "@/lib/excel";
 
 export const PREPARATION_HISTORY_REPORT_HEADERS = [
-  "Mã pha chế",
+  "Mã nhóm",
+  "Mã lô",
   "Loại",
   "Tên thành phẩm",
   "Ngày pha",
@@ -36,6 +37,8 @@ export type PreparationHistoryReportRow = {
   preparationId: string;
   preparationType: PreparationRecordType;
   detailHref: string;
+  parentCode: string;
+  batchNumber: number;
   code: string;
   type: string;
   name: string;
@@ -92,6 +95,8 @@ function baseRow(
     quantityUsed: string;
     originalConcentration?: string;
   },
+  parentCode: string,
+  batchNumber: number,
   rowSuffix = "",
 ): PreparationHistoryReportRow {
   return {
@@ -99,6 +104,8 @@ function baseRow(
     preparationId: id,
     preparationType: type,
     detailHref: preparationDetailHref(type, id),
+    parentCode,
+    batchNumber,
     code,
     type: TYPE_LABELS[type],
     name,
@@ -158,6 +165,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
       row.approvedByStaff?.name ?? "",
       row.approvedByStaffId,
     );
+    const parentCode = row.parentCode || row.code;
+    const batchNumber = row.batchNumber;
     const finalConc = formatConcentration(
       row.finalConcentration || row.concentration,
       row.concentrationUnit,
@@ -180,6 +189,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           row.workflowStatus,
           row.notes,
           { origin: "", lot: "", quantityUsed: "" },
+          parentCode,
+          batchNumber,
         ),
       );
       continue;
@@ -205,6 +216,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
             lot: ing.lotNumberSnapshot,
             quantityUsed: formatQuantity(ing.quantityUsed, ing.unit),
           },
+          parentCode,
+          batchNumber,
           `-ing-${index}`,
         ),
       );
@@ -216,6 +229,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
       row.approvedByStaff?.name ?? "",
       row.approvedByStaffId,
     );
+    const parentCode = row.parentCode || row.code;
+    const batchNumber = row.batchNumber;
     const finalConc = formatConcentration(
       row.finalConcentration || row.concentration,
       row.concentrationUnit,
@@ -257,6 +272,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           row.workflowStatus,
           row.notes,
           { origin: "", lot: "", quantityUsed: "" },
+          parentCode,
+          batchNumber,
         ),
       );
       continue;
@@ -278,6 +295,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           row.workflowStatus,
           row.notes,
           source,
+          parentCode,
+          batchNumber,
           `-src-${index}`,
         ),
       );
@@ -289,6 +308,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
       row.approvedByStaff?.name ?? "",
       row.approvedByStaffId,
     );
+    const parentCode = row.parentCode || row.code;
+    const batchNumber = row.batchNumber;
     const finalConc = formatConcentration(
       row.finalConcentration || row.concentration,
       "",
@@ -314,6 +335,8 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           lot: row.sourceLotNumberSnapshot,
           quantityUsed: "1",
         },
+        parentCode,
+        batchNumber,
       ),
     );
   }
@@ -329,7 +352,8 @@ export function preparationHistoryReportToExcelRows(
   rows: PreparationHistoryReportRow[],
 ): Record<string, string>[] {
   return rows.map((row) => ({
-    "Mã pha chế": row.code,
+    "Mã nhóm": row.parentCode,
+    "Mã lô": row.code,
     Loại: row.type,
     "Tên thành phẩm": row.name,
     "Ngày pha": row.preparedDate,

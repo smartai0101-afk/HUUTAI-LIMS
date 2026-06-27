@@ -1,0 +1,4 @@
+ALTER TABLE "PreparedStandard" ADD COLUMN "parentCode" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "PreparedStandard" ADD COLUMN "batchNumber" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "PreparedStrain" ADD COLUMN "parentCode" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "PreparedStrain" ADD COLUMN "batchNumber" INTEGER NOT NULL DEFAULT 1;

@@ -17,6 +17,7 @@ import {
   releaseSoftDeletedPreparedStandardCode,
   releaseSoftDeletedPreparedStrainCode,
 } from "@/lib/prepared-code-guard";
+import { inferPreparedBatchFields } from "@/lib/prepared-batch-code";
 import { parseQuantityWithUnit } from "@/lib/excel-import-utils";
 import { isValidFormDate, parseFormDate, statusFromLabel } from "@/lib/modules/shared";
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
@@ -178,9 +179,12 @@ export async function bulkImportPreparedChemicals(formData: FormData) {
     const unit = rowStr(row, "unit") || "mL";
     const preparedDate = parseFormDate(preparedDateStr)!;
     const expiryDate = parseFormDate(expiryDateStr)!;
+    const batchFields = inferPreparedBatchFields(code);
 
     await db.preparedChemical.create({
       data: {
+        parentCode: batchFields.parentCode,
+        batchNumber: batchFields.batchNumber,
         code,
         name,
         concentration: rowStr(row, "concentration"),
@@ -285,9 +289,12 @@ export async function bulkImportPreparedStandards(formData: FormData) {
     const solventUnit = rowStr(group.header, "solventUnit") || "mL";
     const preparedDate = parseFormDate(preparedDateStr)!;
     const expiryDate = parseFormDate(expiryDateStr)!;
+    const batchFields = inferPreparedBatchFields(code);
 
     await db.preparedStandard.create({
       data: {
+        parentCode: batchFields.parentCode,
+        batchNumber: batchFields.batchNumber,
         code,
         name,
         level,
@@ -418,9 +425,12 @@ export async function bulkImportPreparedStrains(formData: FormData) {
 
     const preparedDate = parseFormDate(preparedDateStr)!;
     const expiryDate = parseFormDate(expiryDateStr)!;
+    const batchFields = inferPreparedBatchFields(code);
 
     await db.preparedStrain.create({
       data: {
+        parentCode: batchFields.parentCode,
+        batchNumber: batchFields.batchNumber,
         code,
         name,
         sourceStrainId: sourceStrain.id,

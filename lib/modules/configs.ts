@@ -4,7 +4,8 @@ const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ v
 const levelOptions = Object.entries(LEVEL_LABELS).map(([value, label]) => ({ value, label }));
 
 const commonPrepared: FieldDef[] = [
-  { key: "code", label: "Mã", required: true },
+  { key: "parentCode", label: "Mã nhóm", required: true },
+  { key: "code", label: "Mã lô", readOnly: true },
   { key: "name", label: "Tên", required: true },
   { key: "lot", label: "Lot/Batch" },
   { key: "formula", label: "Công thức" },
@@ -57,7 +58,8 @@ export const moduleConfigs = {
       ...commonPrepared,
     ] as FieldDef[],
     tableKeys: [
-      { key: "code", header: "Mã" },
+      { key: "parentCode", header: "Mã nhóm" },
+      { key: "code", header: "Mã lô" },
       { key: "name", header: "Tên" },
       { key: "sourceCode", header: "Nguồn gốc" },
       { key: "concentration", header: "Nồng độ" },
@@ -66,7 +68,7 @@ export const moduleConfigs = {
       { key: "expiryDate", header: "Hạn dùng", isDate: true },
       { key: "status", header: "Trạng thái", isStatus: true },
     ],
-    searchKeys: ["code", "name", "sourceCode", "lot", "concentration"],
+    searchKeys: ["parentCode", "code", "name", "sourceCode", "lot", "concentration"],
   },
   preparedStandard: {
     title: "Chuẩn pha chế",
@@ -78,7 +80,8 @@ export const moduleConfigs = {
       ...commonPrepared,
     ] as FieldDef[],
     tableKeys: [
-      { key: "code", header: "Mã" },
+      { key: "parentCode", header: "Mã nhóm" },
+      { key: "code", header: "Mã lô" },
       { key: "name", header: "Tên" },
       { key: "level", header: "Cấp" },
       { key: "sourceCode", header: "Nguồn gốc" },
@@ -87,7 +90,7 @@ export const moduleConfigs = {
       { key: "expiryDate", header: "Hạn dùng", isDate: true },
       { key: "status", header: "Trạng thái", isStatus: true },
     ],
-    searchKeys: ["code", "name", "sourceCode", "level", "lot"],
+    searchKeys: ["parentCode", "code", "name", "sourceCode", "level", "lot"],
     extraFilters: [{ key: "level", label: "Cấp", options: Object.values(LEVEL_LABELS) }],
   },
   preparedStrain: {
@@ -109,7 +112,8 @@ export const moduleConfigs = {
       { key: "storageCondition", label: "Điều kiện bảo quản" },
     ] as FieldDef[],
     tableKeys: [
-      { key: "code", header: "Mã" },
+      { key: "parentCode", header: "Mã nhóm" },
+      { key: "code", header: "Mã lô" },
       { key: "name", header: "Tên" },
       { key: "sourceCode", header: "Nguồn gốc" },
       { key: "sourceLotNumber", header: "Lot nguồn" },
@@ -118,6 +122,6 @@ export const moduleConfigs = {
       { key: "expiryDate", header: "Hạn dùng", isDate: true },
       { key: "status", header: "Trạng thái", isStatus: true },
     ],
-    searchKeys: ["code", "name", "sourceCode", "lot"],
+    searchKeys: ["parentCode", "code", "name", "sourceCode", "lot"],
   },
 };

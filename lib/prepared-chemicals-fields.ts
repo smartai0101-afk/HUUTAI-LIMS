@@ -1,4 +1,5 @@
 export const PREPARED_CHEMICAL_FORM_FIELD_KEYS = [
+  "parentCode",
   "code",
   "name",
   "concentration",

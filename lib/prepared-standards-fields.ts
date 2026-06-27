@@ -1,6 +1,7 @@
 import type { PreparedStandardLevel } from "@prisma/client";
 
 export const PREPARED_STANDARD_FORM_FIELD_KEYS = [
+  "parentCode",
   "code",
   "name",
   "concentration",

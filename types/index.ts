@@ -36,6 +36,7 @@ export type ChemicalView = {
   coaPath: string;
   unit: string;
   quantity: number;
+  inventoryStatus: string;
   expiryDate: string;
   storageCondition: string;
   status: string;
@@ -71,6 +72,8 @@ export type PreparedChemicalIngredientView = {
 
 export type PreparedChemicalView = {
   id: string;
+  parentCode: string;
+  batchNumber: number;
   code: string;
   name: string;
   concentration: string;
@@ -127,6 +130,8 @@ export type PreparedStandardSolventView = {
 
 export type PreparedStandardView = {
   id: string;
+  parentCode: string;
+  batchNumber: number;
   code: string;
   name: string;
   level: string;
@@ -143,6 +148,7 @@ export type PreparedStandardView = {
   storageCondition: string;
   quantity: number;
   unit: string;
+  inventoryStatus: string;
   notes: string;
   components: PreparedStandardComponentView[];
   solvents: PreparedStandardSolventView[];
@@ -185,6 +191,7 @@ export type StandardView = {
   coaPath: string;
   unit: string;
   quantity: number;
+  inventoryStatus: string;
   expiryDate: string;
   afterOpenExpiry: string;
   storageCondition: string;
@@ -238,6 +245,8 @@ export type StockLotView = {
   id: string;
   lot: string;
   quantity: number;
+  /** Ledger-derived available; falls back to quantity when unset. */
+  availableQuantity?: number;
   unit: string;
   expiryDate: string;
   afterOpenExpiry: string;

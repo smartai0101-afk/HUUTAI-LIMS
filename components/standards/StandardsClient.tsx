@@ -13,6 +13,7 @@ import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CoaLink } from "@/components/standards/CoaLink";
 import { CatalogPreparedDerivatives } from "@/components/preparation/CatalogPreparedDerivatives";
+import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
 import { bulkImportStandards, previewStandardsImport } from "@/lib/actions/catalog-import";
@@ -141,6 +142,7 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
   const [coaFile, setCoaFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StandardLotRow | null>(null);
+  const [drawerTab, setDrawerTab] = useState<"Thông tin chung" | "Tồn kho">("Thông tin chung");
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
@@ -382,9 +384,9 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
           onClose={() => setSelected(null)}
           title={selected?.name ?? ""}
           subtitle={selected ? (selected.stockLotId ? `${selected.code} · Lot ${selected.lot}` : selected.code) : undefined}
-          tabs={["Thông tin chung"]}
-          activeTab="Thông tin chung"
-          onTabChange={() => undefined}
+          tabs={["Thông tin chung", "Tồn kho"]}
+          activeTab={drawerTab}
+          onTabChange={(tab) => setDrawerTab(tab as "Thông tin chung" | "Tồn kho")}
           layout="stacked"
           maxWidth="5xl"
           actions={
@@ -401,6 +403,20 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
           }
           tabContent={
             selected ? (
+              drawerTab === "Tồn kho" ? (
+                <InventoryItemPanel
+                  sourceType="Standard"
+                  sourceId={selected.id}
+                  sourceCode={selected.code}
+                  unit={selected.unit}
+                  stockLotId={selected.stockLotId}
+                  inventoryStatus={selected.inventoryStatus}
+                  canEdit={canEdit}
+                  canManage={canManage}
+                  onSuccess={(msg) => addToast(msg, "success")}
+                  onError={(msg) => addToast(msg, "error")}
+                />
+              ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {detailFields.map((f) => (
                   <div key={f.key} className={f.multiline ? "sm:col-span-2" : ""}>
@@ -420,6 +436,7 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
                 </div>
                 <CatalogPreparedDerivatives catalogKind="STANDARD" catalogId={selected.id} />
               </div>
+              )
             ) : null
           }
         />

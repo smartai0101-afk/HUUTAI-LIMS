@@ -972,6 +972,12 @@ async function main() {
   await seedExtendedPostStockLots(prisma);
   await seedAuth();
 
+  const { ensureAllOpeningBalances } = await import("../lib/services/inventory-opening-balance");
+  await prisma.$transaction(async (tx) => {
+    const opening = await ensureAllOpeningBalances(tx, "Seed");
+    console.log(`Opening balance CREATE: ${opening.created} created, ${opening.skipped} skipped`);
+  });
+
   console.log("Seed completed.");
 }
 

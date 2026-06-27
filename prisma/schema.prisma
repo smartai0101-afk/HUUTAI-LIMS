@@ -66,6 +66,7 @@ enum PreparationWorkflowStatus {
   Prepared
   Checked
   Approved
+  Rejected
   Cancelled
 }
 
@@ -86,6 +87,25 @@ enum InventorySourceType {
 enum InventoryActionType {
   Deduct
   Restore
+}
+
+enum InventoryTransactionType {
+  CREATE
+  CONSUME
+  DISCARD
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  EXPIRE
+  REJECT
+  REVERSAL
+}
+
+enum InventoryLifecycleStatus {
+  Active
+  Rejected
+  Expired
+  Discarded
+  Depleted
 }
 
 enum StockInSourceType {
@@ -172,6 +192,7 @@ model Chemical {
   coaPath           String?
   unit              String               @default("")
   quantity          Float                @default(0)
+  inventoryStatus   InventoryLifecycleStatus @default(Active)
   expiryDate        DateTime?
   storageCondition  String               @default("")
   status            StandardExpiryStatus @default(Ready)
@@ -204,6 +225,7 @@ model Standard {
   coaPath           String?
   unit              String               @default("")
   quantity          Float                @default(0)
+  inventoryStatus   InventoryLifecycleStatus @default(Active)
   expiryDate        DateTime?
   afterOpenExpiry   DateTime?
   storageCondition  String               @default("")
@@ -234,6 +256,7 @@ model MicrobialStrain {
   coaPath           String?
   unit              String               @default("")
   quantity          Float                @default(0)
+  inventoryStatus   InventoryLifecycleStatus @default(Active)
   expiryDate        DateTime?
   storageCondition  String               @default("")
   status            StandardExpiryStatus @default(Ready)
@@ -306,6 +329,8 @@ model StockInLog {
 
 model PreparedChemical {
   id                    String                       @id @default(cuid())
+  parentCode            String                       @default("")
+  batchNumber           Int                          @default(1)
   code                  String                       @unique
   name                  String
   concentration         String                       @default("")
@@ -327,6 +352,7 @@ model PreparedChemical {
   preparationCondition  String                       @default("")
   attachmentUrl         String                       @default("")
   workflowStatus        PreparationWorkflowStatus    @default(Approved)
+  inventoryStatus       InventoryLifecycleStatus     @default(Active)
   version               Int                          @default(1)
   amendmentReason       String                       @default("")
   deletedAt             DateTime?
@@ -343,6 +369,8 @@ model PreparedChemical {
   @@index([expiryDate])
   @@index([workflowStatus])
   @@index([deletedAt])
+  @@index([parentCode])
+  @@unique([parentCode, batchNumber])
 }
 
 model PreparedChemicalIngredient {
@@ -355,16 +383,20 @@ model PreparedChemicalIngredient {
   lotNumberSnapshot      String           @default("")
   quantityUsed           Float
   unit                   String           @default("")
+  consumeTransactionId   String?
   preparedChemical       PreparedChemical @relation(fields: [preparedChemicalId], references: [id], onDelete: Cascade)
   chemical               Chemical         @relation(fields: [chemicalId], references: [id])
 
   @@index([preparedChemicalId])
   @@index([chemicalId])
   @@index([stockLotId])
+  @@index([consumeTransactionId])
 }
 
 model PreparedStandard {
   id                    String                      @id @default(cuid())
+  parentCode            String                      @default("")
+  batchNumber           Int                         @default(1)
   code                  String                      @unique
   name                  String
   level                 PreparedStandardLevel
@@ -387,6 +419,7 @@ model PreparedStandard {
   preparationCondition  String                      @default("")
   attachmentUrl         String                      @default("")
   workflowStatus        PreparationWorkflowStatus   @default(Approved)
+  inventoryStatus       InventoryLifecycleStatus    @default(Active)
   version               Int                         @default(1)
   amendmentReason       String                      @default("")
   deletedAt             DateTime?
@@ -408,6 +441,8 @@ model PreparedStandard {
   @@index([expiryDate])
   @@index([workflowStatus])
   @@index([deletedAt])
+  @@index([parentCode])
+  @@unique([parentCode, batchNumber])
 }
 
 model PreparedStandardComponent {
@@ -430,6 +465,7 @@ model PreparedStandardComponent {
   expiryDateSnapshot       DateTime?
   quantityUsed             Float
   unit                     String                              @default("")
+  consumeTransactionId     String?
   preparedStandard         PreparedStandard                    @relation(fields: [preparedStandardId], references: [id], onDelete: Cascade)
   standard                 Standard?                           @relation(fields: [standardId], references: [id])
   sourcePreparedStandard   PreparedStandard?                   @relation("PreparedStandardSource", fields: [sourcePreparedStandardId], references: [id])
@@ -438,6 +474,7 @@ model PreparedStandardComponent {
   @@index([standardId])
   @@index([sourcePreparedStandardId])
   @@index([stockLotId])
+  @@index([consumeTransactionId])
 }
 
 model PreparedStandardSolvent {
@@ -451,16 +488,20 @@ model PreparedStandardSolvent {
   lotNumberSnapshot      String           @default("")
   quantityUsed           Float
   unit                   String           @default("")
+  consumeTransactionId   String?
   preparedStandard       PreparedStandard @relation(fields: [preparedStandardId], references: [id], onDelete: Cascade)
   chemical               Chemical         @relation(fields: [chemicalId], references: [id])
 
   @@index([preparedStandardId])
   @@index([chemicalId])
   @@index([stockLotId])
+  @@index([consumeTransactionId])
 }
 
 model PreparedStrain {
   id                      String                    @id @default(cuid())
+  parentCode              String                    @default("")
+  batchNumber             Int                       @default(1)
   code                    String                    @unique
   name                    String
   sourceStrainId          String
@@ -484,6 +525,7 @@ model PreparedStrain {
   preparationCondition    String                    @default("")
   attachmentUrl           String                    @default("")
   workflowStatus          PreparationWorkflowStatus @default(Approved)
+  inventoryStatus         InventoryLifecycleStatus  @default(Active)
   version                 Int                       @default(1)
   amendmentReason         String                    @default("")
   deletedAt               DateTime?
@@ -501,6 +543,8 @@ model PreparedStrain {
   @@index([status])
   @@index([workflowStatus])
   @@index([deletedAt])
+  @@index([parentCode])
+  @@unique([parentCode, batchNumber])
 }
 
 model Container {
@@ -577,13 +621,15 @@ model PreparationAuditLog {
 }
 
 model UsageLog {
-  id                 String          @id @default(cuid())
-  date               DateTime
-  type               UsageLogType
-  sourceType         UsageSourceType
-  sourceId           String
-  containerId        String?
-  quantity           Float
+  id                     String          @id @default(cuid())
+  date                   DateTime
+  type                   UsageLogType
+  sourceType             UsageSourceType
+  sourceId               String
+  containerId            String?
+  stockLotId             String?
+  inventoryTransactionId String?
+  quantity               Float
   unit               String
   performedBy        String
   performedByStaffId String?
@@ -596,6 +642,7 @@ model UsageLog {
 
   @@index([sourceType, sourceId])
   @@index([containerId])
+  @@index([stockLotId])
   @@index([date])
   @@index([type])
   @@index([performedBy])
@@ -617,26 +664,36 @@ model AuditLog {
 }
 
 model InventoryTransaction {
-  id             String               @id @default(cuid())
-  time           DateTime             @default(now())
-  user           String               @default("")
-  module         String
-  sourceType     InventorySourceType
-  sourceId       String
-  sourceCode     String               @default("")
-  stockLotId     String?
-  quantityBefore Float
-  quantityUsed   Float
-  quantityAfter  Float
-  unit           String               @default("")
-  actionType     InventoryActionType
-  referenceType  String
-  referenceId    String
-  notes          String               @default("")
+  id                      String                    @id @default(cuid())
+  time                    DateTime                  @default(now())
+  user                    String                    @default("")
+  module                  String
+  sourceType              InventorySourceType
+  sourceId                String
+  sourceCode              String                    @default("")
+  stockLotId              String?
+  quantityBefore          Float
+  quantityUsed            Float
+  quantityAfter           Float
+  unit                    String                    @default("")
+  actionType              InventoryActionType
+  transactionType         InventoryTransactionType?
+  reason                  String                    @default("")
+  relatedPreparationType  PreparationType?
+  relatedPreparationId      String?
+  reversesTransactionId     String?
+  approvedBy              String                    @default("")
+  approvedAt              DateTime?
+  performedByStaffId      String?
+  referenceType           String
+  referenceId             String
+  notes                   String                    @default("")
 
   @@index([sourceType, sourceId])
   @@index([stockLotId])
   @@index([referenceType, referenceId])
+  @@index([transactionType])
+  @@index([relatedPreparationType, relatedPreparationId])
   @@index([time])
 }
 

@@ -21,6 +21,10 @@ import {
   findActivePreparedStandardByCode,
   releaseSoftDeletedPreparedStandardCode,
 } from "@/lib/prepared-code-guard";
+import {
+  assertValidParentCode,
+  resolvePreparedBatchIdentity,
+} from "@/lib/prepared-batch-code";
 import { computePreparedStandardStatus } from "@/lib/prepared-standard-status";
 import {
   PARENT_LEVEL_REQUIRED_MESSAGE,
@@ -37,7 +41,7 @@ import {
   recordPreparationUpdated,
   assertAmendmentAllowed,
 } from "@/lib/services/preparation-workflow";
-import { preparationHasStockDeducted, restorePreparationStock } from "@/lib/services/preparation-transition-stock";
+import { preparationHasStockDeducted } from "@/lib/services/preparation-transition-stock";
 
 const REVALIDATE_PATHS = ["/prepared-standards", "/standards", "/chemicals", "/", "/reports"];
 const MODULE_NAME = "PreparedStandard";
@@ -422,6 +426,7 @@ async function buildSolventCreates(tx: Prisma.TransactionClient, items: SolventI
 
 function buildBaseData(fd: FormData) {
   return {
+    parentCode: str(fd, "parentCode"),
     code: str(fd, "code"),
     name: str(fd, "name"),
     level: parseLevel(str(fd, "level")),
@@ -442,8 +447,15 @@ function validateBase(
   data: ReturnType<typeof buildBaseData>,
   components: ComponentInput[],
   solvents: SolventInput[],
+  options?: { requireParentCode?: boolean },
 ) {
-  if (!data.code || !data.name) return "Mã và tên chuẩn pha chế là bắt buộc";
+  if (options?.requireParentCode) {
+    const parentError = assertValidParentCode(data.parentCode);
+    if (parentError) return parentError;
+  } else if (!data.code) {
+    return "Mã chuẩn pha chế là bắt buộc";
+  }
+  if (!data.name) return "Tên chuẩn pha chế là bắt buộc";
   if (!data.level) return "Cấp chuẩn là bắt buộc";
   if (!data.concentration) return "Nồng độ là bắt buộc";
   if (!data.preparedDate || !data.expiryDate) return "Ngày pha chế và ngày hết hạn là bắt buộc";
@@ -452,6 +464,15 @@ function validateBase(
   if (!components.length) return "Cần ít nhất một chuẩn gốc sử dụng";
   if (!solvents.length) return "Cần ít nhất một dung môi sử dụng";
   return null;
+}
+
+export async function previewNextPreparedStandardBatchCode(fd: FormData) {
+  const parentCode = str(fd, "parentCode");
+  const parentError = assertValidParentCode(parentCode);
+  if (parentError) return { error: parentError };
+  const resolved = await resolvePreparedBatchIdentity(db, "PreparedStandard", parentCode);
+  if ("error" in resolved) return { error: resolved.error };
+  return { success: true, ...resolved };
 }
 
 export async function createPreparedStandard(fd: FormData) {
@@ -467,13 +488,8 @@ export async function createPreparedStandard(fd: FormData) {
   const solvents = parseSolvents(fd);
   if ("error" in solvents) return { error: solvents.error };
 
-  const validationError = validateBase(data, components, solvents);
+  const validationError = validateBase(data, components, solvents, { requireParentCode: true });
   if (validationError) return { error: validationError };
-
-  if (await findActivePreparedStandardByCode(data.code)) {
-    return { error: "Mã chuẩn pha chế đã tồn tại" };
-  }
-  await releaseSoftDeletedPreparedStandardCode(data.code);
 
   const newId = randomUUID();
   const initialQuantity = Number.isFinite(data.solventVolume) ? data.solventVolume : 0;
@@ -481,6 +497,9 @@ export async function createPreparedStandard(fd: FormData) {
 
   try {
     const row = await db.$transaction(async (tx) => {
+      const batchIdentity = await resolvePreparedBatchIdentity(tx, "PreparedStandard", data.parentCode);
+      if ("error" in batchIdentity) throw new Error(batchIdentity.error);
+
       const resolvedComponents = await resolveComponentLots(tx, components, data.level!);
       if ("error" in resolvedComponents) throw new Error(resolvedComponents.error);
       const resolvedSolvents = await resolveSolventLots(tx, solvents);
@@ -494,7 +513,9 @@ export async function createPreparedStandard(fd: FormData) {
       const row = await tx.preparedStandard.create({
         data: {
           id: newId,
-          code: data.code,
+          parentCode: batchIdentity.parentCode,
+          batchNumber: batchIdentity.batchNumber,
+          code: batchIdentity.code,
           name: data.name,
           level: data.level!,
           concentration: data.concentration,
@@ -526,7 +547,7 @@ export async function createPreparedStandard(fd: FormData) {
       action: "Created",
       entityType: "PreparedStandard",
       entityId: row.id,
-      object: data.code,
+      object: row.code,
       after: row,
     });
   } catch (e) {
@@ -573,11 +594,6 @@ export async function updatePreparedStandard(fd: FormData) {
     if (amendError) return { error: amendError };
   }
 
-  if (await findActivePreparedStandardByCode(data.code, id)) {
-    return { error: "Mã chuẩn pha chế đã tồn tại" };
-  }
-  await releaseSoftDeletedPreparedStandardCode(data.code);
-
   try {
     const row = await db.$transaction(async (tx) => {
       const resolvedComponents = await resolveComponentLots(tx, components, data.level!);
@@ -599,7 +615,7 @@ export async function updatePreparedStandard(fd: FormData) {
             ...componentInputToStockLines(resolvedComponents),
             ...solventInputToStockLines(resolvedSolvents),
           ],
-          notes: `Cập nhật ${data.code}`,
+          notes: `Cập nhật ${before.code}`,
         });
         if (stockError) throw new Error(stockError);
       }
@@ -615,7 +631,6 @@ export async function updatePreparedStandard(fd: FormData) {
       const row = await tx.preparedStandard.update({
         where: { id },
         data: {
-          code: data.code,
           name: data.name,
           level: data.level!,
           concentration: data.concentration,
@@ -690,11 +705,6 @@ export async function deletePreparedStandard(fd: FormData) {
 
   try {
     await db.$transaction(async (tx) => {
-      if (preparationHasStockDeducted(before.workflowStatus)) {
-        const stockError = await restorePreparationStock(tx, "STANDARD", id, user);
-        if (stockError) throw new Error(stockError);
-      }
-
       await recordPreparationDeleted(tx, "STANDARD", before, user);
 
       await tx.preparedStandard.update({

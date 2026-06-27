@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Download, Plus, Printer, Search, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -17,8 +17,10 @@ import { useToast } from "@/components/ToastProvider";
 import {
   createPreparedChemical,
   deletePreparedChemical,
+  previewNextPreparedChemicalBatchCode,
   updatePreparedChemical,
 } from "@/lib/actions/prepared-chemicals";
+import { expandPreparedToBatchRows, groupedPreparedCell, type PreparedBatchRowMeta } from "@/lib/prepared-batch-rows";
 import { bulkImportPreparedChemicals } from "@/lib/actions/prepared-import";
 import { formatCasProductSnapshot } from "@/lib/chemicals-fields";
 import { PREPARED_CHEMICAL_FORM_FIELD_KEYS, buildPreparedChemicalExportRows } from "@/lib/prepared-chemicals-fields";
@@ -63,6 +65,7 @@ type IngredientFormRow = {
 };
 
 const initialForm = {
+  parentCode: "",
   code: "",
   name: "",
   concentration: "",
@@ -92,6 +95,8 @@ function emptyIngredient(): IngredientFormRow {
   };
 }
 
+type PreparedChemicalBatchRow = PreparedChemicalView & PreparedBatchRowMeta & { stt: number };
+
 export function PreparedChemicalsClient({
   items,
   chemicals,
@@ -110,6 +115,7 @@ export function PreparedChemicalsClient({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState(initialForm);
+  const [previewBatchCode, setPreviewBatchCode] = useState("");
   const [ingredients, setIngredients] = useState<IngredientFormRow[]>([emptyIngredient()]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PreparedChemicalView | null>(null);
@@ -127,11 +133,26 @@ export function PreparedChemicalsClient({
     [chemicals],
   );
 
+  useEffect(() => {
+    if (isEditing || !isFormOpen) return;
+    const parentCode = form.parentCode.trim();
+    if (!parentCode) {
+      setPreviewBatchCode("");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("parentCode", parentCode);
+    void previewNextPreparedChemicalBatchCode(fd).then((result) => {
+      if ("success" in result && result.success && result.code) setPreviewBatchCode(result.code);
+    });
+  }, [form.parentCode, isEditing, isFormOpen]);
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return items.filter((item) => {
+    const base = items.filter((item) => {
       const matchQuery =
         !q ||
+        item.parentCode.toLowerCase().includes(q) ||
         item.code.toLowerCase().includes(q) ||
         item.name.toLowerCase().includes(q) ||
         item.concentration.toLowerCase().includes(q) ||
@@ -141,6 +162,7 @@ export function PreparedChemicalsClient({
         workflowFilter === "All" || item.workflowStatus === workflowFilter;
       return matchQuery && matchStatus && matchWorkflow;
     });
+    return expandPreparedToBatchRows(base).map((item, index) => ({ ...item, stt: index + 1 }));
   }, [items, query, statusFilter, workflowFilter]);
 
   const selectedRows = useMemo(
@@ -196,6 +218,7 @@ export function PreparedChemicalsClient({
       setIsEditing(true);
       setEditingId(item.id);
       setForm({
+        parentCode: item.parentCode,
         code: item.code,
         name: item.name,
         concentration: item.concentration,
@@ -230,6 +253,7 @@ export function PreparedChemicalsClient({
     setIsEditing(true);
     setEditingId(item.id);
     setForm({
+      parentCode: item.parentCode,
       code: item.code,
       name: item.name,
       concentration: item.concentration,
@@ -279,8 +303,12 @@ export function PreparedChemicalsClient({
   };
 
   const submitForm = (amendmentReason = "") => {
-    if (!form.code.trim() || !form.name.trim()) {
-      addToast("Mã và tên hóa chất pha là bắt buộc", "error");
+    if (!form.parentCode.trim() || !form.name.trim()) {
+      addToast("Mã nhóm và tên hóa chất pha là bắt buộc", "error");
+      return;
+    }
+    if (isEditing && !form.code.trim()) {
+      addToast("Mã lô không hợp lệ", "error");
       return;
     }
     if (!form.preparedDate || !form.expiryDate) {
@@ -483,8 +511,20 @@ export function PreparedChemicalsClient({
 
         <DataTable
           columns={[
-            { key: "code", header: "Mã hóa chất pha" },
-            { key: "name", header: "Tên hóa chất pha" },
+            { key: "stt", header: "STT" },
+            {
+              key: "parentCode",
+              header: "Mã nhóm",
+              render: (_v, row: PreparedChemicalBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.parentCode),
+            },
+            { key: "code", header: "Mã lô" },
+            {
+              key: "name",
+              header: "Tên hóa chất pha",
+              render: (_v, row: PreparedChemicalBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.name),
+            },
             { key: "concentration", header: "Nồng độ" },
             { key: "concentrationUnit", header: "Đơn vị nồng độ" },
             {
@@ -697,11 +737,22 @@ export function PreparedChemicalsClient({
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm text-slate-600">Mã hóa chất pha</label>
+                  <label className="mb-1 block text-sm text-slate-600">Mã nhóm *</label>
                   <input
-                    value={form.code}
-                    onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
-                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+                    value={form.parentCode}
+                    onChange={(e) => setForm((p) => ({ ...p, parentCode: e.target.value }))}
+                    disabled={isEditing}
+                    placeholder="VD: HC01"
+                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-slate-600">Mã lô {isEditing ? "" : "(tự sinh)"}</label>
+                  <input
+                    readOnly
+                    value={isEditing ? form.code : previewBatchCode}
+                    placeholder={isEditing ? "" : "Nhập mã nhóm để xem mã lô"}
+                    className="h-11 w-full rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm"
                   />
                 </div>
                 <div>

@@ -8,7 +8,7 @@ export type StockLotSelection = {
 };
 
 export function formatStockLotOptionLabel(lot: StockLotView): string {
-  const qty = formatStockQty(lot.quantity);
+  const qty = formatStockQty(lot.availableQuantity ?? lot.quantity);
   const unit = lot.unit.trim();
   const expiry = lot.expiryDate ? formatDate(lot.expiryDate) : "-";
   return `${lot.lot} · ${qty}${unit ? ` ${unit}` : ""} · HH ${expiry}`;

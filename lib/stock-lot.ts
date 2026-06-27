@@ -255,6 +255,7 @@ async function writeInventoryTransaction(
       quantityAfter: params.quantityAfter,
       unit: params.unit,
       actionType: "Restore",
+      transactionType: "CREATE",
       referenceType: params.referenceType,
       referenceId: params.referenceId,
       notes: params.notes ?? "",

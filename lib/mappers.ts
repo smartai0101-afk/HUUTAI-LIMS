@@ -73,6 +73,7 @@ export function mapChemical(
     coaPath: string | null;
     unit: string;
     quantity: number;
+    inventoryStatus?: string;
     expiryDate: Date | null;
     storageCondition: string;
     status: string;
@@ -95,6 +96,7 @@ export function mapChemical(
     coaPath: chemical.coaPath ?? "",
     unit: chemical.unit,
     quantity: chemical.quantity,
+    inventoryStatus: chemical.inventoryStatus ?? "Active",
     expiryDate: chemical.expiryDate ? toDateString(chemical.expiryDate) : "",
     storageCondition: chemical.storageCondition,
     status: standardStatusLabel(chemical.status),
@@ -162,6 +164,7 @@ export function mapStandard(
     coaPath: string | null;
     unit: string;
     quantity: number;
+    inventoryStatus?: string;
     expiryDate: Date | null;
     afterOpenExpiry: Date | null;
     storageCondition: string;
@@ -185,6 +188,7 @@ export function mapStandard(
     coaPath: standard.coaPath ?? "",
     unit: standard.unit,
     quantity: standard.quantity,
+    inventoryStatus: standard.inventoryStatus ?? "Active",
     expiryDate: standard.expiryDate ? toDateString(standard.expiryDate) : "",
     afterOpenExpiry: standard.afterOpenExpiry ? toDateString(standard.afterOpenExpiry) : "",
     storageCondition: standard.storageCondition,

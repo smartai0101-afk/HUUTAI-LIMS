@@ -1,4 +1,4 @@
-import type { InventoryActionType, InventorySourceType, Prisma, StockInSourceType } from "@prisma/client";
+import type { InventoryActionType, InventorySourceType, InventoryTransactionType, Prisma, StockInSourceType } from "@prisma/client";
 import {
   convertQuantity,
   formatStockQty,
@@ -18,6 +18,7 @@ import {
   restoreToStockLotById,
   syncMasterQuantityFromLots,
 } from "@/lib/stock-lot";
+import { actionTypeToTransactionType } from "@/lib/services/inventory-transaction-types";
 
 export {
   formatStockQty,
@@ -58,6 +59,11 @@ type ApplyInventoryOptions = {
   restores?: InventoryStockLine[];
   deducts?: InventoryStockLine[];
   notes?: string;
+  reason?: string;
+  restoreTransactionType?: import("@prisma/client").InventoryTransactionType;
+  deductTransactionType?: import("@prisma/client").InventoryTransactionType;
+  relatedPreparationType?: import("@prisma/client").PreparationType | null;
+  relatedPreparationId?: string | null;
 };
 
 function stockKey(sourceType: InventorySourceType, sourceId: string) {
@@ -199,6 +205,10 @@ async function writeInventoryTransaction(
     referenceId: string;
     stockLotId?: string | null;
     notes?: string;
+    reason?: string;
+    transactionType?: InventoryTransactionType;
+    relatedPreparationType?: import("@prisma/client").PreparationType | null;
+    relatedPreparationId?: string | null;
   },
 ) {
   await tx.inventoryTransaction.create({
@@ -214,11 +224,34 @@ async function writeInventoryTransaction(
       quantityAfter: params.quantityAfter,
       unit: params.unit,
       actionType: params.actionType,
+      transactionType:
+        params.transactionType ?? actionTypeToTransactionType(params.actionType, params.module),
+      reason: params.reason ?? "",
+      relatedPreparationType: params.relatedPreparationType ?? null,
+      relatedPreparationId: params.relatedPreparationId ?? null,
       referenceType: params.referenceType,
       referenceId: params.referenceId,
       notes: params.notes ?? "",
     },
   });
+}
+
+function ledgerWriteMeta(
+  options: ApplyInventoryOptions,
+  actionType: InventoryActionType,
+): {
+  reason?: string;
+  transactionType?: InventoryTransactionType;
+  relatedPreparationType?: import("@prisma/client").PreparationType | null;
+  relatedPreparationId?: string | null;
+} {
+  return {
+    reason: options.reason,
+    transactionType:
+      actionType === "Restore" ? options.restoreTransactionType : options.deductTransactionType,
+    relatedPreparationType: options.relatedPreparationType ?? null,
+    relatedPreparationId: options.relatedPreparationId ?? null,
+  };
 }
 
 async function applyLotManagedChange(
@@ -252,6 +285,7 @@ async function applyLotManagedChange(
         referenceId: options.referenceId,
         stockLotId: restored.stockLotId,
         notes: options.notes,
+        ...ledgerWriteMeta(options, "Restore"),
       });
       continue;
     }
@@ -279,6 +313,7 @@ async function applyLotManagedChange(
         referenceId: options.referenceId,
         stockLotId: restored.stockLotId,
         notes: options.notes,
+        ...ledgerWriteMeta(options, "Restore"),
       });
       continue;
     }
@@ -335,6 +370,7 @@ async function applyLotManagedChange(
         referenceId: options.referenceId,
         stockLotId: deducted.stockLotId,
         notes: options.notes,
+        ...ledgerWriteMeta(options, "Deduct"),
       });
       continue;
     }
@@ -372,6 +408,7 @@ async function applyLotManagedChange(
         referenceId: options.referenceId,
         stockLotId: allocation.stockLotId,
         notes: options.notes,
+        ...ledgerWriteMeta(options, "Deduct"),
       });
     }
   }
@@ -418,6 +455,7 @@ async function applyDirectChange(
       referenceType: options.referenceType,
       referenceId: options.referenceId,
       notes: options.notes,
+      ...ledgerWriteMeta(options, "Restore"),
     });
   }
 
@@ -435,6 +473,7 @@ async function applyDirectChange(
       referenceType: options.referenceType,
       referenceId: options.referenceId,
       notes: options.notes,
+      ...ledgerWriteMeta(options, "Deduct"),
     });
   }
 
@@ -595,3 +634,5 @@ export function formatStockLine(name: string, needed: number, available: number,
 }
 
 export { convertQuantity };
+
+export { getAvailableQuantity, getInventorySummary } from "@/lib/services/inventory-transaction-engine";

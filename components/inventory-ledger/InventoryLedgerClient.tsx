@@ -8,23 +8,27 @@ import { FilterChipBar } from "@/components/FilterChipBar";
 import { useToast } from "@/components/ToastProvider";
 import { downloadCsv } from "@/lib/storage";
 import type { InventoryLedgerRow } from "@/lib/services/inventory-ledger";
+import { INVENTORY_TRANSACTION_TYPE_LABELS } from "@/lib/services/inventory-transaction-types";
 
 const actionFilters = ["All", "Deduct", "Restore"];
+const txTypeFilters = ["All", ...Object.keys(INVENTORY_TRANSACTION_TYPE_LABELS)];
 
 export function InventoryLedgerClient({ rows }: { rows: InventoryLedgerRow[] }) {
   const { addToast } = useToast();
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("All");
+  const [txTypeFilter, setTxTypeFilter] = useState("All");
 
   const filtered = useMemo(() => {
     return rows.filter((row) => {
       const matchAction = actionFilter === "All" || row.actionType === actionFilter;
-      const matchQuery = [row.sourceCode, row.lotNumber, row.user, row.module, row.notes].some((v) =>
-        v.toLowerCase().includes(query.toLowerCase()),
+      const matchTxType = txTypeFilter === "All" || row.transactionType === txTypeFilter;
+      const matchQuery = [row.sourceCode, row.lotNumber, row.user, row.module, row.notes, row.reason].some(
+        (v) => v.toLowerCase().includes(query.toLowerCase()),
       );
-      return matchAction && matchQuery;
+      return matchAction && matchTxType && matchQuery;
     });
-  }, [rows, query, actionFilter]);
+  }, [rows, query, actionFilter, txTypeFilter]);
 
   const handleExport = () => {
     downloadCsv(
@@ -66,9 +70,22 @@ export function InventoryLedgerClient({ rows }: { rows: InventoryLedgerRow[] }) 
             />
           </div>
           <FilterChipBar
-            options={actionFilters.map((v) => ({ value: v, label: v === "All" ? "Tất cả" : v }))}
+            options={actionFilters.map((v) => ({ value: v, label: v === "All" ? "Action cũ" : v }))}
             value={actionFilter}
             onChange={setActionFilter}
+          />
+          <FilterChipBar
+            options={txTypeFilters.map((v) => ({
+              value: v,
+              label:
+                v === "All"
+                  ? "Loại TX"
+                  : INVENTORY_TRANSACTION_TYPE_LABELS[
+                      v as keyof typeof INVENTORY_TRANSACTION_TYPE_LABELS
+                    ] ?? v,
+            }))}
+            value={txTypeFilter}
+            onChange={setTxTypeFilter}
           />
         </div>
 
@@ -77,7 +94,9 @@ export function InventoryLedgerClient({ rows }: { rows: InventoryLedgerRow[] }) 
             { key: "time", header: "Thời gian" },
             { key: "sourceCode", header: "Mã vật tư" },
             { key: "lotNumber", header: "Lot" },
-            { key: "actionType", header: "Loại" },
+            { key: "transactionType", header: "TX Engine" },
+            { key: "actionType", header: "Action" },
+            { key: "reason", header: "Lý do" },
             { key: "quantityBefore", header: "Trước" },
             { key: "quantityUsed", header: "Biến động" },
             { key: "quantityAfter", header: "Sau" },

@@ -13,6 +13,7 @@ import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CoaLink } from "@/components/standards/CoaLink";
 import { CatalogPreparedDerivatives } from "@/components/preparation/CatalogPreparedDerivatives";
+import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
 import { bulkImportChemicals, previewChemicalsImport } from "@/lib/actions/catalog-import";
@@ -137,6 +138,7 @@ export function ChemicalsClient({ items, groupOptions }: { items: ChemicalView[]
   const [coaFile, setCoaFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChemicalLotRow | null>(null);
+  const [drawerTab, setDrawerTab] = useState<"Thông tin chung" | "Tồn kho">("Thông tin chung");
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
@@ -377,9 +379,9 @@ export function ChemicalsClient({ items, groupOptions }: { items: ChemicalView[]
           onClose={() => setSelected(null)}
           title={selected?.name ?? ""}
           subtitle={selected ? (selected.stockLotId ? `${selected.code} · Lot ${selected.lot}` : selected.code) : undefined}
-          tabs={["Thông tin chung"]}
-          activeTab="Thông tin chung"
-          onTabChange={() => undefined}
+          tabs={["Thông tin chung", "Tồn kho"]}
+          activeTab={drawerTab}
+          onTabChange={(tab) => setDrawerTab(tab as "Thông tin chung" | "Tồn kho")}
           layout="stacked"
           maxWidth="5xl"
           actions={
@@ -396,25 +398,40 @@ export function ChemicalsClient({ items, groupOptions }: { items: ChemicalView[]
           }
           tabContent={
             selected ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {detailFields.map((f) => (
-                  <div key={f.key} className={f.multiline ? "sm:col-span-2" : ""}>
-                    <p className="text-xs text-slate-500">{f.label}</p>
-                    {f.key === "status" ? (
-                      <StatusBadge status={selected.status} />
-                    ) : f.key === "expiryDate" ? (
-                      <p className="font-medium">{selected.expiryDate ? formatDate(selected.expiryDate) : "-"}</p>
-                    ) : (
-                      <p className="font-medium whitespace-pre-wrap">{String(selected[f.key] ?? "-")}</p>
-                    )}
+              drawerTab === "Tồn kho" ? (
+                <InventoryItemPanel
+                  sourceType="Chemical"
+                  sourceId={selected.id}
+                  sourceCode={selected.code}
+                  unit={selected.unit}
+                  stockLotId={selected.stockLotId}
+                  inventoryStatus={selected.inventoryStatus}
+                  canEdit={canEdit}
+                  canManage={canManage}
+                  onSuccess={(msg) => addToast(msg, "success")}
+                  onError={(msg) => addToast(msg, "error")}
+                />
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {detailFields.map((f) => (
+                    <div key={f.key} className={f.multiline ? "sm:col-span-2" : ""}>
+                      <p className="text-xs text-slate-500">{f.label}</p>
+                      {f.key === "status" ? (
+                        <StatusBadge status={selected.status} />
+                      ) : f.key === "expiryDate" ? (
+                        <p className="font-medium">{selected.expiryDate ? formatDate(selected.expiryDate) : "-"}</p>
+                      ) : (
+                        <p className="font-medium whitespace-pre-wrap">{String(selected[f.key] ?? "-")}</p>
+                      )}
+                    </div>
+                  ))}
+                  <div>
+                    <p className="text-xs text-slate-500">COA</p>
+                    <CoaLink path={selected.coaPath} />
                   </div>
-                ))}
-                <div>
-                  <p className="text-xs text-slate-500">COA</p>
-                  <CoaLink path={selected.coaPath} />
+                  <CatalogPreparedDerivatives catalogKind="CHEMICAL" catalogId={selected.id} />
                 </div>
-                <CatalogPreparedDerivatives catalogKind="CHEMICAL" catalogId={selected.id} />
-              </div>
+              )
             ) : null
           }
         />

@@ -19,9 +19,10 @@ export const WORKFLOW_TRANSITIONS: Record<
   PreparationWorkflowStatus[]
 > = {
   Draft: ["Prepared", "Cancelled"],
-  Prepared: ["Checked", "Cancelled"],
-  Checked: ["Approved", "Cancelled"],
+  Prepared: ["Checked", "Rejected", "Cancelled"],
+  Checked: ["Approved", "Rejected", "Cancelled"],
   Approved: ["Cancelled"],
+  Rejected: [],
   Cancelled: [],
 };
 
