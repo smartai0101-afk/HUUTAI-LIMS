@@ -24,6 +24,8 @@ import {
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
 
 import { resolveStockLotSelection } from "@/lib/resolve-stock-lot-selection";
+import { savePreparationAttachment } from "@/lib/preparation-upload";
+import { preparationIsoFormData } from "@/lib/map-preparation-iso";
 import {
   recordPreparationCreated,
   recordPreparationDeleted,
@@ -180,7 +182,22 @@ function buildBaseData(fd: FormData) {
     storageLocation: str(fd, "storageLocation"),
     storageCondition: str(fd, "storageCondition"),
     notes: str(fd, "notes"),
+    ...preparationIsoFormData(fd, str),
   };
+}
+
+async function resolveAttachmentUrl(
+  fd: FormData,
+  existing = "",
+): Promise<{ url: string; error?: string }> {
+  const file = fd.get("attachment");
+  if (file instanceof File && file.size > 0) {
+    const saved = await savePreparationAttachment(file);
+    if (saved.error) return { url: existing, error: saved.error };
+    return { url: saved.path ?? existing };
+  }
+  const keep = str(fd, "attachmentUrl");
+  return { url: keep || existing };
 }
 
 function isStockError(message: string) {
@@ -218,6 +235,9 @@ export async function createPreparedChemical(fd: FormData) {
   }
   if (!data.unit) return { error: "ĐVT là bắt buộc" };
 
+  const attachment = await resolveAttachmentUrl(fd);
+  if (attachment.error) return { error: attachment.error };
+
   const newId = randomUUID();
 
   try {
@@ -252,6 +272,13 @@ export async function createPreparedChemical(fd: FormData) {
           storageCondition: data.storageCondition,
           status: computePreparedChemicalStatus(expiryDate),
           notes: data.notes,
+          formula: data.formula,
+          originalConcentration: data.originalConcentration,
+          finalConcentration: data.finalConcentration,
+          equipmentUsed: data.equipmentUsed,
+          preparationCondition: data.preparationCondition,
+          attachmentUrl: attachment.url,
+          equipmentId: data.equipmentId,
           workflowStatus: "Draft",
           ingredients: { create: built.creates },
         },
@@ -304,6 +331,9 @@ export async function updatePreparedChemical(fd: FormData) {
     include: { ingredients: true },
   });
   if (!before) return { error: "Không tìm thấy hóa chất pha chế" };
+
+  const attachment = await resolveAttachmentUrl(fd, before.attachmentUrl ?? "");
+  if (attachment.error) return { error: attachment.error };
   if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
   if (before.workflowStatus === "Prepared" || before.workflowStatus === "Checked") {
     return { error: "Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước" };
@@ -363,6 +393,13 @@ export async function updatePreparedChemical(fd: FormData) {
           storageCondition: data.storageCondition,
           status: computePreparedChemicalStatus(expiryDate),
           notes: data.notes,
+          formula: data.formula,
+          originalConcentration: data.originalConcentration,
+          finalConcentration: data.finalConcentration,
+          equipmentUsed: data.equipmentUsed,
+          preparationCondition: data.preparationCondition,
+          attachmentUrl: attachment.url,
+          equipmentId: data.equipmentId,
           version: before.workflowStatus === "Approved" ? before.version + 1 : before.version,
           amendmentReason: before.workflowStatus === "Approved" ? amendmentReason : before.amendmentReason,
           ingredients: { create: built.creates },

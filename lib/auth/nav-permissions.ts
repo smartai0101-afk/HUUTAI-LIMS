@@ -14,6 +14,7 @@ export const NAV_PERMISSION_GROUPS = [
       { key: "prepared_standards" as const, label: "Chuẩn pha chế", href: "/prepared-standards" },
       { key: "prepared_strains" as const, label: "Chủng pha chế", href: "/prepared-strains" },
       { key: "preparation_history" as const, label: "Lịch sử pha chế", href: "/preparation-history" },
+      { key: "environment_logs" as const, label: "Nhật ký môi trường", href: "/environment-logs" },
       { key: "containers" as const, label: "Thống kê", href: "/containers" },
       { key: "usage_logs" as const, label: "Nhật ký sử dụng", href: "/usage-logs" },
       { key: "inventory_ledger" as const, label: "Sổ cái tồn", href: "/inventory-ledger" },

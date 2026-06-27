@@ -11,10 +11,17 @@ export const PREPARED_CHEMICAL_FORM_FIELD_KEYS = [
   "preparedBy",
   "storageLocation",
   "storageCondition",
+  "formula",
+  "originalConcentration",
+  "finalConcentration",
+  "equipmentUsed",
+  "preparationCondition",
+  "equipmentId",
   "notes",
 ] as const;
 
 export const PREPARED_CHEMICAL_CSV_FIELD_KEYS = [
+  "Mã nhóm",
   "Mã hóa chất pha",
   "Tên hóa chất pha",
   "Nồng độ",
@@ -48,6 +55,7 @@ export function buildPreparedChemicalExportRows(
   items: import("@/types").PreparedChemicalView[],
 ): Array<Record<string, string | number>> {
   return items.map((item) => ({
+    "Mã nhóm": item.parentCode,
     "Mã hóa chất pha": item.code,
     "Tên hóa chất pha": item.name,
     "Nồng độ": item.concentration,

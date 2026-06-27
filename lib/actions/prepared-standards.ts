@@ -35,6 +35,8 @@ import {
   WORKING_SOURCE_LEVELS,
 } from "@/lib/prepared-standards-fields";
 import { resolveStockLotSelection } from "@/lib/resolve-stock-lot-selection";
+import { savePreparationAttachment } from "@/lib/preparation-upload";
+import { preparationIsoFormData } from "@/lib/map-preparation-iso";
 import {
   recordPreparationCreated,
   recordPreparationDeleted,
@@ -440,7 +442,22 @@ function buildBaseData(fd: FormData) {
     storageLocation: str(fd, "storageLocation"),
     storageCondition: str(fd, "storageCondition"),
     notes: str(fd, "notes"),
+    ...preparationIsoFormData(fd, str),
   };
+}
+
+async function resolveAttachmentUrl(
+  fd: FormData,
+  existing = "",
+): Promise<{ url: string; error?: string }> {
+  const file = fd.get("attachment");
+  if (file instanceof File && file.size > 0) {
+    const saved = await savePreparationAttachment(file);
+    if (saved.error) return { url: existing, error: saved.error };
+    return { url: saved.path ?? existing };
+  }
+  const keep = str(fd, "attachmentUrl");
+  return { url: keep || existing };
 }
 
 function validateBase(
@@ -491,6 +508,9 @@ export async function createPreparedStandard(fd: FormData) {
   const validationError = validateBase(data, components, solvents, { requireParentCode: true });
   if (validationError) return { error: validationError };
 
+  const attachment = await resolveAttachmentUrl(fd);
+  if (attachment.error) return { error: attachment.error };
+
   const newId = randomUUID();
   const initialQuantity = Number.isFinite(data.solventVolume) ? data.solventVolume : 0;
   const initialUnit = data.solventUnit || "mL";
@@ -531,6 +551,13 @@ export async function createPreparedStandard(fd: FormData) {
           storageLocation: data.storageLocation,
           storageCondition: data.storageCondition,
           notes: data.notes,
+          formula: data.formula,
+          originalConcentration: data.originalConcentration,
+          finalConcentration: data.finalConcentration,
+          equipmentUsed: data.equipmentUsed,
+          preparationCondition: data.preparationCondition,
+          attachmentUrl: attachment.url,
+          equipmentId: data.equipmentId,
           workflowStatus: "Draft",
           components: { create: builtComponents.creates },
           solvents: { create: builtSolvents.creates },
@@ -594,6 +621,9 @@ export async function updatePreparedStandard(fd: FormData) {
     if (amendError) return { error: amendError };
   }
 
+  const attachment = await resolveAttachmentUrl(fd, before.attachmentUrl ?? "");
+  if (attachment.error) return { error: attachment.error };
+
   try {
     const row = await db.$transaction(async (tx) => {
       const resolvedComponents = await resolveComponentLots(tx, components, data.level!);
@@ -644,6 +674,13 @@ export async function updatePreparedStandard(fd: FormData) {
           storageLocation: data.storageLocation,
           storageCondition: data.storageCondition,
           notes: data.notes,
+          formula: data.formula,
+          originalConcentration: data.originalConcentration,
+          finalConcentration: data.finalConcentration,
+          equipmentUsed: data.equipmentUsed,
+          preparationCondition: data.preparationCondition,
+          attachmentUrl: attachment.url,
+          equipmentId: data.equipmentId,
           version: before.workflowStatus === "Approved" ? before.version + 1 : before.version,
           amendmentReason: before.workflowStatus === "Approved" ? amendmentReason : before.amendmentReason,
           components: { create: builtComponents.creates },

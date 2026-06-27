@@ -18,6 +18,8 @@ type TestItem = {
   code: string;
   name: string;
   lot: string;
+  purity: string;
+  uncertainty: string;
   quantity: number;
   unit: string;
   expiryDate: string;
@@ -34,6 +36,8 @@ function makeLot(id: string, lot: string, quantity: number, unit = "g"): StockLo
     lot,
     quantity,
     unit,
+    purity: "",
+    uncertainty: "",
     expiryDate: "2027-01-01",
     afterOpenExpiry: "",
     coaPath: "",
@@ -50,6 +54,8 @@ function testNoLots() {
       code: "STD-0001",
       name: "Test",
       lot: "L1",
+      purity: "",
+      uncertainty: "",
       quantity: 5,
       unit: "g",
       expiryDate: "2027-01-01",
@@ -73,6 +79,8 @@ function testSingleLot() {
       code: "STD-0002",
       name: "Benzoic",
       lot: "Nhiều lot",
+      purity: "",
+      uncertainty: "",
       quantity: 8,
       unit: "g",
       expiryDate: "2026-09-12",
@@ -97,6 +105,8 @@ function testMultiLot() {
       code: "STD-0002",
       name: "Benzoic Acid CRM",
       lot: "Nhiều lot",
+      purity: "",
+      uncertainty: "",
       quantity: 8,
       unit: "g",
       expiryDate: "2026-09-12",

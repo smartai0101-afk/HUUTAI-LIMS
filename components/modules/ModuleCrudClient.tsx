@@ -20,6 +20,7 @@ import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPi
 import { missingFieldsMessage, STATUS_FILTERS } from "@/lib/modules/shared";
 import { exportToXlsx, type ExcelColumn } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
+import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { PreparationDrawerTabContent } from "@/components/preparation/PreparationDrawerTabContent";
 import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
 import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
@@ -134,6 +135,20 @@ export function ModuleCrudClient(props: Props) {
       if (f.type === "select" && f.options?.length) return [f.key, f.options[0].value];
       return [f.key, ""];
     })));
+    setOpen(true);
+  };
+
+  const openReprepare = (row: ModuleRow) => {
+    if (!preparationType) return;
+    setEdit(false);
+    const parentCode = String(row.parentCode ?? row.code ?? "").replace(/-\d{3}$/, "");
+    setForm({
+      ...Object.fromEntries(fields.map((f) => [f.key, row[f.key] ?? ""])),
+      parentCode,
+      code: "",
+      preparedDate: "",
+      expiryDate: "",
+    });
     setOpen(true);
   };
 
@@ -287,13 +302,26 @@ export function ModuleCrudClient(props: Props) {
         </div>
         <DataTable columns={columns} rows={filtered} onRowClick={(row) => { setSelected(row); setDrawerTab("Chi tiết"); }} />
         <DetailDrawer open={!!selected} onClose={() => setSelected(null)} title={String(selected?.name ?? "")} subtitle={String(selected?.code ?? "")}
-          tabs={preparationType ? ["Chi tiết", "Lịch sử", "Truy xuất"] : ["Chi tiết"]}
+          tabs={preparationType ? ["Chi tiết", "Tồn kho", "Lịch sử", "Truy xuất"] : ["Chi tiết"]}
           activeTab={drawerTab}
           onTabChange={setDrawerTab}
           layout="stacked" maxWidth="5xl"
-          actions={selected ? <>{canEdit ? <button type="button" onClick={() => openEdit(selected)} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"><Edit className="h-4 w-4" />Sửa</button> : null}{canManage ? <button type="button" onClick={() => setConfirm(true)} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-700"><Trash2 className="h-4 w-4" />Xoá</button> : null}</> : undefined}
+          actions={selected ? <>{canEdit && preparationType && String(selected.workflowStatus ?? "") === "Rejected" ? <button type="button" onClick={() => { openReprepare(selected); setSelected(null); }} className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 px-3 py-2 text-sm text-cyan-800"><Plus className="h-4 w-4" />Pha lại</button> : null}{canEdit ? <button type="button" onClick={() => openEdit(selected)} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"><Edit className="h-4 w-4" />Sửa</button> : null}{canManage ? <button type="button" onClick={() => setConfirm(true)} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-700"><Trash2 className="h-4 w-4" />Xoá</button> : null}</> : undefined}
           tabContent={selected ? (
             preparationType ? (
+              drawerTab === "Tồn kho" ? (
+                <InventoryItemPanel
+                  sourceType="PreparedStrain"
+                  sourceId={String(selected.id)}
+                  sourceCode={String(selected.code ?? "")}
+                  unit={String(selected.unit ?? "")}
+                  inventoryStatus={String(selected.inventoryStatus ?? "Active")}
+                  canEdit={canEdit}
+                  canManage={canManage}
+                  onSuccess={(msg: string) => addToast(msg, "success")}
+                  onError={(msg: string) => addToast(msg, "error")}
+                />
+              ) : (
               <PreparationDrawerTabContent
                 tab={drawerTab}
                 preparationType={preparationType}
@@ -306,8 +334,8 @@ export function ModuleCrudClient(props: Props) {
                 canEdit={canEdit}
                 role={role}
                 onRefresh={() => router.refresh()}
-                onError={(msg) => addToast(msg, "error")}
-                onSuccess={(msg) => addToast(msg, "success")}
+                onError={(msg: string) => addToast(msg, "error")}
+                onSuccess={(msg: string) => addToast(msg, "success")}
                 detail={
                   <div className="grid gap-3 sm:grid-cols-2">
                     {fields.map((f) => (
@@ -319,6 +347,7 @@ export function ModuleCrudClient(props: Props) {
                   </div>
                 }
               />
+              )
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">{fields.map((f) => <div key={f.key}><p className="text-xs text-slate-500">{f.label}</p><p className="font-medium">{String(selected[f.key] ?? "-")}</p></div>)}</div>
             )

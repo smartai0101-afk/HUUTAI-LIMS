@@ -57,8 +57,10 @@ import {
   emptyStockLotSelection,
   requiresLotSelection,
 } from "@/lib/stock-lot-selection";
-import type { PreparedStandardView, StockLotView } from "@/types";
+import type { PreparedStandardView, StockLotView, EnvironmentalLogView } from "@/types";
 import { PreparationDrawerTabContent } from "@/components/preparation/PreparationDrawerTabContent";
+import { PreparationIsoFormFields } from "@/components/preparation/PreparationIsoFormFields";
+import type { EquipmentOption } from "@/lib/services/equipment-options";
 import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
 import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
@@ -157,8 +159,27 @@ const initialForm = {
   level: "RootPrepared" as PreparedStandardLevel,
   storageLocation: "",
   storageCondition: "",
+  formula: "",
+  originalConcentration: "",
+  finalConcentration: "",
+  equipmentUsed: "",
+  preparationCondition: "",
+  equipmentId: "",
+  attachmentUrl: "",
   notes: "",
 };
+
+function isoFieldsFromItem(item: PreparedStandardView) {
+  return {
+    formula: item.formula,
+    originalConcentration: item.originalConcentration,
+    finalConcentration: item.finalConcentration,
+    equipmentUsed: item.equipmentUsed,
+    preparationCondition: item.preparationCondition,
+    equipmentId: item.equipmentId ?? "",
+    attachmentUrl: item.attachmentUrl,
+  };
+}
 
 function emptyComponent(level: PreparedStandardLevel): ComponentFormRow {
   return {
@@ -264,6 +285,8 @@ export function PreparedStandardsClient({
   levelCounts,
   chemicals,
   staff,
+  equipmentOptions = [],
+  environmentalLogs = [],
 }: {
   items: PreparedStandardView[];
   standards: StandardCatalogItem[];
@@ -271,6 +294,8 @@ export function PreparedStandardsClient({
   levelCounts: Record<PreparedStandardLevel, number>;
   chemicals: ChemicalCatalogItem[];
   staff: StaffView[];
+  equipmentOptions?: EquipmentOption[];
+  environmentalLogs?: EnvironmentalLogView[];
 }) {
   const router = useRouter();
   const [levelFilter, setLevelFilter] = useState<PreparedStandardLevelFilter>(
@@ -295,6 +320,7 @@ export function PreparedStandardsClient({
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [amendmentOpen, setAmendmentOpen] = useState(false);
   const [pendingAmendmentReason, setPendingAmendmentReason] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -448,6 +474,7 @@ export function PreparedStandardsClient({
       levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL ? "RootPrepared" : levelFilter;
     setForm({ ...initialForm, level: defaultLevel, ...prefill });
     setPreviewBatchCode("");
+    setAttachmentFile(null);
     setComponents([emptyComponent(defaultLevel)]);
     setSolvents([emptySolvent()]);
     setIsFormOpen(true);
@@ -464,6 +491,7 @@ export function PreparedStandardsClient({
       level: item.level as PreparedStandardLevel,
       storageLocation: item.storageLocation,
       storageCondition: item.storageCondition,
+      ...isoFieldsFromItem(item),
     });
     setComponents(
       item.components.length
@@ -515,6 +543,7 @@ export function PreparedStandardsClient({
     setSelected(null);
     setIsEditing(true);
     setEditingId(item.id);
+    setAttachmentFile(null);
     setForm({
       parentCode: item.parentCode,
       code: item.code,
@@ -530,6 +559,7 @@ export function PreparedStandardsClient({
       storageLocation: item.storageLocation,
       storageCondition: item.storageCondition,
       notes: item.notes,
+      ...isoFieldsFromItem(item),
     });
     setComponents(
       item.components.length
@@ -823,6 +853,8 @@ export function PreparedStandardsClient({
     const fd = new FormData();
     fd.set("user", role);
     PREPARED_STANDARD_FORM_FIELD_KEYS.forEach((key) => fd.set(key, String(form[key] ?? "")));
+    fd.set("attachmentUrl", form.attachmentUrl);
+    if (attachmentFile) fd.set("attachment", attachmentFile);
     fd.set("components", JSON.stringify(componentPayload));
     fd.set(
       "solvents",
@@ -851,6 +883,7 @@ export function PreparedStandardsClient({
       );
       setIsFormOpen(false);
       setPendingAmendmentReason("");
+      setAttachmentFile(null);
       router.refresh();
     });
   };
@@ -1420,6 +1453,15 @@ export function PreparedStandardsClient({
                 className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
               />
             </div>
+            <PreparationIsoFormFields
+              form={form}
+              onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
+              environmentalLogs={environmentalLogs}
+              equipmentOptions={equipmentOptions}
+              showEquipmentPicker
+              attachmentFile={attachmentFile}
+              onAttachmentChange={setAttachmentFile}
+            />
             <div className="sm:col-span-2">
               <label className="mb-1 block text-sm text-slate-600">Ghi chú</label>
               <textarea

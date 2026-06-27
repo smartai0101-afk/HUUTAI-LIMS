@@ -19,6 +19,7 @@ export type InventoryLedgerRow = {
   reason: string;
   referenceType: string;
   referenceId: string;
+  relatedPreparationId: string;
   notes: string;
 };
 
@@ -56,6 +57,7 @@ export async function getInventoryLedgerRows(limit = 200): Promise<InventoryLedg
     reason: row.reason,
     referenceType: row.referenceType,
     referenceId: row.referenceId,
+    relatedPreparationId: row.relatedPreparationId ?? "",
     notes: row.notes,
   }));
 }

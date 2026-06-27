@@ -1,6 +1,7 @@
 # Lab Inventory LIMS — HANDOFF
 
-> **Cập nhật:** 2026-06-27 (buổi 5 — parentCode + batch lô pha chế · fix tab Tồn kho `stockLotId` · **chưa commit**)  
+> **Cập nhật:** 2026-06-27 (buổi 6 — ISO 17025 mở rộng Phase 0–4 · **uncommitted** · build pending)  
+> **Git branch:** `cursor/mobile-scroll-vercel-session` · HEAD commit `2d22c52` (parentCode + Inventory TX Engine)  
 > **Mục đích:** Dùng file này để mở chat mới — **không scan toàn repo**. Chỉ đọc file liên quan trực tiếp.
 
 ---
@@ -20,7 +21,7 @@
 | **Seed demo liên kết** | ✅ Commit `7e5ff9f` — ~20 master/nhóm + ảnh `public/seed-assets/` · Turso prod seeded 2026-06-26 |
 | **Vercel Blob upload** | 🟡 Code `lib/file-storage.ts` commit `59f4681` · cần `BLOB_READ_WRITE_TOKEN` trên Vercel + QA upload prod |
 | **Login UI** | ✅ Bỏ gợi ý email/mật khẩu seed trên form |
-| **Build production** | ✅ `npm run build` |
+| **Build production** | ✅ `npm run build` pass (2026-06-27 buổi 6) · SSG có prisma warnings nếu `dev.db` thiếu cột migrate |
 | **`/stock-in` — Nhập kho** | ✅ Identity → cùng mã · cảnh báo lot/đơn vị · quy đổi L/mL/µL |
 | **`/prepared-chemicals`, `/prepared-standards`, `/prepared-strains`** | ✅ ISO workflow · tab Lịch sử + **Truy xuất** (`aa305a5`) · soft delete giải phóng mã (`4bbcb0b`) · **QA workflow + TG2 pass** · tab Truy xuất **pending** |
 | **`/containers` → Thống kê** | ✅ Bảng gộp catalog + expand tồn theo lot |
@@ -30,10 +31,10 @@
 | **TypeScript / Tests** | ✅ `tsc`, `test-stock-in.ts`, `test-inventory-stock.ts`, `test-stock-in-identity.ts`, `test-catalog-lot-rows.ts`, `test-equipment-schedule.ts`, `test-equipment-history-sync.ts`, **`test-equipment-e2e-qa.ts`**, **`test-notifications.ts`** |
 | **Module Thiết bị** (`/equipment/*`) | ✅ HC inline · BT/SC UX · Phụ kiện · upload đa file · subtitle EN · Dashboard gọn · **Lý lịch gallery** · **layout shell dùng chung** |
 | **Lý lịch thiết bị** (`/equipment/history`) | ✅ Chọn sự kiện timeline → gallery ảnh (nguồn gốc + upload) · carousel prev/next · PDF link riêng |
-| **Authentication & RBAC** | ✅ Login/logout · JWT session · middleware · **25 quyền sidebar** (`preparation_history` + `admin_people`) · Admin UI |
+| **Authentication & RBAC** | ✅ Login/logout · JWT session · middleware · **26 quyền sidebar** (`preparation_history` + `environment_logs` + `admin_people`) · Admin UI |
 | **Session / Sidebar auth** | ✅ Fix sidebar trống (JWT↔DB lệch) · fix cookie crash layout · stale → `/login?reason=session` |
 | **Mobile UX (bảng + filter)** | ✅ `TouchHorizontalScroll` · `FilterChipBar` · **không sticky cột mobile** (`ede088c`) |
-| **Deploy Vercel** | ✅ Branch pushed · prod redeployed 2026-06-27 (`4bbcb0b`+) · **branch HEAD `16d1efb`** — cần redeploy prod cho Phase 4 |
+| **Deploy Vercel** | 🟡 Branch pushed commit `2d22c52` · **buổi 6 chưa commit/push** · prod chưa migrate 20260701–20260705 |
 | **Notification system** | ✅ Commit `ed32b5b` — bell + badge · `/notifications` · API 4 route · **đã redeploy prod** · **Turso migrate + QA browser pending** |
 | **Danh mục TB — cột Thông số kỹ thuật** | ✅ Commit `ed32b5b` — cột sau Hãng SX · import/export Excel · seed 27 mã · **đã redeploy prod** · **QA browser + Turso backfill pending** |
 | **Danh mục TB — In tem nhãn** | ✅ Commit `d8adfa0` — checkbox · preview modal · in A4 grid · profile ladder · logo căn giữa · **QA browser prod pending** |
@@ -42,9 +43,11 @@
 | **Sổ cái tồn `/inventory-ledger`** | ✅ Commit `d8adfa0` — UI `InventoryTransaction` · filter · export CSV |
 | **Quản lý nhân sự `/admin/people`** | ✅ Commit `d04f674` · Turso `user_staff_link` applied · **QA browser pending** |
 | **Lịch sử pha chế ISO 17025** | ✅ **Phase 1–4 done** · QA browser pass (2026-06-27) · plan [`PLAN-preparation-iso.md`](PLAN-preparation-iso.md) |
-| **Inventory Transaction Engine** | ✅ **Local done (uncommitted)** · ledger-first `getAvailableQuantity` · Reject no-restore · tab Tồn kho · **prod migrate pending** |
-| **Tab Tồn kho — adjust lot (STD-0001)** | ✅ Fix local — `InventoryItemPanel` gửi `stockLotId` · không còn lỗi FIFO khi chọn lot cụ thể · **QA browser pending** |
-| **parentCode + batch lô pha chế** | ✅ **Local done (uncommitted)** · `CG01`→`CG01-001/002/003` · bảng grouped · Pha lại (chuẩn) · **Turso migrate + QA pending** |
+| **Inventory Transaction Engine** | ✅ Commit `2d22c52` · ledger-first · tab Tồn kho Prepared* · **Turso prod migrate pending** |
+| **Tab Tồn kho — adjust lot (STD-0001)** | ✅ Fix `stockLotId` · tab Tồn kho HC/Chủng/Chuẩn · **QA browser pending** |
+| **parentCode + batch lô pha chế** | ✅ Commit `2d22c52` · `CG01-001/002/003` · Pha lại HC+Chuẩn+Chủng · Excel **Mã nhóm** · **Turso migrate + QA CG01 pending** |
+| **ISO 17025 mở rộng (buổi 6)** | 🟡 **Local done (uncommitted)** · Phase 0–4: ISO form fields · StockLot purity/uncertainty · `/environment-logs` · equipment FK · print/alerts · **commit + Turso pending** |
+| **Nhật ký môi trường** | 🟡 `/environment-logs` · permission `environment_logs` · gắn `preparationCondition` · **seed permission + QA pending** |
 | **Available vs Ledger (STD-0001)** | ✅ Fix local — opening CREATE backfill · reconcile OK · **chạy lại trên Turso prod** |
 | **Nhật ký — lot picker** | ✅ Commit `d8adfa0` — bắt buộc chọn lot khi ≥2 lot · `stockLotId` trên deduct |
 | **Catalog quantity guard** | ✅ Commit `d8adfa0` — chặn sửa `quantity` master khi đã có StockLot · `lib/catalog-quantity-guard.ts` |
@@ -53,7 +56,7 @@
 | **Thống kê — filter rủi ro** | ✅ Commit `d8adfa0` — filter Sắp hết hạn / Tồn thấp trên `/containers` |
 | **Legacy MVP routes** | ✅ Commit `d8adfa0` — `/solutions`→prepared-standards · `/transactions`→usage-logs · `/inventory`→containers · `/alerts`→`/` |
 
-**Menu vật tư** (nhóm **Hoá chất - Chuẩn - Chủng**): Dashboard · Nhập kho · Hoá chất/Chuẩn/Chủng gốc · pha chế · Thống kê · Nhật ký · **Sổ cái tồn** · Báo cáo.  
+**Menu vật tư** (nhóm **Hoá chất - Chuẩn - Chủng**): Dashboard · Nhập kho · Hoá chất/Chuẩn/Chủng gốc · pha chế · **Lịch sử pha chế** · **Nhật ký môi trường** · Thống kê · Nhật ký · **Sổ cái tồn** · Báo cáo.  
 **Menu Quản trị:** **Nhân sự** · Phân quyền · Giao việc.  
 **Route `/containers`** giữ URL, label menu **“Thống kê”**. **Nhập kho** → `/stock-in`.
 
@@ -76,7 +79,7 @@
 
 - **Client:** ✅ Generated — restart dev server nếu `prisma generate` báo EPERM
 - **Schema:** ✅ Valid
-- **Migrations (19):**
+- **Migrations (22 committed + 3 buổi 6 local):**
   - `20260621050000_restore_chemical_standard_fields`
   - `20260621120000_prepared_standard_components`
   - `20260621180000_prepared_standard_component_source`
@@ -97,7 +100,10 @@
   - `20260627_preparation_iso` ← **workflowStatus, PreparationHistory, PreparationAuditLog, soft delete**
   - `20260701_inventory_tx_engine` ← **InventoryTransactionType, inventoryStatus, Rejected, consumeTransactionId** (local applied · **Turso prod pending**)
   - `20260702_prepared_parent_batch` ← **`parentCode`, `batchNumber` trên PreparedChemical/Standard/Strain** (local applied + backfill · **Turso prod pending**)
-- **Dev note:** `migrate deploy` có thể báo P3005 — dùng `db execute` migration SQL hoặc `db push` · migration parent batch: thêm cột → backfill → unique index (xem § Pending)
+  - `20260703_stock_lot_purity` ← **`StockLot.purity`, `StockLot.uncertainty`** (local applied · **Turso prod pending**)
+  - `20260704_environmental_log` ← **`EnvironmentalLog`** (local applied · **Turso prod pending**)
+  - `20260705_preparation_equipment` ← **`equipmentId` FK trên Prepared*** (local applied · **Turso prod pending**)
+- **Dev note:** `migrate deploy` có thể báo P3005 — dùng `db execute --schema prisma/schema.prisma --file …` · parent batch: thêm cột → backfill → unique index · **kill port 3000 trước `prisma generate`** nếu EPERM
 
 ### Trạng thái Database
 
@@ -122,6 +128,7 @@
 | Catalog gốc | `/chemicals`, `/standards`, `/microbial-strains` | CRUD + 1 dòng/lot · **Export/Import Excel** |
 | Pha chế | `/prepared-chemicals`, `/prepared-standards`, `/prepared-strains` | Lot picker · trừ tồn · **Export/Import Excel** (import metadata) |
 | **Lịch sử pha chế** | `/preparation-history` | Báo cáo ISO **15 cột** (thêm **Mã nhóm**) · filter · export Excel |
+| **Nhật ký môi trường** | `/environment-logs` | ISO điều kiện pha chế · permission `environment_logs` · buổi 6 uncommitted |
 | **Thiết bị** | `/equipment`, `/equipment/catalog`, … | 9 menu sidebar; xem § Module Thiết bị |
 | **Quản trị** | `/admin/users`, `/admin/permissions`, `/admin/tasks` | Admin: users + phân quyền; LM/Analyst: giao việc |
 | Báo cáo | `/reports`, `/` | ReportsClient / mock dashboard |
@@ -135,7 +142,7 @@
 |--------|-----|---------|
 | **Lot nhập sai đơn vị (vd. mg vs mL)** | 🟡 | Có cảnh báo UI; kiểm tra/sửa lot trong DB nếu nhập nhầm |
 | **Product code để trống ≠ bản ghi có code** | 🟡 | Không coi là trùng identity |
-| **Purity/uncertainty theo lot** | 🟡 | Chỉ trên master; `StockLot` chưa có purity |
+| **Purity/uncertainty theo lot** | 🟢 | Buổi 6: `StockLot.purity` / `uncertainty` · form nhập kho · **Turso prod migrate pending** |
 | **CAS DB cũ rỗng** | 🟡 | Backfill hoặc re-seed |
 | **Usage log chưa chọn lot** | 🟢 | Lot picker bắt buộc khi ≥2 lot (`d8adfa0`) |
 | **Chưa UI InventoryTransaction / Staff** | 🟢 | `/inventory-ledger` + `/admin/people` |
@@ -163,11 +170,11 @@
 
 ## 2. Completed Work
 
-### Phiên này (2026-06-27 — buổi 4) — Inventory Transaction Engine + fix Available vs Ledger 🟡 (local · chưa commit)
+### Phiên trước (2026-06-27 — buổi 4) — Inventory Transaction Engine + fix Available vs Ledger ✅ (commit `2d22c52`)
 
 > **Plan tham chiếu:** `.cursor/plans/inventory_transaction_engine_83298936.plan.md` (không sửa file plan)  
 > **Bug fix plan:** `.cursor/plans/fix_available_ledger_bug_0c4e0470.plan.md`  
-> **Git:** HEAD vẫn `16d1efb` — toàn bộ thay đổi **uncommitted** (xem `git status`)
+> **Git:** commit **`2d22c52`** — gộp với buổi 5 parentCode
 
 #### Phase A — Foundation
 
@@ -223,12 +230,76 @@ npx tsx scripts/test-inventory-transaction-engine.ts
 npx tsx scripts/reconcile-inventory-balances.ts
 ```
 
-**Chưa làm phiên này:** commit · Turso prod migrate · QA browser tab Tồn kho + Reject + adjust · `PreparedChemicalsClient` tab Tồn kho · scripts `test-discard-residue.ts` / `test-reversal-adjustment.ts` (plan gốc)
+**Chưa làm phiên này:** ~~commit~~ → **`2d22c52`** · Turso prod migrate · QA browser tab Tồn kho + Reject + adjust · ~~`PreparedChemicalsClient` tab Tồn kho~~ (buổi 6) · scripts `test-discard-residue.ts` / `test-reversal-adjustment.ts` (plan gốc)
 
-### Phiên này (2026-06-27 — buổi 5) — parentCode + batch lô pha chế + fix tab Tồn kho 🟡 (local · chưa commit)
+### Phiên này (2026-06-27 — buổi 6) — ISO 17025 mở rộng Phase 0–4 🟡 (local · chưa commit)
+
+> **Plan tham chiếu:** `.cursor/plans/iso_17025_module_expansion_154c3fb1.plan.md` · QA CG01: `.cursor/plans/qa_chuẩn_pha_chế_21eec604.plan.md`  
+> **Git:** HEAD **`2d22c52`** (buổi 4–5 đã commit) · buổi 6 **~30 file uncommitted**
+
+#### Phase 0 — Hoàn thiện parentCode UX
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| **Excel label** | `PreparationHistoryReportClient` — **Export Excel (15 cột)** |
+| **Excel Mã nhóm** | `prepared-excel.ts`, `prepared-chemicals-fields.ts` |
+| **Pha lại** | `PreparedChemicalsClient`, `ModuleCrudClient` (Chủng) — nút **Pha lại** trên Rejected |
+| **Tab Tồn kho** | HC + Chủng — drawer `InventoryItemPanel` (giống Chuẩn) |
+
+#### Phase 1 — StockLot purity / uncertainty
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| **Schema** | `StockLot.purity`, `StockLot.uncertainty` |
+| **Migration** | `20260703_stock_lot_purity` |
+| **UI** | Form nhập kho + lot panel hiển thị/sửa purity |
+
+#### Phase 2 — Nhật ký môi trường
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| **Schema** | `EnvironmentalLog` model |
+| **Migration** | `20260704_environmental_log` |
+| **Route** | `/environment-logs` · `lib/services/environmental-logs.ts` |
+| **RBAC** | Permission `environment_logs` (26 quyền sidebar) |
+| **Gắn pha chế** | `preparationCondition` / env log picker trong ISO form |
+
+#### Phase 3 — ISO form fields + thiết bị
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| **Component** | `PreparationIsoFormFields.tsx` — công thức, nồng độ, thiết bị, env log, đính kèm |
+| **Upload** | `lib/preparation-upload.ts` |
+| **Equipment FK** | `equipmentId` trên Prepared* · migration `20260705_preparation_equipment` |
+| **Calibration warn** | Cảnh báo hiệu chuẩn hết hạn khi chọn thiết bị |
+
+#### Phase 4 — Báo cáo, in, alerts
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| **Print** | Print styles cho form/báo cáo pha chế |
+| **Report filter** | `parentCode` filter trên `/preparation-history` |
+| **Ledger link** | `InventoryItemPanel` → `?preparationId=` |
+| **Alerts** | Prep alerts trong `lib/services/alerts.ts` |
+
+**Scripts / verify local:**
+
+```powershell
+npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260703_stock_lot_purity/migration.sql
+npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260704_environmental_log/migration.sql
+npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260705_preparation_equipment/migration.sql
+npx prisma generate
+npx tsc --noEmit          # PASS
+npx tsx scripts/test-prepared-batch-code.ts   # PASS
+npm run build             # PASS 2026-06-27 (SSG warnings nếu dev.db chưa migrate đủ)
+```
+
+**Chưa làm phiên này:** commit + push · Turso prod migrate `20260703`–`20260705` · `db:seed` permission `environment_logs` · redeploy · browser QA CG01-003 (form thiếu ingredient amount + solvent row)
+
+### Phiên trước (2026-06-27 — buổi 5) — parentCode + batch lô pha chế + fix tab Tồn kho ✅ (commit `2d22c52`)
 
 > **Plan tham chiếu:** `.cursor/plans/prepared_batch_parentcode_b3e62ee3.plan.md` (không sửa file plan)  
-> **Git:** HEAD vẫn `16d1efb` — toàn bộ thay đổi **uncommitted** (xem `git status`)
+> **Git:** commit **`2d22c52`** — *"Add prepared batch parentCode numbering and ledger-first inventory engine."*
 
 #### A — Fix tab Tồn kho: thiếu `stockLotId` khi adjust
 
@@ -274,7 +345,7 @@ npx tsx scripts/test-prepared-batch-code.ts
 npx prisma generate   # restart dev nếu EPERM
 ```
 
-**Chưa làm phiên này:** commit · Turso prod migrate + backfill · QA browser CG01 · Excel import/export `parentCode` · nút **Pha lại** trên HC/Chủng · QA adjust tab Tồn kho sau fix `stockLotId`
+**Chưa làm phiên này:** ~~commit~~ → **`2d22c52`** · Turso prod migrate + backfill · QA browser CG01 · Excel import/export `parentCode` · ~~Pha lại HC/Chủng~~ (buổi 6) · QA adjust tab Tồn kho sau fix `stockLotId`
 
 ### Phiên trước (2026-06-27 — buổi 3) — ISO Phase 4 + QA browser ✅
 
@@ -1130,7 +1201,30 @@ npx prisma generate
 
 ## 8. Pending Tasks
 
-### Ưu tiên 0 — Inventory Transaction Engine (local done · prod pending) 🟡
+### Ưu tiên 0 — ISO 17025 mở rộng buổi 6 (local done · chưa commit) 🟡
+
+> **Plan:** `.cursor/plans/iso_17025_module_expansion_154c3fb1.plan.md`  
+> **Migrations:** `20260703_stock_lot_purity` · `20260704_environmental_log` · `20260705_preparation_equipment`
+
+**Local (đã xong):**
+
+- [x] Phase 0: Excel 15 cột · Mã nhóm export · Pha lại HC/Chủng · tab Tồn kho HC/Chủng
+- [x] Phase 1: StockLot purity/uncertainty
+- [x] Phase 2: EnvironmentalLog + `/environment-logs` + permission
+- [x] Phase 3: PreparationIsoFormFields + equipment FK + upload
+- [x] Phase 4: print · parentCode filter · ledger link · prep alerts
+- [x] `tsc`, `test-prepared-batch-code.ts`
+
+**Phiên tiếp:**
+
+- [x] **`npm run build`** — PASS 2026-06-27 (compile + tsc OK; SSG prisma warnings nếu `dev.db` stale)
+- [ ] **Commit + push** ~30 file — **không** commit `public/uploads/`, `prisma/prisma/`
+- [ ] **Turso prod migrate** `20260703` → `20260704` → `20260705` (sau `20260701`–`20260702`)
+- [ ] **`npm run db:seed`** — permission `environment_logs` cho admin
+- [ ] **Redeploy Vercel** sau push
+- [ ] **Browser QA CG01-003** — ingredient 10 mg + solvent 10 mL · workflow Draft→Approved · CG01-004 · CG02 trung gian (plan QA)
+
+### Ưu tiên 0 — Inventory Transaction Engine (commit `2d22c52` · prod pending) 🟡
 
 > Migration: `20260701_inventory_tx_engine` · Engine ledger-first · **Reject không hoàn kho**
 
@@ -1144,8 +1238,9 @@ npx prisma generate
 
 **Commit & push (phiên tiếp):**
 
-- [ ] Review diff lớn (~30+ file) · **commit** với message mô tả Inventory TX Engine + opening balance fix
-- [ ] Push branch · redeploy Vercel prod
+- [x] Commit **`2d22c52`** — Inventory TX Engine + opening balance fix + parentCode
+- [x] Push branch `cursor/mobile-scroll-vercel-session`
+- [ ] Redeploy Vercel prod
 
 **Turso prod (bắt buộc trước QA prod):**
 
@@ -1167,14 +1262,14 @@ npx tsx scripts/reconcile-inventory-balances.ts
 
 **Còn lại từ plan gốc (ưu tiên thấp hơn):**
 
-- [ ] Tab Tồn kho trên `/prepared-chemicals`
+- [ ] Tab Tồn kho trên `/prepared-chemicals` — **done buổi 6 (uncommitted)**
 - [ ] Permissions riêng `inventory_adjust` / `inventory_reverse` (hiện dùng `requireSessionCanEdit/Manage`)
 - [ ] Scripts test: `test-discard-residue.ts`, `test-reversal-adjustment.ts`
 - [ ] Trace tree: badge Rejected/Expired + node CONSUME tx
 - [ ] Deprecate `Container.quantity` (phase 4 cleanup)
 - [ ] Xác nhận mục 10 plan: Cancel sau Approved có restore không · thời điểm CREATE output · discard 2 bước
 
-### Ưu tiên 0 — parentCode + batch lô pha chế (local done · prod pending) 🟡
+### Ưu tiên 0 — parentCode + batch lô pha chế (commit `2d22c52` · prod pending) 🟡
 
 > **Plan:** `.cursor/plans/prepared_batch_parentcode_b3e62ee3.plan.md`  
 > **Migration:** `20260702_prepared_parent_batch`
@@ -1192,8 +1287,9 @@ npx tsx scripts/reconcile-inventory-balances.ts
 
 **Commit & push (phiên tiếp):**
 
-- [ ] Gộp commit cùng buổi 4 (Inventory TX Engine) hoặc commit riêng — message mô tả parentCode/batch + fix `stockLotId`
-- [ ] Push branch · redeploy Vercel prod
+- [x] Commit **`2d22c52`** — parentCode/batch + fix `stockLotId` + tab Tồn kho Prepared*
+- [x] Push branch
+- [ ] Redeploy Vercel prod
 
 **Turso prod (bắt buộc trước QA prod):**
 
@@ -2198,7 +2294,7 @@ Available = CREATE + ADJUSTMENT_IN + REVERSAL − CONSUME − DISCARD − ADJUST
 
 **GLP:** Reject / Cancel sau Draft→Prepared → **không restore** nguyên liệu đã CONSUME.
 
-### File tham chiếu (parentCode + batch · buổi 5 · uncommitted)
+### File tham chiếu (parentCode + batch · buổi 5 · commit `2d22c52`)
 
 | Mục đích | File |
 |----------|------|
@@ -2226,3 +2322,19 @@ Mã lô (code) = {parentCode}-{batchNumber padded 3 digits}   e.g. CG01-003
 Legacy PSTD-/PCHEM-/PMS- → parentCode = code, batchNumber = 1
 Lô mới = MAX(batchNumber WHERE parentCode) + 1 (kể cả lô Rejected)
 ```
+
+### File tham chiếu (ISO 17025 mở rộng · buổi 6 · uncommitted)
+
+| Mục đích | File |
+|----------|------|
+| **ISO form block** | `components/preparation/PreparationIsoFormFields.tsx` |
+| **Upload đính kèm** | `lib/preparation-upload.ts` |
+| **Env logs service** | `lib/services/environmental-logs.ts` |
+| **Env logs UI** | `app/environment-logs/page.tsx`, `components/environment/` |
+| **Prep alerts** | `lib/services/alerts.ts` |
+| **Report parentCode filter** | `lib/services/preparation-history-report.ts` |
+| **Ledger link** | `components/inventory/InventoryItemPanel.tsx` |
+| **StockLot purity** | `prisma/migrations/20260703_stock_lot_purity/` |
+| **EnvironmentalLog** | `prisma/migrations/20260704_environmental_log/` |
+| **Equipment FK** | `prisma/migrations/20260705_preparation_equipment/` |
+| **Plans** | `.cursor/plans/iso_17025_module_expansion_154c3fb1.plan.md` · `.cursor/plans/qa_chuẩn_pha_chế_21eec604.plan.md` |

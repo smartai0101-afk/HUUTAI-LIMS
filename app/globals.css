@@ -105,3 +105,25 @@ textarea {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+@media print {
+  .no-print,
+  aside,
+  header,
+  nav {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .preparation-print-root {
+    padding: 0;
+  }
+
+  .preparation-print-root .rounded-2xl {
+    border: none;
+    box-shadow: none;
+  }
+}

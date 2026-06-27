@@ -283,6 +283,8 @@ model StockLot {
   lot               String
   quantity          Float                @default(0)
   unit              String               @default("")
+  purity            String               @default("")
+  uncertainty       String               @default("")
   expiryDate        DateTime?
   afterOpenExpiry   DateTime?
   coaPath           String?
@@ -364,12 +366,15 @@ model PreparedChemical {
   preparedByStaff       Staff?                       @relation("PChemPreparedBy", fields: [preparedByStaffId], references: [id], onDelete: SetNull)
   checkedByStaff        Staff?                       @relation("PChemCheckedBy", fields: [checkedByStaffId], references: [id], onDelete: SetNull)
   approvedByStaff       Staff?                       @relation("PChemApprovedBy", fields: [approvedByStaffId], references: [id], onDelete: SetNull)
+  equipmentId           String?
+  equipment             Equipment?                   @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([expiryDate])
   @@index([workflowStatus])
   @@index([deletedAt])
   @@index([parentCode])
+  @@index([equipmentId])
   @@unique([parentCode, batchNumber])
 }
 
@@ -435,6 +440,8 @@ model PreparedStandard {
   preparedByStaff       Staff?                      @relation("PStdPreparedBy", fields: [preparedByStaffId], references: [id], onDelete: SetNull)
   checkedByStaff        Staff?                      @relation("PStdCheckedBy", fields: [checkedByStaffId], references: [id], onDelete: SetNull)
   approvedByStaff       Staff?                      @relation("PStdApprovedBy", fields: [approvedByStaffId], references: [id], onDelete: SetNull)
+  equipmentId           String?
+  equipment             Equipment?                  @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   @@index([level])
   @@index([status])
@@ -442,6 +449,7 @@ model PreparedStandard {
   @@index([workflowStatus])
   @@index([deletedAt])
   @@index([parentCode])
+  @@index([equipmentId])
   @@unique([parentCode, batchNumber])
 }
 
@@ -538,13 +546,31 @@ model PreparedStrain {
   preparedByStaff         Staff?                    @relation("PStrPreparedBy", fields: [preparedByStaffId], references: [id], onDelete: SetNull)
   checkedByStaff          Staff?                    @relation("PStrCheckedBy", fields: [checkedByStaffId], references: [id], onDelete: SetNull)
   approvedByStaff         Staff?                    @relation("PStrApprovedBy", fields: [approvedByStaffId], references: [id], onDelete: SetNull)
+  equipmentId             String?
+  equipment               Equipment?                @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   @@index([sourceStrainId])
   @@index([status])
   @@index([workflowStatus])
   @@index([deletedAt])
   @@index([parentCode])
+  @@index([equipmentId])
   @@unique([parentCode, batchNumber])
+}
+
+model EnvironmentalLog {
+  id                  String   @id @default(cuid())
+  loggedAt            DateTime
+  location            String
+  temperature         Float?
+  humidity            Float?
+  recordedByStaffId   String?
+  notes               String   @default("")
+  createdAt           DateTime @default(now())
+  recordedByStaff     Staff?   @relation(fields: [recordedByStaffId], references: [id], onDelete: SetNull)
+
+  @@index([loggedAt])
+  @@index([recordedByStaffId])
 }
 
 model Container {
@@ -588,6 +614,7 @@ model Staff {
   preparedStrainsPrepared    PreparedStrain[]   @relation("PStrPreparedBy")
   preparedStrainsChecked     PreparedStrain[]   @relation("PStrCheckedBy")
   preparedStrainsApproved    PreparedStrain[]   @relation("PStrApprovedBy")
+  environmentalLogs          EnvironmentalLog[]
 }
 
 model PreparationHistory {
@@ -733,6 +760,9 @@ model Equipment {
   historyEvents           EquipmentHistoryEvent[]
   sparePartLinks          EquipmentSparePartLink[]
   sparePartUsages         SparePartUsage[]
+  preparedChemicals       PreparedChemical[]
+  preparedStandards       PreparedStandard[]
+  preparedStrains         PreparedStrain[]
 
   @@index([status])
   @@index([department])

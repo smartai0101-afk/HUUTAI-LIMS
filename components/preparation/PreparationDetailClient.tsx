@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PreparationHistoryTimeline } from "@/components/preparation/PreparationHistoryTimeline";
 import { PreparationTraceTree } from "@/components/preparation/PreparationTraceTree";
@@ -28,14 +28,24 @@ export function PreparationDetailClient({ summary }: Props) {
 
   return (
     <AppShell>
-      <div className="space-y-4">
-        <Link
-          href={summary.listHref}
-          className="inline-flex items-center gap-2 text-sm text-sky-700 hover:underline"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Quay lại danh sách
-        </Link>
+      <div className="preparation-print-root space-y-4">
+        <div className="no-print flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={summary.listHref}
+            className="inline-flex items-center gap-2 text-sm text-sky-700 hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Quay lại danh sách
+          </Link>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
+          >
+            <Printer className="h-4 w-4" />
+            In
+          </button>
+        </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -47,7 +57,7 @@ export function PreparationDetailClient({ summary }: Props) {
             <WorkflowStatusBadge status={summary.workflowStatus} />
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+          <div className="no-print mt-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
             {tabs.map((t) => (
               <button
                 key={t}
@@ -75,6 +85,8 @@ export function PreparationDetailClient({ summary }: Props) {
               <PreparationTraceTree
                 preparationType={summary.type}
                 preparationId={summary.id}
+                equipmentHref={summary.equipmentHref}
+                equipmentLabel={summary.equipmentLabel}
               />
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -94,6 +106,30 @@ export function PreparationDetailClient({ summary }: Props) {
                   <p className="text-xs text-slate-500">Ngày hết hạn</p>
                   <p className="font-medium">{formatDate(summary.expiryDate)}</p>
                 </div>
+                {summary.formula ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-slate-500">Công thức</p>
+                    <p className="font-medium whitespace-pre-wrap">{summary.formula}</p>
+                  </div>
+                ) : null}
+                {summary.equipmentLabel ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-slate-500">Thiết bị</p>
+                    {summary.equipmentHref ? (
+                      <Link href={summary.equipmentHref} className="font-medium text-sky-700 hover:underline">
+                        {summary.equipmentLabel}
+                      </Link>
+                    ) : (
+                      <p className="font-medium">{summary.equipmentLabel}</p>
+                    )}
+                  </div>
+                ) : null}
+                {summary.preparationCondition ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-slate-500">Điều kiện pha chế</p>
+                    <p className="font-medium whitespace-pre-wrap">{summary.preparationCondition}</p>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

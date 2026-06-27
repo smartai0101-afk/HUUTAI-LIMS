@@ -108,6 +108,8 @@ export async function createStockIn(formData: FormData) {
           lot,
           quantityIn,
           unit,
+          purity: str(formData, "purity"),
+          uncertainty: str(formData, "uncertainty"),
           expiryDate: parseFormDate(str(formData, "expiryDate")),
           afterOpenExpiry:
             sourceType === "Standard" ? parseFormDate(str(formData, "afterOpenExpiry")) : null,

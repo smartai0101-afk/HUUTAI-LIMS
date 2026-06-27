@@ -41,17 +41,19 @@ import { formatDate } from "@/lib/utils";
 import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPicker";
 import { LOT_SELECTION_REQUIRED_MESSAGE } from "@/lib/inventory-lot-policy";
 import { emptyStockLotSelection, requiresLotSelection } from "@/lib/stock-lot-selection";
-import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
+import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { PreparationHistoryTimeline } from "@/components/preparation/PreparationHistoryTimeline";
 import { PreparationTraceTree } from "@/components/preparation/PreparationTraceTree";
 import { PreparationWorkflowPanel } from "@/components/preparation/PreparationWorkflowPanel";
+import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
 import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
 import {
   PREPARATION_WORKFLOW_FILTERS,
   PREPARATION_WORKFLOW_STATUS_LABELS,
 } from "@/lib/preparation-workflow-labels";
+import { PreparationIsoFormFields } from "@/components/preparation/PreparationIsoFormFields";
 import type { StaffView } from "@/lib/services/staff";
-import type { ChemicalView, PreparedChemicalView } from "@/types";
+import type { ChemicalView, EnvironmentalLogView, PreparedChemicalView } from "@/types";
 
 type IngredientFormRow = {
   key: string;
@@ -77,10 +79,38 @@ const initialForm = {
   preparedBy: "",
   storageLocation: "",
   storageCondition: "",
+  formula: "",
+  originalConcentration: "",
+  finalConcentration: "",
+  equipmentUsed: "",
+  preparationCondition: "",
+  equipmentId: "",
+  attachmentUrl: "",
   notes: "",
 };
 
 type FormState = typeof initialForm;
+
+function isoFieldsFromItem(item: PreparedChemicalView): Pick<
+  FormState,
+  | "formula"
+  | "originalConcentration"
+  | "finalConcentration"
+  | "equipmentUsed"
+  | "preparationCondition"
+  | "equipmentId"
+  | "attachmentUrl"
+> {
+  return {
+    formula: item.formula,
+    originalConcentration: item.originalConcentration,
+    finalConcentration: item.finalConcentration,
+    equipmentUsed: item.equipmentUsed,
+    preparationCondition: item.preparationCondition,
+    equipmentId: item.equipmentId ?? "",
+    attachmentUrl: item.attachmentUrl,
+  };
+}
 
 function emptyIngredient(): IngredientFormRow {
   return {
@@ -101,10 +131,12 @@ export function PreparedChemicalsClient({
   items,
   chemicals,
   staff,
+  environmentalLogs = [],
 }: {
   items: PreparedChemicalView[];
   chemicals: ChemicalView[];
   staff: StaffView[];
+  environmentalLogs?: EnvironmentalLogView[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -124,6 +156,7 @@ export function PreparedChemicalsClient({
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [amendmentOpen, setAmendmentOpen] = useState(false);
   const [pendingAmendmentReason, setPendingAmendmentReason] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
@@ -204,7 +237,46 @@ export function PreparedChemicalsClient({
     setIsEditing(false);
     setEditingId(null);
     setForm(initialForm);
+    setAttachmentFile(null);
     setIngredients([emptyIngredient()]);
+    setIsFormOpen(true);
+  };
+
+  const openReprepare = (item: PreparedChemicalView) => {
+    setSelected(null);
+    setIsEditing(false);
+    setEditingId(null);
+    setAttachmentFile(null);
+    setForm({
+      parentCode: item.parentCode || item.code.replace(/-\d{3}$/, ""),
+      code: "",
+      name: item.name,
+      concentration: item.concentration,
+      concentrationUnit: item.concentrationUnit,
+      preparedQuantity: String(item.preparedQuantity),
+      unit: item.unit,
+      preparedDate: "",
+      expiryDate: "",
+      preparedBy: item.preparedBy,
+      storageLocation: item.storageLocation,
+      storageCondition: item.storageCondition,
+      notes: item.notes,
+      ...isoFieldsFromItem(item),
+    });
+    setIngredients(
+      item.ingredients.length
+        ? item.ingredients.map((ing) => ({
+            key: crypto.randomUUID(),
+            chemicalId: ing.chemicalId,
+            chemicalName: ing.chemicalName,
+            casProductCode: ing.casProductCode,
+            stockLotId: ing.stockLotId ?? "",
+            lotNumber: ing.lotNumber,
+            quantityUsed: String(ing.quantityUsed),
+            unit: ing.unit,
+          }))
+        : [emptyIngredient()],
+    );
     setIsFormOpen(true);
   };
 
@@ -217,6 +289,7 @@ export function PreparedChemicalsClient({
       setSelected(null);
       setIsEditing(true);
       setEditingId(item.id);
+      setAttachmentFile(null);
       setForm({
         parentCode: item.parentCode,
         code: item.code,
@@ -231,6 +304,7 @@ export function PreparedChemicalsClient({
         storageLocation: item.storageLocation,
         storageCondition: item.storageCondition,
         notes: item.notes,
+        ...isoFieldsFromItem(item),
       });
       setIngredients(
         item.ingredients.length
@@ -252,6 +326,7 @@ export function PreparedChemicalsClient({
     setSelected(null);
     setIsEditing(true);
     setEditingId(item.id);
+    setAttachmentFile(null);
     setForm({
       parentCode: item.parentCode,
       code: item.code,
@@ -266,6 +341,7 @@ export function PreparedChemicalsClient({
       storageLocation: item.storageLocation,
       storageCondition: item.storageCondition,
       notes: item.notes,
+      ...isoFieldsFromItem(item),
     });
     setIngredients(
       item.ingredients.length
@@ -336,6 +412,8 @@ export function PreparedChemicalsClient({
     const fd = new FormData();
     fd.set("user", role);
     PREPARED_CHEMICAL_FORM_FIELD_KEYS.forEach((key) => fd.set(key, String(form[key] ?? "")));
+    fd.set("attachmentUrl", form.attachmentUrl);
+    if (attachmentFile) fd.set("attachment", attachmentFile);
     fd.set(
       "ingredients",
       JSON.stringify(
@@ -366,6 +444,7 @@ export function PreparedChemicalsClient({
       setIsFormOpen(false);
       setAmendmentOpen(false);
       setPendingAmendmentReason("");
+      setAttachmentFile(null);
       router.refresh();
     });
   };
@@ -586,7 +665,7 @@ export function PreparedChemicalsClient({
           onClose={() => setSelected(null)}
           title={selected?.name ?? ""}
           subtitle={selected?.code}
-          tabs={["Chi tiết", "Lịch sử", "Truy xuất"]}
+          tabs={["Chi tiết", "Tồn kho", "Lịch sử", "Truy xuất"]}
           activeTab={drawerTab}
           onTabChange={setDrawerTab}
           layout="stacked"
@@ -598,6 +677,19 @@ export function PreparedChemicalsClient({
                   template="prepared-chemical"
                   data={preparedChemicalToLabelData(selected)}
                 />
+                {canEdit && selected.workflowStatus === "Rejected" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openReprepare(selected);
+                      setSelected(null);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 px-3 py-2 text-sm text-cyan-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Pha lại
+                  </button>
+                ) : null}
                 {canEdit ? (
                   <button
                     type="button"
@@ -623,7 +715,19 @@ export function PreparedChemicalsClient({
           }
           tabContent={
             selected ? (
-              drawerTab === "Lịch sử" ? (
+              drawerTab === "Tồn kho" ? (
+                <InventoryItemPanel
+                  sourceType="PreparedChemical"
+                  sourceId={selected.id}
+                  sourceCode={selected.code}
+                  unit={selected.unit}
+                  inventoryStatus={selected.inventoryStatus}
+                  canEdit={canEdit}
+                  canManage={canManage}
+                  onSuccess={(msg) => addToast(msg, "success")}
+                  onError={(msg) => addToast(msg, "error")}
+                />
+              ) : drawerTab === "Lịch sử" ? (
                 <PreparationHistoryTimeline
                   preparationType="CHEMICAL"
                   preparationId={selected.id}
@@ -841,6 +945,13 @@ export function PreparedChemicalsClient({
                     className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
                   />
                 </div>
+                <PreparationIsoFormFields
+                  form={form}
+                  onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
+                  environmentalLogs={environmentalLogs}
+                  attachmentFile={attachmentFile}
+                  onAttachmentChange={setAttachmentFile}
+                />
                 <div className="sm:col-span-2">
                   <label className="mb-1 block text-sm text-slate-600">Ghi chú</label>
                   <textarea

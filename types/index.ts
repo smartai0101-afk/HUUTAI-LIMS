@@ -8,7 +8,7 @@ export type AlertItem = {
   type: string;
   date: string;
   itemCode?: string;
-  itemRoute?: "/chemicals" | "/standards" | "/solutions" | "/containers" | "/equipment/calibration-plans" | "/equipment/maintenance-plans";
+  itemRoute?: "/chemicals" | "/standards" | "/solutions" | "/containers" | "/equipment/calibration-plans" | "/equipment/maintenance-plans" | "/prepared-chemicals" | "/prepared-standards" | "/prepared-strains" | "/preparation-history";
   reviewed?: boolean;
 };
 
@@ -70,6 +70,18 @@ export type PreparedChemicalIngredientView = {
   displayLine: string;
 };
 
+export type PreparationIsoFields = {
+  formula: string;
+  originalConcentration: string;
+  finalConcentration: string;
+  equipmentUsed: string;
+  preparationCondition: string;
+  attachmentUrl: string;
+  equipmentId: string | null;
+  equipmentCode: string;
+  equipmentName: string;
+};
+
 export type PreparedChemicalView = {
   id: string;
   parentCode: string;
@@ -85,11 +97,12 @@ export type PreparedChemicalView = {
   expiryDate: string;
   storageLocation: string;
   storageCondition: string;
+  inventoryStatus: string;
   status: string;
   notes: string;
   ingredients: PreparedChemicalIngredientView[];
   ingredientsSummary: string;
-} & PreparationWorkflowView;
+} & PreparationWorkflowView & PreparationIsoFields;
 
 export type PreparedStandardComponentView = {
   id: string;
@@ -154,7 +167,7 @@ export type PreparedStandardView = {
   solvents: PreparedStandardSolventView[];
   componentsSummary: string;
   solventsSummary: string;
-} & PreparationWorkflowView;
+} & PreparationWorkflowView & PreparationIsoFields;
 
 export type MicrobialStrainView = {
   id: string;
@@ -248,12 +261,27 @@ export type StockLotView = {
   /** Ledger-derived available; falls back to quantity when unset. */
   availableQuantity?: number;
   unit: string;
+  purity: string;
+  uncertainty: string;
   expiryDate: string;
   afterOpenExpiry: string;
   coaPath: string;
   storageLocation: string;
   status: string;
   notes: string;
+};
+
+export type EnvironmentalLogView = {
+  id: string;
+  loggedAt: string;
+  location: string;
+  temperature: number | null;
+  humidity: number | null;
+  recordedByStaffId: string | null;
+  recordedByStaffName: string;
+  notes: string;
+  createdAt: string;
+  snapshotText: string;
 };
 
 export type StockInLogView = {

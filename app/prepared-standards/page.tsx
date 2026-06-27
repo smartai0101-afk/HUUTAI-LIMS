@@ -1,4 +1,6 @@
 import { PreparedStandardsClient } from "@/components/prepared-standards/PreparedStandardsClient";
+import { getEquipmentOptions } from "@/lib/services/equipment-options";
+import { getRecentEnvironmentalLogs } from "@/lib/services/environmental-logs";
 import {
   getPreparedStandardCatalog,
   getPreparedStandards,
@@ -8,10 +10,12 @@ import { getActiveStaff } from "@/lib/services/staff";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const [items, catalog, staff] = await Promise.all([
+  const [items, catalog, staff, equipmentOptions, environmentalLogs] = await Promise.all([
     getPreparedStandards(),
     getPreparedStandardCatalog(),
     getActiveStaff(),
+    getEquipmentOptions(),
+    getRecentEnvironmentalLogs(),
   ]);
   return (
     <PreparedStandardsClient
@@ -21,6 +25,8 @@ export default async function Page() {
       levelCounts={catalog.levelCounts}
       chemicals={catalog.chemicals}
       staff={staff}
+      equipmentOptions={equipmentOptions}
+      environmentalLogs={environmentalLogs}
     />
   );
 }

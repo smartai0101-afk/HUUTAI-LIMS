@@ -7,6 +7,7 @@ import { detectWithinFileDuplicates } from "@/lib/excel-import-utils";
 export const PREPARED_CHEMICAL_IMPORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
   PREPARED_CHEMICAL_CSV_FIELD_KEYS.map((header) => {
     const keyMap: Record<string, string> = {
+      "Mã nhóm": "parentCode",
       "Mã hóa chất pha": "code",
       "Tên hóa chất pha": "name",
       "Nồng độ": "concentration",
@@ -35,6 +36,7 @@ export const PREPARED_CHEMICAL_EXCEL_COLUMNS: ExcelColumn[] = PREPARED_CHEMICAL_
 export const PREPARED_STANDARD_HEADER_KEYS = [
   "STT",
   "Cấp chuẩn",
+  "Mã nhóm",
   "Mã chuẩn pha chế",
   "Tên chuẩn pha chế",
   "Nồng độ",
@@ -88,6 +90,7 @@ export const PREPARED_STANDARD_EXCEL_COLUMNS: ExcelColumn[] = PREPARED_STANDARD_
 export const PREPARED_STANDARD_IMPORT_COLUMN_MAP: Record<string, string> = {
   STT: "stt",
   "Cấp chuẩn": "level",
+  "Mã nhóm": "parentCode",
   "Mã chuẩn pha chế": "code",
   "Tên chuẩn pha chế": "name",
   "Nồng độ": "concentration",
@@ -126,6 +129,7 @@ export const PREPARED_STANDARD_IMPORT_COLUMN_MAP: Record<string, string> = {
 export const PREPARED_STANDARD_HEADER_IMPORT_MAP = PREPARED_STANDARD_IMPORT_COLUMN_MAP;
 
 export const PREPARED_STRAIN_EXCEL_HEADERS = [
+  "Mã nhóm",
   "Mã",
   "Tên",
   "Nguồn gốc",
@@ -146,6 +150,7 @@ export const PREPARED_STRAIN_EXCEL_HEADERS = [
 ] as const;
 
 export const PREPARED_STRAIN_IMPORT_COLUMN_MAP: Record<string, string> = {
+  "Mã nhóm": "parentCode",
   "Mã": "code",
   "Tên": "name",
   "Nguồn gốc": "sourceCode",
@@ -173,6 +178,7 @@ export function buildPreparedStrainExportRows(
   items: Array<Record<string, unknown>>,
 ): Array<Record<string, string | number>> {
   return items.map((item) => ({
+    "Mã nhóm": String(item.parentCode ?? ""),
     "Mã": String(item.code ?? ""),
     "Tên": String(item.name ?? ""),
     "Nguồn gốc": String(item.sourceCode ?? ""),

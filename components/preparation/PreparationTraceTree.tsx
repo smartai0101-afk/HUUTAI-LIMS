@@ -25,6 +25,8 @@ const ROLE_LABELS: Record<string, string> = {
 type Props = {
   preparationType: PreparationRecordType;
   preparationId: string;
+  equipmentHref?: string;
+  equipmentLabel?: string;
 };
 
 function TraceNodeRow({ node, depth }: { node: TraceTreeNode; depth: number }) {
@@ -77,7 +79,12 @@ function TraceNodeRow({ node, depth }: { node: TraceTreeNode; depth: number }) {
   );
 }
 
-export function PreparationTraceTree({ preparationType, preparationId }: Props) {
+export function PreparationTraceTree({
+  preparationType,
+  preparationId,
+  equipmentHref,
+  equipmentLabel,
+}: Props) {
   const [tree, setTree] = useState<TraceTreeNode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -113,6 +120,18 @@ export function PreparationTraceTree({ preparationType, preparationId }: Props) 
       <p className="text-xs text-slate-500">
         Truy ngược từ bản ghi pha chế đến nguyên liệu / chuẩn / chủng gốc.
       </p>
+      {equipmentLabel ? (
+        <p className="text-sm text-slate-700">
+          Thiết bị:{" "}
+          {equipmentHref ? (
+            <Link href={equipmentHref} className="text-sky-700 hover:underline">
+              {equipmentLabel}
+            </Link>
+          ) : (
+            equipmentLabel
+          )}
+        </p>
+      ) : null}
       <ul className="space-y-2">
         <TraceNodeRow node={tree} depth={0} />
       </ul>

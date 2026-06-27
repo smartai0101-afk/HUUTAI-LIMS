@@ -11,6 +11,8 @@ export function mapStockLot(lot: {
   lot: string;
   quantity: number;
   unit: string;
+  purity?: string;
+  uncertainty?: string;
   expiryDate: Date | null;
   afterOpenExpiry?: Date | null;
   coaPath?: string | null;
@@ -23,6 +25,8 @@ export function mapStockLot(lot: {
     lot: lot.lot,
     quantity: lot.quantity,
     unit: lot.unit,
+    purity: lot.purity ?? "",
+    uncertainty: lot.uncertainty ?? "",
     expiryDate: toDateString(lot.expiryDate),
     afterOpenExpiry: toDateString(lot.afterOpenExpiry),
     coaPath: lot.coaPath ?? "",

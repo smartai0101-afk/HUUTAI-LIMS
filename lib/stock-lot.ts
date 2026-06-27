@@ -33,6 +33,8 @@ export type StockLotInput = {
   lot: string;
   quantityIn: number;
   unit: string;
+  purity?: string;
+  uncertainty?: string;
   expiryDate: Date | null;
   afterOpenExpiry?: Date | null;
   coaPath?: string | null;
@@ -110,6 +112,8 @@ function lotCreateData(
     lot: input.lot.trim(),
     quantity: 0,
     unit: input.unit.trim(),
+    purity: input.purity?.trim() ?? "",
+    uncertainty: input.uncertainty?.trim() ?? "",
     expiryDate: input.expiryDate,
     coaPath: input.coaPath ?? null,
     storageLocation: input.storageLocation,
@@ -320,6 +324,8 @@ export async function applyStockIn(
       coaPath: lotInput.coaPath ?? stockLot.coaPath,
       storageLocation: lotInput.storageLocation || stockLot.storageLocation,
       notes: lotInput.notes || stockLot.notes,
+      purity: lotInput.purity?.trim() || stockLot.purity,
+      uncertainty: lotInput.uncertainty?.trim() || stockLot.uncertainty,
       status,
     },
   });

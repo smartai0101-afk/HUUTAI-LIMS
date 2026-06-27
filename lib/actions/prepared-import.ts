@@ -55,6 +55,12 @@ function rowStr(row: Record<string, string>, key: string) {
   return String(row[key] ?? "").trim();
 }
 
+function resolveImportBatchFields(row: Record<string, string>, code: string) {
+  const fromCode = inferPreparedBatchFields(code);
+  const parentCode = rowStr(row, "parentCode") || fromCode.parentCode;
+  return { parentCode, batchNumber: fromCode.batchNumber };
+}
+
 function levelFromComponentLabel(label: string): PreparedStandardLevel | null {
   const trimmed = label.trim();
   if (!trimmed) return null;
@@ -179,7 +185,7 @@ export async function bulkImportPreparedChemicals(formData: FormData) {
     const unit = rowStr(row, "unit") || "mL";
     const preparedDate = parseFormDate(preparedDateStr)!;
     const expiryDate = parseFormDate(expiryDateStr)!;
-    const batchFields = inferPreparedBatchFields(code);
+    const batchFields = resolveImportBatchFields(row, code);
 
     await db.preparedChemical.create({
       data: {
@@ -289,7 +295,7 @@ export async function bulkImportPreparedStandards(formData: FormData) {
     const solventUnit = rowStr(group.header, "solventUnit") || "mL";
     const preparedDate = parseFormDate(preparedDateStr)!;
     const expiryDate = parseFormDate(expiryDateStr)!;
-    const batchFields = inferPreparedBatchFields(code);
+    const batchFields = resolveImportBatchFields(group.header, code);
 
     await db.preparedStandard.create({
       data: {
@@ -425,7 +431,7 @@ export async function bulkImportPreparedStrains(formData: FormData) {
 
     const preparedDate = parseFormDate(preparedDateStr)!;
     const expiryDate = parseFormDate(expiryDateStr)!;
-    const batchFields = inferPreparedBatchFields(code);
+    const batchFields = resolveImportBatchFields(row, code);
 
     await db.preparedStrain.create({
       data: {

@@ -14,6 +14,12 @@ export const PREPARED_STANDARD_FORM_FIELD_KEYS = [
   "level",
   "storageLocation",
   "storageCondition",
+  "formula",
+  "originalConcentration",
+  "finalConcentration",
+  "equipmentUsed",
+  "preparationCondition",
+  "equipmentId",
   "notes",
 ] as const;
 

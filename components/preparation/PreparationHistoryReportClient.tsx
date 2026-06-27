@@ -35,6 +35,7 @@ const WORKFLOW_FILTER_LABELS: Record<(typeof PREPARATION_WORKFLOW_FILTERS)[numbe
 export function PreparationHistoryReportClient({ rows }: { rows: PreparationHistoryReportRow[] }) {
   const { addToast } = useToast();
   const [query, setQuery] = useState("");
+  const [parentCodeFilter, setParentCodeFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]["value"]>("All");
   const [statusFilter, setStatusFilter] =
     useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
@@ -48,11 +49,13 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
         statusFilter === "All" || row.status === WORKFLOW_FILTER_LABELS[statusFilter];
       const matchFrom = !dateFrom || row.preparedDate >= dateFrom;
       const matchTo = !dateTo || row.preparedDate <= dateTo;
+      const parentQ = parentCodeFilter.toLowerCase();
+      const matchParentCode =
+        !parentQ || row.parentCode.toLowerCase().includes(parentQ);
       const q = query.toLowerCase();
       const matchQuery =
         !q ||
         [
-          row.parentCode,
           row.code,
           row.name,
           row.preparedBy,
@@ -61,9 +64,9 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
           row.sourceLot,
           row.notes,
         ].some((value) => value.toLowerCase().includes(q));
-      return matchType && matchStatus && matchFrom && matchTo && matchQuery;
+      return matchType && matchStatus && matchFrom && matchTo && matchParentCode && matchQuery;
     });
-  }, [rows, query, typeFilter, statusFilter, dateFrom, dateTo]);
+  }, [rows, query, parentCodeFilter, typeFilter, statusFilter, dateFrom, dateTo]);
 
   const handleExport = () => {
     exportToXlsx(
@@ -91,7 +94,7 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700"
           >
             <Download className="h-4 w-4" />
-            Export Excel (14 cột)
+            Export Excel (15 cột)
           </button>
         </div>
 
@@ -101,8 +104,16 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm mã, tên, nguồn gốc, lô, người pha..."
+              placeholder="Tìm mã lô, tên, nguồn gốc, lô, người pha..."
               className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
+            />
+          </div>
+          <div className="relative w-full md:max-w-xs">
+            <input
+              value={parentCodeFilter}
+              onChange={(e) => setParentCodeFilter(e.target.value)}
+              placeholder="Lọc mã nhóm (parentCode)..."
+              className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-cyan-300"
             />
           </div>
 
@@ -177,13 +188,22 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
               key: "detailHref",
               header: "",
               render: (_value, row) => (
-                <Link
-                  href={row.detailHref}
-                  className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-sky-700"
-                >
-                  Chi tiết
-                  <ExternalLink className="h-3 w-3" />
-                </Link>
+                <div className="flex flex-col gap-1">
+                  <Link
+                    href={row.detailHref}
+                    className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-sky-700"
+                  >
+                    Chi tiết
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                  <Link
+                    href={`/inventory-ledger?preparationId=${encodeURIComponent(row.preparationId)}`}
+                    className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-sky-700"
+                  >
+                    Sổ cái
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
               ),
             },
           ]}

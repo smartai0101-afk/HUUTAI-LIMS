@@ -13,9 +13,16 @@ import { INVENTORY_TRANSACTION_TYPE_LABELS } from "@/lib/services/inventory-tran
 const actionFilters = ["All", "Deduct", "Restore"];
 const txTypeFilters = ["All", ...Object.keys(INVENTORY_TRANSACTION_TYPE_LABELS)];
 
-export function InventoryLedgerClient({ rows }: { rows: InventoryLedgerRow[] }) {
+export function InventoryLedgerClient({
+  rows,
+  initialPreparationId = "",
+}: {
+  rows: InventoryLedgerRow[];
+  initialPreparationId?: string;
+}) {
   const { addToast } = useToast();
   const [query, setQuery] = useState("");
+  const [preparationFilter, setPreparationFilter] = useState(initialPreparationId);
   const [actionFilter, setActionFilter] = useState("All");
   const [txTypeFilter, setTxTypeFilter] = useState("All");
 
@@ -23,12 +30,16 @@ export function InventoryLedgerClient({ rows }: { rows: InventoryLedgerRow[] }) 
     return rows.filter((row) => {
       const matchAction = actionFilter === "All" || row.actionType === actionFilter;
       const matchTxType = txTypeFilter === "All" || row.transactionType === txTypeFilter;
+      const matchPrep =
+        !preparationFilter.trim() ||
+        row.relatedPreparationId === preparationFilter.trim() ||
+        row.referenceId === preparationFilter.trim();
       const matchQuery = [row.sourceCode, row.lotNumber, row.user, row.module, row.notes, row.reason].some(
         (v) => v.toLowerCase().includes(query.toLowerCase()),
       );
-      return matchAction && matchTxType && matchQuery;
+      return matchAction && matchTxType && matchPrep && matchQuery;
     });
-  }, [rows, query, actionFilter, txTypeFilter]);
+  }, [rows, query, preparationFilter, actionFilter, txTypeFilter]);
 
   const handleExport = () => {
     downloadCsv(
@@ -60,13 +71,21 @@ export function InventoryLedgerClient({ rows }: { rows: InventoryLedgerRow[] }) 
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="relative mb-3 w-full md:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row">
+            <div className="relative w-full md:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Tìm mã vật tư, lot, user..."
+                className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
+              />
+            </div>
             <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm mã vật tư, lot, user..."
-              className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
+              value={preparationFilter}
+              onChange={(e) => setPreparationFilter(e.target.value)}
+              placeholder="Lọc theo preparationId..."
+              className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-cyan-300 md:max-w-xs"
             />
           </div>
           <FilterChipBar

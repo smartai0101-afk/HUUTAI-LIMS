@@ -112,5 +112,114 @@ export async function getAlerts(): Promise<AlertItem[]> {
     });
   }
 
+  const draftCutoff = new Date(now.getTime() - THIRTY_DAYS_MS);
+  const [draftChemicals, draftStandards, draftStrains, expiringChemicals, expiringStandards, expiringStrains] =
+    await Promise.all([
+      db.preparedChemical.findMany({
+        where: { deletedAt: null, workflowStatus: "Draft", createdAt: { lt: draftCutoff } },
+        select: { id: true, code: true, name: true, createdAt: true },
+        take: 10,
+      }),
+      db.preparedStandard.findMany({
+        where: { deletedAt: null, workflowStatus: "Draft", createdAt: { lt: draftCutoff } },
+        select: { id: true, code: true, name: true, createdAt: true },
+        take: 10,
+      }),
+      db.preparedStrain.findMany({
+        where: { deletedAt: null, workflowStatus: "Draft", createdAt: { lt: draftCutoff } },
+        select: { id: true, code: true, name: true, createdAt: true },
+        take: 10,
+      }),
+      db.preparedChemical.findMany({
+        where: { deletedAt: null, workflowStatus: "Approved", expiryDate: { gte: now, lte: soon } },
+        select: { id: true, code: true, name: true, expiryDate: true },
+        take: 5,
+      }),
+      db.preparedStandard.findMany({
+        where: { deletedAt: null, workflowStatus: "Approved", expiryDate: { gte: now, lte: soon } },
+        select: { id: true, code: true, name: true, expiryDate: true },
+        take: 5,
+      }),
+      db.preparedStrain.findMany({
+        where: { deletedAt: null, workflowStatus: "Approved", expiryDate: { gte: now, lte: soon } },
+        select: { id: true, code: true, name: true, expiryDate: true },
+        take: 5,
+      }),
+    ]);
+
+  for (const row of draftChemicals) {
+    alerts.push({
+      id: `prep-draft-chem-${row.id}`,
+      title: "Pha chế nháp quá 30 ngày",
+      description: `${row.name} (${row.code}) — tạo ${toDateString(row.createdAt)}`,
+      severity: "Warning",
+      type: "Preparation",
+      date: toDateString(row.createdAt),
+      itemCode: row.code,
+      itemRoute: "/prepared-chemicals",
+    });
+  }
+  for (const row of draftStandards) {
+    alerts.push({
+      id: `prep-draft-std-${row.id}`,
+      title: "Pha chế nháp quá 30 ngày",
+      description: `${row.name} (${row.code}) — tạo ${toDateString(row.createdAt)}`,
+      severity: "Warning",
+      type: "Preparation",
+      date: toDateString(row.createdAt),
+      itemCode: row.code,
+      itemRoute: "/prepared-standards",
+    });
+  }
+  for (const row of draftStrains) {
+    alerts.push({
+      id: `prep-draft-str-${row.id}`,
+      title: "Pha chế nháp quá 30 ngày",
+      description: `${row.name} (${row.code}) — tạo ${toDateString(row.createdAt)}`,
+      severity: "Warning",
+      type: "Preparation",
+      date: toDateString(row.createdAt),
+      itemCode: row.code,
+      itemRoute: "/prepared-strains",
+    });
+  }
+
+  for (const row of expiringChemicals) {
+    alerts.push({
+      id: `prep-exp-chem-${row.id}`,
+      title: "Pha chế sắp hết hạn",
+      description: `${row.name} (${row.code}) — HSD ${toDateString(row.expiryDate)}`,
+      severity: "Warning",
+      type: "Preparation",
+      date: toDateString(row.expiryDate),
+      itemCode: row.code,
+      itemRoute: "/prepared-chemicals",
+    });
+  }
+  for (const row of expiringStandards) {
+    alerts.push({
+      id: `prep-exp-std-${row.id}`,
+      title: "Pha chế sắp hết hạn",
+      description: `${row.name} (${row.code}) — HSD ${toDateString(row.expiryDate)}`,
+      severity: "Warning",
+      type: "Preparation",
+      date: toDateString(row.expiryDate),
+      itemCode: row.code,
+      itemRoute: "/prepared-standards",
+    });
+  }
+  for (const row of expiringStrains) {
+    alerts.push({
+      id: `prep-exp-str-${row.id}`,
+      title: "Pha chế sắp hết hạn",
+      description: `${row.name} (${row.code}) — HSD ${toDateString(row.expiryDate)}`,
+      severity: "Warning",
+      type: "Preparation",
+      date: toDateString(row.expiryDate),
+      itemCode: row.code,
+      itemRoute: "/prepared-strains",
+    });
+  }
+
   return alerts.sort((a, b) => b.date.localeCompare(a.date));
 }

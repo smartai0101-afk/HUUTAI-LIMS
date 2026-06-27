@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "StockLot" ADD COLUMN "purity" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "StockLot" ADD COLUMN "uncertainty" TEXT NOT NULL DEFAULT '';

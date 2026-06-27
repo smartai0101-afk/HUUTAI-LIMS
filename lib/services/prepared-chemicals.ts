@@ -6,6 +6,7 @@ import {
 } from "@/lib/prepared-chemical-status";
 import { toDateString } from "@/lib/mappers";
 import { mapPreparationWorkflowFields } from "@/lib/map-preparation-workflow";
+import { mapPreparationIsoFields } from "@/lib/map-preparation-iso";
 import type { PreparedChemicalIngredientView, PreparedChemicalView } from "@/types";
 
 function mapIngredient(row: {
@@ -44,6 +45,7 @@ export async function getPreparedChemicals(): Promise<PreparedChemicalView[]> {
       preparedByStaff: { select: { name: true } },
       checkedByStaff: { select: { name: true } },
       approvedByStaff: { select: { name: true } },
+      equipment: { select: { code: true, name: true } },
     },
     orderBy: { code: "asc" },
   });
@@ -65,11 +67,13 @@ export async function getPreparedChemicals(): Promise<PreparedChemicalView[]> {
       expiryDate: toDateString(row.expiryDate),
       storageLocation: row.storageLocation,
       storageCondition: row.storageCondition,
+      inventoryStatus: row.inventoryStatus,
       status: preparedChemicalStatusLabel(computePreparedChemicalStatus(row.expiryDate)),
       notes: row.notes,
       ingredients,
       ingredientsSummary: ingredients.map((i) => i.displayLine).join("\n"),
       ...mapPreparationWorkflowFields(row),
+      ...mapPreparationIsoFields(row),
     };
   });
 }

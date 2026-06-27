@@ -55,7 +55,56 @@ export type PreparationSummaryView = {
   expiryDate: string;
   preparedBy: string;
   listHref: string;
+  formula: string;
+  preparationCondition: string;
+  equipmentLabel: string;
+  equipmentHref: string;
 };
+
+function equipmentSummary(equipment: { id: string; code: string; name: string } | null | undefined) {
+  if (!equipment) return { equipmentLabel: "", equipmentHref: "" };
+  return {
+    equipmentLabel: `${equipment.code} · ${equipment.name}`,
+    equipmentHref: `/equipment/catalog?highlight=${equipment.id}`,
+  };
+}
+
+function mapSummaryRow(
+  type: PreparationRecordType,
+  row: {
+    id: string;
+    code: string;
+    name: string;
+    workflowStatus: string;
+    version: number;
+    preparedDate: Date;
+    expiryDate: Date;
+    preparedBy: string;
+    formula: string;
+    preparationCondition: string;
+    equipmentUsed: string;
+    equipment?: { id: string; code: string; name: string } | null;
+  },
+  listHref: string,
+): PreparationSummaryView {
+  const fromEquipment = equipmentSummary(row.equipment);
+  return {
+    id: row.id,
+    type,
+    code: row.code,
+    name: row.name,
+    workflowStatus: row.workflowStatus,
+    version: row.version,
+    preparedDate: toDateString(row.preparedDate),
+    expiryDate: toDateString(row.expiryDate),
+    preparedBy: row.preparedBy,
+    listHref,
+    formula: row.formula,
+    preparationCondition: row.preparationCondition,
+    equipmentLabel: fromEquipment.equipmentLabel || row.equipmentUsed,
+    equipmentHref: fromEquipment.equipmentHref,
+  };
+}
 
 const TYPE_SLUG: Record<PreparationRecordType, string> = {
   CHEMICAL: "chemical",
@@ -385,53 +434,23 @@ export async function getPreparationSummary(
   if (preparationType === "CHEMICAL") {
     const row = await db.preparedChemical.findFirst({
       where: { id: preparationId, deletedAt: null },
+      include: { equipment: { select: { id: true, code: true, name: true } } },
     });
     if (!row) return null;
-    return {
-      id: row.id,
-      type: "CHEMICAL",
-      code: row.code,
-      name: row.name,
-      workflowStatus: row.workflowStatus,
-      version: row.version,
-      preparedDate: toDateString(row.preparedDate),
-      expiryDate: toDateString(row.expiryDate),
-      preparedBy: row.preparedBy,
-      listHref: LIST_HREF.CHEMICAL,
-    };
+    return mapSummaryRow("CHEMICAL", row, LIST_HREF.CHEMICAL);
   }
   if (preparationType === "STANDARD") {
     const row = await db.preparedStandard.findFirst({
       where: { id: preparationId, deletedAt: null },
+      include: { equipment: { select: { id: true, code: true, name: true } } },
     });
     if (!row) return null;
-    return {
-      id: row.id,
-      type: "STANDARD",
-      code: row.code,
-      name: row.name,
-      workflowStatus: row.workflowStatus,
-      version: row.version,
-      preparedDate: toDateString(row.preparedDate),
-      expiryDate: toDateString(row.expiryDate),
-      preparedBy: row.preparedBy,
-      listHref: LIST_HREF.STANDARD,
-    };
+    return mapSummaryRow("STANDARD", row, LIST_HREF.STANDARD);
   }
   const row = await db.preparedStrain.findFirst({
     where: { id: preparationId, deletedAt: null },
+    include: { equipment: { select: { id: true, code: true, name: true } } },
   });
   if (!row) return null;
-  return {
-    id: row.id,
-    type: "STRAIN",
-    code: row.code,
-    name: row.name,
-    workflowStatus: row.workflowStatus,
-    version: row.version,
-    preparedDate: toDateString(row.preparedDate),
-    expiryDate: toDateString(row.expiryDate),
-    preparedBy: row.preparedBy,
-    listHref: LIST_HREF.STRAIN,
-  };
+  return mapSummaryRow("STRAIN", row, LIST_HREF.STRAIN);
 }

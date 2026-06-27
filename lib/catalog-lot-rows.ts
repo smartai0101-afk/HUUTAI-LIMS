@@ -11,6 +11,8 @@ type LotFieldSource = {
   lot: string;
   quantity: number;
   unit: string;
+  purity: string;
+  uncertainty: string;
   expiryDate: string;
   afterOpenExpiry?: string;
   coaPath: string;
@@ -25,6 +27,8 @@ function lotFieldsFromStockLot(lot: StockLotView, master: LotFieldSource) {
     lot: lot.lot,
     quantity: lot.quantity,
     unit: lot.unit,
+    purity: lot.purity || master.purity,
+    uncertainty: lot.uncertainty || master.uncertainty,
     expiryDate: lot.expiryDate || master.expiryDate,
     afterOpenExpiry: lot.afterOpenExpiry || master.afterOpenExpiry || "",
     coaPath: lot.coaPath || master.coaPath,

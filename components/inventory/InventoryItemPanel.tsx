@@ -15,7 +15,7 @@ import { INVENTORY_TRANSACTION_TYPE_LABELS } from "@/lib/services/inventory-tran
 import type { InventorySummary } from "@/lib/services/inventory-transaction-summary";
 
 type Props = {
-  sourceType: InventorySourceType;
+  sourceType: InventorySourceType | "PreparedChemical" | "PreparedStrain";
   sourceId: string;
   sourceCode: string;
   unit: string;

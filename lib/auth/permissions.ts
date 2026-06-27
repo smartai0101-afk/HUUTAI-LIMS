@@ -20,6 +20,7 @@ const MATERIALS_KEYS: PermissionKey[] = [
   "prepared_standards",
   "prepared_strains",
   "preparation_history",
+  "environment_logs",
   "containers",
   "usage_logs",
   "reports",
