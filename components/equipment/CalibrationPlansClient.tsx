@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -22,6 +22,9 @@ import { SCHEDULE_STATUS_FILTERS } from "@/lib/equipment-schedule";
 import { exportToXlsx } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 import { EQUIPMENT_COLUMN, EQUIPMENT_SUBTITLE } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { CalibrationPlanListParams } from "@/lib/services/equipment-calibration";
 import type { CalibrationPlanView } from "@/types";
 
 const exportColumns = [
@@ -45,15 +48,16 @@ const initialForm = {
 };
 
 export function CalibrationPlansClient({
-  items,
+  result,
   equipmentOptions,
+  listQuery,
 }: {
-  items: CalibrationPlanView[];
+  result: PaginatedResult<CalibrationPlanView>;
   equipmentOptions: EquipmentOption[];
+  listQuery: CalibrationPlanListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof SCHEDULE_STATUS_FILTERS)[number]>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<CalibrationPlanView | null>(null);
   const [form, setForm] = useState(initialForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -64,19 +68,7 @@ export function CalibrationPlansClient({
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.equipmentCode.toLowerCase().includes(q) ||
-        item.equipmentName.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.vendor.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchStatus;
-    });
-  }, [items, query, statusFilter]);
+  const rows = result.items;
 
   const openCreate = () => {
     setIsEditing(false);
@@ -139,7 +131,7 @@ export function CalibrationPlansClient({
   };
 
   const handleExport = () => {
-    exportToXlsx("ke-hoach-hieu-chuan", filtered.map((r) => ({ ...r })), exportColumns);
+    exportToXlsx("ke-hoach-hieu-chuan", rows.map((r) => ({ ...r })), exportColumns);
     addToast("Đã export Excel", "success");
   };
 
@@ -148,7 +140,7 @@ export function CalibrationPlansClient({
       <EquipmentModuleShell
         title="Kế hoạch hiệu chuẩn"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
         searchPlaceholder="Tìm theo mã thiết bị, tên kế hoạch..."
         onExport={handleExport}
@@ -168,23 +160,29 @@ export function CalibrationPlansClient({
                       ? "Sắp đến hạn"
                       : "Quá hạn",
             }))}
-            value={statusFilter}
-            onChange={setStatusFilter}
+            value={listQuery.status}
+            onChange={(v) => setFilter("status", v === "All" ? null : v)}
           />
         }
       >
         <DataTable
           columns={[
-            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode },
-            { key: "equipmentName", header: "Tên thiết bị" },
-            { key: "name", header: "Kế hoạch" },
-            { key: "cycleMonths", header: "Chu kỳ (tháng)" },
-            { key: "lastDate", header: EQUIPMENT_COLUMN.lastCalibration, render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "nextDate", header: EQUIPMENT_COLUMN.nextCalibration, render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "vendor", header: EQUIPMENT_COLUMN.calibrationVendor },
-            { key: "status", header: "Trạng thái", render: (v) => <ScheduleStatusBadge status={String(v)} /> },
+            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode, sortable: true, sortKey: "equipmentCode" },
+            { key: "equipmentName", header: "Tên thiết bị", sortable: true, sortKey: "equipmentName" },
+            { key: "name", header: "Kế hoạch", sortable: true, sortKey: "name" },
+            { key: "cycleMonths", header: "Chu kỳ (tháng)", sortable: true, sortKey: "cycleMonths" },
+            { key: "lastDate", header: EQUIPMENT_COLUMN.lastCalibration, sortable: true, sortKey: "lastDate", render: (v) => (v ? formatDate(String(v)) : "-") },
+            { key: "nextDate", header: EQUIPMENT_COLUMN.nextCalibration, sortable: true, sortKey: "nextDate", render: (v) => (v ? formatDate(String(v)) : "-") },
+            { key: "vendor", header: EQUIPMENT_COLUMN.calibrationVendor, sortable: true, sortKey: "vendor" },
+            { key: "status", header: "Trạng thái", sortable: true, sortKey: "status", render: (v) => <ScheduleStatusBadge status={String(v)} /> },
           ]}
-          rows={filtered}
+          rows={rows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
           rowActionsHeader="Hành động"

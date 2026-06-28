@@ -1,12 +1,19 @@
+import { Suspense } from "react";
 import { InventoryLedgerClient } from "@/components/inventory-ledger/InventoryLedgerClient";
-import { getInventoryLedgerRows } from "@/lib/services/inventory-ledger";
+import { listInventoryLedger, parseInventoryLedgerParams } from "@/lib/services/inventory-ledger";
 
 export default async function InventoryLedgerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ preparationId?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const rows = await getInventoryLedgerRows(300);
-  return <InventoryLedgerClient rows={rows} initialPreparationId={params.preparationId ?? ""} />;
+  const listQuery = parseInventoryLedgerParams(params);
+  const result = await listInventoryLedger(listQuery);
+
+  return (
+    <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-slate-100" />}>
+      <InventoryLedgerClient result={result} listQuery={listQuery} />
+    </Suspense>
+  );
 }

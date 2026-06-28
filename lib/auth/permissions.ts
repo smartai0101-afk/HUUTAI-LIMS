@@ -10,6 +10,13 @@ export { PERMISSION_KEYS, PERMISSION_LABELS, routePermission, type PermissionKey
 
 type AccessLevel = "none" | "read" | "write";
 
+const CHEM_INFO_KEYS: PermissionKey[] = [
+  "chem_info_periodic",
+  "chem_info_lookup",
+  "chem_info_calculators",
+  "chem_info_compatibility",
+];
+
 const MATERIALS_KEYS: PermissionKey[] = [
   "dashboard",
   "stock_in",
@@ -38,6 +45,8 @@ const EQUIPMENT_KEYS: PermissionKey[] = [
   "equipment_disposal",
 ];
 
+const METHODS_KEYS: PermissionKey[] = ["methods_dashboard", "methods_list"];
+
 function writeAll(keys: PermissionKey[]): Partial<Record<PermissionKey, AccessLevel>> {
   return Object.fromEntries(keys.map((k) => [k, "write"])) as Partial<
     Record<PermissionKey, AccessLevel>
@@ -53,28 +62,37 @@ function readAll(keys: PermissionKey[]): Partial<Record<PermissionKey, AccessLev
 const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>>> = {
   Admin: {},
   LabManager: {
+    ...readAll(CHEM_INFO_KEYS),
     ...writeAll(MATERIALS_KEYS),
     ...writeAll(EQUIPMENT_KEYS),
+    ...writeAll(METHODS_KEYS),
     admin_tasks: "write",
     admin_people: "write",
   },
   Analyst: {
+    ...readAll(CHEM_INFO_KEYS),
     ...writeAll(MATERIALS_KEYS),
     ...writeAll(EQUIPMENT_KEYS),
+    ...writeAll(METHODS_KEYS),
     admin_tasks: "write",
   },
   QAQC: {
     dashboard: "write",
     reports: "write",
     admin_tasks: "write",
+    ...readAll(CHEM_INFO_KEYS),
     ...readAll(MATERIALS_KEYS.filter((k) => k !== "dashboard" && k !== "reports")),
     ...readAll(EQUIPMENT_KEYS),
+    ...readAll(METHODS_KEYS),
   },
   Viewer: {
     dashboard: "write",
     reports: "write",
+    ...readAll(CHEM_INFO_KEYS),
     ...readAll(MATERIALS_KEYS.filter((k) => k !== "dashboard" && k !== "reports")),
     ...readAll(EQUIPMENT_KEYS),
+    methods_dashboard: "read",
+    methods_list: "read",
   },
 };
 

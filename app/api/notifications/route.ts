@@ -22,6 +22,17 @@ export async function GET(request: Request) {
   const module = (searchParams.get("module") ?? "") as PermissionKey | "";
   const from = parseDate(searchParams.get("from"));
   const to = parseDate(searchParams.get("to"));
+  const sortByParam = searchParams.get("sortBy");
+  const sortOrderParam = searchParams.get("sortOrder");
+  const sortBy =
+    sortByParam === "actorName" ||
+    sortByParam === "moduleLabel" ||
+    sortByParam === "action" ||
+    sortByParam === "recordLabel" ||
+    sortByParam === "createdAt"
+      ? sortByParam
+      : undefined;
+  const sortOrder = sortOrderParam === "asc" || sortOrderParam === "desc" ? sortOrderParam : undefined;
 
   const result = await listNotificationsForUser(user, {
     limit,
@@ -30,6 +41,8 @@ export async function GET(request: Request) {
     module,
     from,
     to,
+    sortBy,
+    sortOrder,
   });
 
   return NextResponse.json(result);

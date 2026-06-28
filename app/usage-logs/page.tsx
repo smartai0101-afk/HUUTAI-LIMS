@@ -10,7 +10,7 @@ import {
   getUsageStatsByPurpose,
   getUsageStatsEmployeeNames,
 } from "@/lib/services/usage-log-stats";
-import { getUsageLogs } from "@/lib/services/usage-logs";
+import { listUsageLogs, parseUsageLogListParams } from "@/lib/services/usage-logs";
 import { usageStatsDateRange, type UsageStatsPeriodPreset } from "@/lib/usage-log-fields";
 
 function parseStatsPeriod(value: string | undefined): UsageStatsPeriodPreset {
@@ -21,30 +21,33 @@ function parseStatsPeriod(value: string | undefined): UsageStatsPeriodPreset {
 export default async function UsageLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; tab?: string; sourceType?: string; code?: string; openForm?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const statsPeriod = parseStatsPeriod(params.period);
+  const listQuery = parseUsageLogListParams(params);
+  const statsPeriod = parseStatsPeriod(params.period as string | undefined);
   const dateRange = usageStatsDateRange(statsPeriod);
 
   const periodStatsDay = await getUsageStatsByPeriod(dateRange, "day");
   const periodStatsWeek = await getUsageStatsByPeriod(dateRange, "week");
   const periodStatsMonth = await getUsageStatsByPeriod(dateRange, "month");
 
-  const [items, itemOptions, staff, employeeStats, itemStats, purposeStats, employeeNames] = await Promise.all([
-    getUsageLogs(),
-    getUsageLogItemOptions(),
-    getActiveStaff(),
-    getUsageStatsByEmployee(dateRange),
-    getUsageStatsByItem(dateRange),
-    getUsageStatsByPurpose(dateRange),
-    getUsageStatsEmployeeNames(dateRange),
-  ]);
+  const [journalResult, itemOptions, staff, employeeStats, itemStats, purposeStats, employeeNames] =
+    await Promise.all([
+      listUsageLogs(listQuery),
+      getUsageLogItemOptions(),
+      getActiveStaff(),
+      getUsageStatsByEmployee(dateRange),
+      getUsageStatsByItem(dateRange),
+      getUsageStatsByPurpose(dateRange),
+      getUsageStatsEmployeeNames(dateRange),
+    ]);
 
   return (
     <Suspense fallback={<AppShell><div className="h-40 animate-pulse rounded-2xl bg-slate-100" /></AppShell>}>
       <UsageLogsClient
-        items={items}
+        journalResult={journalResult}
+        listQuery={listQuery}
         itemOptions={itemOptions}
         staff={staff}
         employeeStats={employeeStats}

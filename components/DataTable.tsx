@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, ReactNode, useMemo } from "react";
+import { SortableTableHeader } from "@/components/SortableTableHeader";
+import type { SortOrder } from "@/lib/list-query";
 import { cn } from "@/lib/utils";
 
 export interface DataTableColumn<T extends object> {
@@ -8,6 +10,15 @@ export interface DataTableColumn<T extends object> {
   header: string;
   render?: (value: T[keyof T], row: T) => ReactNode;
   minWidth?: number;
+  sortable?: boolean;
+  sortKey?: string;
+}
+
+export interface DataTableSortState {
+  sortBy: string;
+  sortOrder: SortOrder;
+  sortActive: boolean;
+  onSort: (sortKey: string) => void;
 }
 
 interface RowSelection<T> {
@@ -27,6 +38,7 @@ export interface DataTableProps<T extends object> {
   expandedRowKeys?: string[];
   renderExpandedRow?: (row: T) => ReactNode | null;
   maxBodyHeight?: string;
+  sort?: DataTableSortState;
 }
 
 const headerCellClass = "lg:sticky lg:top-0 lg:z-30 lg:bg-slate-50";
@@ -42,6 +54,7 @@ export function DataTable<T extends object>({
   expandedRowKeys = [],
   renderExpandedRow,
   maxBodyHeight = "min(70vh, calc(100vh - 14rem))",
+  sort,
 }: DataTableProps<T>) {
   const visibleIds = useMemo(
     () => (selection ? rows.map((row) => selection.getRowId(row)) : []),
@@ -98,15 +111,31 @@ export function DataTable<T extends object>({
                   </label>
                 </th>
               ) : null}
-              {columns.map((column) => (
-                <th
-                  key={String(column.key)}
-                  className={cn("whitespace-nowrap px-4 py-3 font-medium", headerCellClass)}
-                  style={column.minWidth ? { minWidth: column.minWidth } : undefined}
-                >
-                  {column.header}
-                </th>
-              ))}
+              {columns.map((column) => {
+                const columnSortKey = column.sortKey ?? String(column.key);
+                const isSortable = Boolean(column.sortable && sort);
+                return (
+                  <th
+                    key={String(column.key)}
+                    role="columnheader"
+                    className={cn("whitespace-nowrap px-4 py-3 font-medium", headerCellClass)}
+                    style={column.minWidth ? { minWidth: column.minWidth } : undefined}
+                  >
+                    {isSortable && sort ? (
+                      <SortableTableHeader
+                        label={column.header}
+                        sortKey={columnSortKey}
+                        activeSortBy={sort.sortBy}
+                        activeSortOrder={sort.sortOrder}
+                        sortActive={sort.sortActive}
+                        onSort={sort.onSort}
+                      />
+                    ) : (
+                      column.header
+                    )}
+                  </th>
+                );
+              })}
               {rowActions ? (
                 <th className={cn("whitespace-nowrap px-4 py-3 font-medium", headerCellClass)}>
                   {rowActionsHeader}

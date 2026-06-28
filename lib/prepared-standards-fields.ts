@@ -2,6 +2,7 @@ import type { PreparedStandardLevel } from "@prisma/client";
 
 export const PREPARED_STANDARD_FORM_FIELD_KEYS = [
   "parentCode",
+  "sequenceNumber",
   "code",
   "name",
   "concentration",
@@ -157,8 +158,10 @@ export function buildPreparedStandardExportRows(
         "Cấp chuẩn": i === 0 ? item.levelLabel : "",
         "Mã chuẩn pha chế": i === 0 ? item.code : "",
         "Tên chuẩn pha chế": i === 0 ? item.name : "",
-        "Nồng độ": i === 0 ? item.concentration : "",
+        "Công thức": i === 0 ? item.formula : "",
+        "Nồng độ lý thuyết": i === 0 ? item.concentration : "",
         "Đơn vị nồng độ": i === 0 ? item.concentrationUnit : "",
+        "Nồng độ thực tế": i === 0 ? item.finalConcentration : "",
         "Thể tích/Khối lượng dung môi định mức": i === 0 ? item.solventVolume : "",
         "Đơn vị dung môi": i === 0 ? item.solventUnit : "",
         "Ngày pha chế": i === 0 ? item.preparedDate : "",

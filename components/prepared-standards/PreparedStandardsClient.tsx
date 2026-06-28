@@ -10,6 +10,7 @@ import { DataTable } from "@/components/DataTable";
 import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
+import { CodeSequenceInput } from "@/components/shared/CodeSequenceInput";
 import { PrintLabelButton } from "@/components/PrintLabelButton";
 import { PrintLabelsDialog } from "@/components/PrintLabelsDialog";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -24,6 +25,12 @@ import {
 } from "@/lib/actions/prepared-standards";
 import { bulkImportPreparedStandards } from "@/lib/actions/prepared-import";
 import {
+  prefixForPreparedStandard,
+  parseMasterCode,
+  formatSequenceDisplay,
+  isPreparedStandardMasterCode,
+} from "@/lib/code-prefixes";
+import {
   buildPreparedStandardExportRows,
   formatComponentDropdownLabel,
   getFixedParentSourceLevel,
@@ -32,7 +39,6 @@ import {
   PREPARED_STANDARD_LEVEL_FILTER_ALL,
   PREPARED_STANDARD_LEVEL_FILTER_OPTIONS,
   PREPARED_STANDARD_LEVEL_TABS,
-  type PreparedStandardLevelFilter,
   usesMultiLevelSource,
   usesStandardCatalog,
   WORKING_SOURCE_LEVELS,
@@ -44,7 +50,10 @@ import {
   preparedStandardToLabelData,
   printPreparedLabelsBulk,
 } from "@/lib/print-label";
-import { expandPreparedToBatchRows, groupedPreparedCell, type PreparedBatchRowMeta } from "@/lib/prepared-batch-rows";
+import { groupedPreparedCell, type PreparedBatchRowMeta } from "@/lib/prepared-batch-rows";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { PreparedListParams } from "@/lib/services/prepared-list";
 import { exportToXlsx } from "@/lib/excel";
 import {
   PREPARED_STANDARD_EXCEL_COLUMNS,
@@ -60,6 +69,7 @@ import {
 import type { PreparedStandardView, StockLotView, EnvironmentalLogView } from "@/types";
 import { PreparationDrawerTabContent } from "@/components/preparation/PreparationDrawerTabContent";
 import { PreparationIsoFormFields } from "@/components/preparation/PreparationIsoFormFields";
+import { ConcentrationPairFields } from "@/components/preparation/ConcentrationPairFields";
 import type { EquipmentOption } from "@/lib/services/equipment-options";
 import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
@@ -147,6 +157,7 @@ type SolventFormRow = {
 
 const initialForm = {
   parentCode: "",
+  sequenceNumber: "",
   code: "",
   name: "",
   concentration: "",
@@ -219,10 +230,8 @@ function emptySolvent(): SolventFormRow {
   };
 }
 
-const PREPARED_STANDARD_CODE_PATTERN = /^PSTD-/i;
-
 function isPreparedStandardCode(value: string): boolean {
-  return PREPARED_STANDARD_CODE_PATTERN.test(value.trim());
+  return isPreparedStandardMasterCode(value);
 }
 
 function resolvePreparedStandardSourceId(
@@ -279,7 +288,8 @@ function buildComponentSubmitRow(
 type PreparedStandardBatchRow = PreparedStandardView & PreparedBatchRowMeta & { stt: number };
 
 export function PreparedStandardsClient({
-  items,
+  result,
+  listQuery,
   standards,
   preparedStandards,
   levelCounts,
@@ -288,7 +298,8 @@ export function PreparedStandardsClient({
   equipmentOptions = [],
   environmentalLogs = [],
 }: {
-  items: PreparedStandardView[];
+  result: PaginatedResult<PreparedStandardView & PreparedBatchRowMeta>;
+  listQuery: PreparedListParams;
   standards: StandardCatalogItem[];
   preparedStandards: PreparedStandardCatalogItem[];
   levelCounts: Record<PreparedStandardLevel, number>;
@@ -298,13 +309,7 @@ export function PreparedStandardsClient({
   environmentalLogs?: EnvironmentalLogView[];
 }) {
   const router = useRouter();
-  const [levelFilter, setLevelFilter] = useState<PreparedStandardLevelFilter>(
-    PREPARED_STANDARD_LEVEL_FILTER_ALL,
-  );
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState<(typeof PREPARED_STANDARD_STATUS_FILTERS)[number]>("All");
-  const [workflowFilter, setWorkflowFilter] = useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [drawerTab, setDrawerTab] = useState("Chi tiết");
   const [selected, setSelected] = useState<PreparedStandardView | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -396,13 +401,19 @@ export function PreparedStandardsClient({
 
   useEffect(() => {
     if (isEditing || !isFormOpen) return;
-    const parentCode = form.parentCode.trim();
-    if (!parentCode) {
-      setPreviewBatchCode("");
-      return;
-    }
     const fd = new FormData();
-    fd.set("parentCode", parentCode);
+    fd.set("level", form.level);
+    const fixedParent = form.parentCode.trim();
+    if (fixedParent) {
+      fd.set("parentCode", fixedParent);
+    } else {
+      const seq = form.sequenceNumber.trim();
+      if (!seq) {
+        setPreviewBatchCode("");
+        return;
+      }
+      fd.set("sequenceNumber", seq);
+    }
     void previewNextPreparedStandardBatchCode(fd).then((result) => {
       if ("success" in result && result.success && result.code) {
         setPreviewBatchCode(result.code);
@@ -410,31 +421,16 @@ export function PreparedStandardsClient({
         setPreviewBatchCode("");
       }
     });
-  }, [form.parentCode, isEditing, isFormOpen]);
+  }, [form.parentCode, form.sequenceNumber, form.level, isEditing, isFormOpen]);
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    const base = items.filter((item) => {
-      const matchLevel = levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL || item.level === levelFilter;
-      const matchQuery =
-        !q ||
-        item.parentCode.toLowerCase().includes(q) ||
-        item.code.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.concentration.toLowerCase().includes(q) ||
-        item.componentsSummary.toLowerCase().includes(q) ||
-        item.solventsSummary.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      const matchWorkflow =
-        workflowFilter === "All" || item.workflowStatus === workflowFilter;
-      return matchLevel && matchQuery && matchStatus && matchWorkflow;
-    });
-    return expandPreparedToBatchRows(base).map((item, index) => ({ ...item, stt: index + 1 }));
-  }, [items, query, statusFilter, levelFilter, workflowFilter]);
+  const filtered = useMemo(
+    () => result.items.map((item, index) => ({ ...item, stt: index + 1 })),
+    [result.items],
+  );
 
   const selectedRows = useMemo(
-    () => items.filter((item) => selectedRowIds.has(item.id)),
-    [items, selectedRowIds],
+    () => result.items.filter((item) => selectedRowIds.has(item.id)),
+    [result.items, selectedRowIds],
   );
 
   const bulkPrintItems = useMemo(
@@ -470,8 +466,10 @@ export function PreparedStandardsClient({
     setSelected(null);
     setIsEditing(false);
     setEditingId(null);
-    const defaultLevel =
-      levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL ? "RootPrepared" : levelFilter;
+    const defaultLevel: PreparedStandardLevel =
+      listQuery.level === PREPARED_STANDARD_LEVEL_FILTER_ALL
+        ? "RootPrepared"
+        : (listQuery.level as PreparedStandardLevel);
     setForm({ ...initialForm, level: defaultLevel, ...prefill });
     setPreviewBatchCode("");
     setAttachmentFile(null);
@@ -546,6 +544,7 @@ export function PreparedStandardsClient({
     setAttachmentFile(null);
     setForm({
       parentCode: item.parentCode,
+      sequenceNumber: "",
       code: item.code,
       name: item.name,
       concentration: item.concentration,
@@ -698,7 +697,7 @@ export function PreparedStandardsClient({
   };
 
   const handleLevelChange = (level: PreparedStandardLevel) => {
-    setForm((p) => ({ ...p, level }));
+    setForm((p) => ({ ...p, level, sequenceNumber: "", parentCode: "" }));
     setComponents([emptyComponent(level)]);
   };
 
@@ -727,7 +726,7 @@ export function PreparedStandardsClient({
   const handleExport = () => {
     const exportItems = filtered.map(({ stt: _stt, ...item }) => item);
     const suffix =
-      levelFilter === PREPARED_STANDARD_LEVEL_FILTER_ALL ? "all" : levelFilter.toLowerCase();
+      listQuery.level === PREPARED_STANDARD_LEVEL_FILTER_ALL ? "all" : listQuery.level.toLowerCase();
     const rows = buildPreparedStandardExportRows(exportItems);
     exportToXlsx(`chuan-pha-che-${suffix}`, rows, PREPARED_STANDARD_EXCEL_COLUMNS);
     addToast("Đã export Excel", "success");
@@ -746,8 +745,8 @@ export function PreparedStandardsClient({
       addToast(parentLevelMessage, "error");
       return;
     }
-    if (!form.parentCode.trim() || !form.name.trim()) {
-      addToast("Mã nhóm và tên chuẩn pha chế là bắt buộc", "error");
+    if ((!form.parentCode.trim() && !form.sequenceNumber.trim()) || !form.name.trim()) {
+      addToast("Mã chuẩn pha và tên là bắt buộc", "error");
       return;
     }
     if (isEditing && !form.code.trim()) {
@@ -952,7 +951,7 @@ export function PreparedStandardsClient({
             <div className="relative max-w-sm flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
-                value={query}
+                value={listQuery.q}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Tìm mã, tên, nồng độ..."
                 className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
@@ -961,8 +960,13 @@ export function PreparedStandardsClient({
             <div className="w-full sm:w-64">
               <label className="mb-1 block text-xs text-slate-500">Cấp chuẩn</label>
               <select
-                value={levelFilter}
-                onChange={(e) => setLevelFilter(e.target.value as PreparedStandardLevelFilter)}
+                value={listQuery.level}
+                onChange={(e) =>
+                  setFilter(
+                    "level",
+                    e.target.value === PREPARED_STANDARD_LEVEL_FILTER_ALL ? null : e.target.value,
+                  )
+                }
                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-cyan-300"
               >
                 {PREPARED_STANDARD_LEVEL_FILTER_OPTIONS.map((option) => (
@@ -978,8 +982,8 @@ export function PreparedStandardsClient({
               <button
                 key={s}
                 type="button"
-                onClick={() => setWorkflowFilter(s)}
-                className={`rounded-xl px-3 py-2 text-sm ${workflowFilter === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
+                onClick={() => setFilter("workflow", s === "All" ? null : s)}
+                className={`rounded-xl px-3 py-2 text-sm ${listQuery.workflow === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
               >
                 {s === "All"
                   ? "Tất cả quy trình"
@@ -992,9 +996,9 @@ export function PreparedStandardsClient({
               <button
                 key={s}
                 type="button"
-                onClick={() => setStatusFilter(s)}
+                onClick={() => setFilter("status", s === "All" ? null : s)}
                 className={`rounded-xl px-3 py-2 text-sm ${
-                  statusFilter === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"
+                  listQuery.status === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"
                 }`}
               >
                 {s === "All" ? "Tất cả trạng thái" : s}
@@ -1032,21 +1036,44 @@ export function PreparedStandardsClient({
             {
               key: "parentCode",
               header: "Mã nhóm",
+              sortable: true,
+              sortKey: "parentCode",
               render: (_v, row: PreparedStandardBatchRow) =>
                 groupedPreparedCell(row.showGroupFields, row.parentCode),
             },
-            { key: "code", header: "Mã lô" },
+            { key: "code", header: "Mã lô", sortable: true, sortKey: "code" },
+            {
+              key: "levelLabel",
+              header: "Cấp chuẩn",
+              sortable: true,
+              sortKey: "level",
+              render: (_v, row: PreparedStandardBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.levelLabel),
+            },
             {
               key: "name",
               header: "Tên chuẩn pha chế",
+              sortable: true,
+              sortKey: "name",
               render: (_v, row: PreparedStandardBatchRow) =>
                 groupedPreparedCell(row.showGroupFields, row.name),
             },
-            { key: "levelLabel", header: "Cấp chuẩn", render: (_v, row: PreparedStandardBatchRow) => groupedPreparedCell(row.showGroupFields, row.levelLabel) },
+            {
+              key: "formula",
+              header: "Công thức",
+              render: (_v, row: PreparedStandardBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.formula || "-"),
+            },
             {
               key: "concentration",
-              header: "Nồng độ",
+              header: "Nồng độ lý thuyết",
               render: (_v, row) => `${row.concentration} ${row.concentrationUnit}`.trim(),
+            },
+            {
+              key: "finalConcentration",
+              header: "Nồng độ thực tế",
+              render: (_v, row: PreparedStandardBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.finalConcentration || "-"),
             },
             {
               key: "solventVolume",
@@ -1054,12 +1081,26 @@ export function PreparedStandardsClient({
               render: (_v, row) =>
                 row.solventVolume ? `${row.solventVolume} ${row.solventUnit}`.trim() : "-",
             },
-            { key: "preparedDate", header: "Ngày pha", render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "expiryDate", header: "Hạn dùng", render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "preparedBy", header: "Người pha" },
+            {
+              key: "preparedDate",
+              header: "Ngày pha",
+              sortable: true,
+              sortKey: "preparedDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
+            {
+              key: "expiryDate",
+              header: "Hạn dùng",
+              sortable: true,
+              sortKey: "expiryDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
+            { key: "preparedBy", header: "Người pha", sortable: true, sortKey: "preparedBy" },
             {
               key: "workflowStatus",
               header: "Quy trình",
+              sortable: true,
+              sortKey: "workflowStatus",
               render: (_v, row) => <WorkflowStatusBadge status={row.workflowStatus} />,
             },
             {
@@ -1084,9 +1125,22 @@ export function PreparedStandardsClient({
                 </div>
               ),
             },
-            { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
+            {
+              key: "status",
+              header: "Trạng thái",
+              sortable: true,
+              sortKey: "status",
+              render: (v) => <StatusBadge status={String(v)} />,
+            },
           ]}
           rows={filtered}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
+          getRowKey={(row) => row.rowKey}
           onRowClick={(row) => {
             setSelected(row);
             setDrawerTab("Chi tiết");
@@ -1207,17 +1261,27 @@ export function PreparedStandardsClient({
                     <p className="font-medium">{selected.code}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Tên chuẩn pha chế</p>
-                    <p className="font-medium">{selected.name}</p>
-                  </div>
-                  <div>
                     <p className="text-xs text-slate-500">Cấp chuẩn</p>
                     <p className="font-medium">{selected.levelLabel}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Nồng độ</p>
+                    <p className="text-xs text-slate-500">Tên chuẩn pha chế</p>
+                    <p className="font-medium">{selected.name}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-slate-500">Công thức</p>
+                    <p className="font-medium whitespace-pre-wrap">{selected.formula || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Nồng độ lý thuyết</p>
                     <p className="font-medium">
                       {selected.concentration} {selected.concentrationUnit}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Nồng độ thực tế</p>
+                    <p className="font-medium">
+                      {[selected.finalConcentration, selected.concentrationUnit].filter(Boolean).join(" ") || "-"}
                     </p>
                   </div>
                   <div>
@@ -1335,31 +1399,32 @@ export function PreparedStandardsClient({
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm text-slate-600">Mã nhóm *</label>
-              <input
-                value={form.parentCode}
-                onChange={(e) => setForm((p) => ({ ...p, parentCode: e.target.value }))}
+            {!isEditing && form.parentCode.trim() ? (
+              <div>
+                <label className="mb-1 block text-sm text-slate-600">Mã master (pha lại)</label>
+                <input
+                  readOnly
+                  value={form.parentCode}
+                  className="h-11 w-full rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm"
+                />
+              </div>
+            ) : (
+              <CodeSequenceInput
+                prefix={prefixForPreparedStandard(form.level)}
+                sequence={form.sequenceNumber}
+                onSequenceChange={(value) => setForm((p) => ({ ...p, sequenceNumber: value, parentCode: "" }))}
+                mode={isEditing ? "edit" : "create"}
+                label="Mã chuẩn pha"
                 disabled={isEditing}
-                placeholder="VD: CG01"
-                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50"
               />
-            </div>
+            )}
             <div>
               <label className="mb-1 block text-sm text-slate-600">Mã lô {isEditing ? "" : "(tự sinh)"}</label>
               <input
                 readOnly
                 value={isEditing ? form.code : previewBatchCode}
-                placeholder={isEditing ? "" : "Nhập mã nhóm để xem mã lô"}
+                placeholder={isEditing ? "" : "Nhập số thứ tự để xem mã lô"}
                 className="h-11 w-full rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-slate-600">Tên chuẩn pha chế *</label>
-              <input
-                value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
               />
             </div>
             <div>
@@ -1367,7 +1432,8 @@ export function PreparedStandardsClient({
               <select
                 value={form.level}
                 onChange={(e) => handleLevelChange(e.target.value as PreparedStandardLevel)}
-                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+                disabled={isEditing || !!form.parentCode.trim()}
+                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50 disabled:text-slate-500"
               >
                 {PREPARED_STANDARD_LEVEL_TABS.map((tab) => (
                   <option key={tab.value} value={tab.value}>
@@ -1377,21 +1443,29 @@ export function PreparedStandardsClient({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-600">Nồng độ *</label>
+              <label className="mb-1 block text-sm text-slate-600">Tên chuẩn pha chế *</label>
               <input
-                value={form.concentration}
-                onChange={(e) => setForm((p) => ({ ...p, concentration: e.target.value }))}
+                value={form.name}
+                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                 className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
               />
             </div>
-            <div>
-              <label className="mb-1 block text-sm text-slate-600">Đơn vị nồng độ</label>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-sm text-slate-600">Công thức</label>
               <input
-                value={form.concentrationUnit}
-                onChange={(e) => setForm((p) => ({ ...p, concentrationUnit: e.target.value }))}
+                value={form.formula}
+                onChange={(e) => setForm((p) => ({ ...p, formula: e.target.value }))}
                 className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
               />
             </div>
+            <ConcentrationPairFields
+              concentration={form.concentration}
+              finalConcentration={form.finalConcentration}
+              concentrationUnit={form.concentrationUnit}
+              onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
+              theoreticalRequired
+              theoreticalLabel="Nồng độ lý thuyết"
+            />
             <div>
               <label className="mb-1 block text-sm text-slate-600">Thể tích/Khối lượng dung môi định mức</label>
               <input

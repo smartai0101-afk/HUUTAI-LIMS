@@ -13,6 +13,8 @@ import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CoaLink } from "@/components/standards/CoaLink";
 import { CatalogPreparedDerivatives } from "@/components/preparation/CatalogPreparedDerivatives";
+import { CodeSequenceInput } from "@/components/shared/CodeSequenceInput";
+import { parseMasterCode, formatSequenceDisplay } from "@/lib/code-prefixes";
 import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
@@ -22,13 +24,15 @@ import { deleteStockLot } from "@/lib/actions/stock-lot";
 import {
   STANDARD_FORM_FIELD_KEYS,
   STANDARD_GROUP_FILTER_ALL,
-  STANDARD_GROUP_FILTER_OPTIONS,
+  buildStandardGroupFilterOptions,
   STANDARD_IMPORT_COLUMN_MAP,
-  type StandardGroupFilter,
 } from "@/lib/standards-fields";
 import { CATALOG_EXCEL, buildCatalogExportRows } from "@/lib/catalog-excel";
-import { expandCatalogToLotRows, groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
+import { groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
 import { exportToXlsx } from "@/lib/excel";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { CatalogListParams } from "@/lib/services/catalog-lot-list";
 import { computeStandardStatus, STANDARD_STATUS_FILTERS, standardStatusLabel } from "@/lib/standard-status";
 import { formatDate } from "@/lib/utils";
 import type { StandardView } from "@/types";
@@ -37,6 +41,7 @@ type StandardLotRow = StandardView & CatalogLotRowMeta;
 
 const initialForm = {
   code: "",
+  sequenceNumber: "",
   name: "",
   standardGroup: "CRM",
   manufacturer: "",
@@ -58,7 +63,6 @@ const initialForm = {
 type FormState = typeof initialForm;
 
 const formFields: { key: keyof FormState; label: string; type?: "text" | "date" | "number" | "textarea"; colSpan?: boolean }[] = [
-  { key: "code", label: "Mã chuẩn" },
   { key: "name", label: "Tên chuẩn" },
   { key: "manufacturer", label: "Hãng sản xuất" },
   { key: "casNumber", label: "CAS" },
@@ -103,8 +107,10 @@ function previewStatus(expiryDate: string) {
 }
 
 function itemToForm(item: StandardView): FormState {
+  const parsed = parseMasterCode(item.code);
   return {
     code: item.code,
+    sequenceNumber: parsed ? formatSequenceDisplay(parsed.sequenceNumber) : item.code.replace(/^STD-/i, ""),
     name: item.name,
     standardGroup: item.standardGroup,
     manufacturer: item.manufacturer,
@@ -124,17 +130,26 @@ function itemToForm(item: StandardView): FormState {
   };
 }
 
-export function StandardsClient({ items, groupOptions }: { items: StandardView[]; groupOptions: string[] }) {
+export function StandardsClient({
+  result,
+  groupOptions,
+  listQuery,
+}: {
+  result: PaginatedResult<StandardLotRow>;
+  groupOptions: string[];
+  listQuery: CatalogListParams;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<StandardGroupFilter>(STANDARD_GROUP_FILTER_ALL);
-  const [statusFilter, setStatusFilter] = useState<(typeof STANDARD_STATUS_FILTERS)[number]>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<StandardLotRow | null>(() => {
     const code = searchParams.get("code");
     if (!code) return null;
-    const rows = expandCatalogToLotRows(items);
-    return rows.find((i) => i.code === code && i.showMasterFields) ?? rows.find((i) => i.code === code) ?? null;
+    return (
+      result.items.find((i) => i.code === code && i.showMasterFields) ??
+      result.items.find((i) => i.code === code) ??
+      null
+    );
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -144,32 +159,15 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
   const [deleteTarget, setDeleteTarget] = useState<StandardLotRow | null>(null);
   const [drawerTab, setDrawerTab] = useState<"Thông tin chung" | "Tồn kho">("Thông tin chung");
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const groupFilterOptions = useMemo(
+    () => buildStandardGroupFilterOptions(groupOptions),
+    [groupOptions],
+  );
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const displayRows = useMemo(() => expandCatalogToLotRows(items), [items]);
-
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return displayRows.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.code.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.standardGroup.toLowerCase().includes(q) ||
-        item.manufacturer.toLowerCase().includes(q) ||
-        item.casNumber.toLowerCase().includes(q) ||
-        item.productCode.toLowerCase().includes(q) ||
-        item.lot.toLowerCase().includes(q) ||
-        item.storageLocation.toLowerCase().includes(q) ||
-        item.storageCondition.toLowerCase().includes(q) ||
-        item.notes.toLowerCase().includes(q);
-      const matchGroup = group === STANDARD_GROUP_FILTER_ALL || item.standardGroup === group;
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchGroup && matchStatus;
-    });
-  }, [displayRows, query, group, statusFilter]);
+  const filtered = result.items;
 
   const openCreate = () => {
     setIsEditing(false);
@@ -188,7 +186,7 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
   };
 
   const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim()) {
+    if ((!isEditing && !form.sequenceNumber.trim()) || !form.name.trim()) {
       addToast("Mã và tên chất chuẩn là bắt buộc", "error");
       return;
     }
@@ -200,6 +198,8 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
     const fd = new FormData();
     fd.set("user", role);
     STANDARD_FORM_FIELD_KEYS.forEach((key) => fd.set(key, String(form[key] ?? "")));
+    fd.set("sequenceNumber", form.sequenceNumber);
+    if (isEditing) fd.set("code", form.code);
     if (coaFile) fd.set("coa", coaFile);
     if (isEditing && editingId) fd.set("id", editingId);
 
@@ -304,16 +304,23 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="relative max-w-sm flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm chất chuẩn..." className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300" />
+              <input
+                value={listQuery.q}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Tìm chất chuẩn..."
+                className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
+              />
             </div>
             <div className="w-full sm:w-64">
               <label className="mb-1 block text-xs text-slate-500">Nhóm chuẩn</label>
               <select
-                value={group}
-                onChange={(e) => setGroup(e.target.value as StandardGroupFilter)}
+                value={listQuery.group}
+                onChange={(e) =>
+                  setFilter("group", e.target.value === STANDARD_GROUP_FILTER_ALL ? null : e.target.value)
+                }
                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-cyan-300"
               >
-                {STANDARD_GROUP_FILTER_OPTIONS.map((option) => (
+                {groupFilterOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -326,37 +333,75 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
               value: s,
               label: s === "All" ? "Tất cả trạng thái" : s,
             }))}
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+            value={listQuery.status === "All" ? "All" : listQuery.status}
+            onChange={(value) => setFilter("status", value === "All" ? null : value)}
           />
         </div>
 
         <DataTable
           columns={[
-            { key: "code", header: "Mã chuẩn", render: (v, row) => groupedCell(row.showMasterFields, v) },
-            { key: "name", header: "Tên chuẩn", render: (v, row) => groupedCell(row.showMasterFields, v) },
+            {
+              key: "code",
+              header: "Mã chuẩn",
+              sortable: true,
+              sortKey: "code",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
+            {
+              key: "name",
+              header: "Tên chuẩn",
+              sortable: true,
+              sortKey: "name",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
             {
               key: "standardGroup",
               header: "Nhóm chuẩn",
+              sortable: true,
+              sortKey: "group",
               render: (v, row) => groupedCell(row.showMasterFields, v, (value) => <StatusBadge status={String(value)} />),
             },
-            { key: "manufacturer", header: "Hãng sản xuất", render: (v, row) => groupedCell(row.showMasterFields, v) },
-            { key: "casNumber", header: "CAS", render: (v, row) => groupedCell(row.showMasterFields, v) },
+            {
+              key: "manufacturer",
+              header: "Hãng sản xuất",
+              sortable: true,
+              sortKey: "manufacturer",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
+            {
+              key: "casNumber",
+              header: "CAS",
+              sortable: true,
+              sortKey: "casNumber",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
             { key: "productCode", header: "Product Code", render: (v, row) => groupedCell(row.showMasterFields, v) },
-            { key: "lot", header: "Lot Number" },
+            { key: "lot", header: "Lot Number", sortable: true, sortKey: "lot" },
             { key: "purity", header: "Purity" },
             { key: "uncertainty", header: "Uncertainty" },
             { key: "coaPath", header: "COA", render: (_v, row) => <CoaLink path={row.coaPath} /> },
             { key: "unit", header: "Đơn vị" },
-            { key: "quantity", header: "Số lượng tồn kho" },
-            { key: "expiryDate", header: "Hạn chứng chỉ", render: (v) => (v ? formatDate(String(v)) : "-") },
+            { key: "quantity", header: "Số lượng tồn kho", sortable: true, sortKey: "quantity" },
+            {
+              key: "expiryDate",
+              header: "Hạn chứng chỉ",
+              sortable: true,
+              sortKey: "expiryDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
             { key: "afterOpenExpiry", header: "Hạn sau mở nắp", render: (v) => (v ? formatDate(String(v)) : "-") },
             { key: "storageCondition", header: "Điều kiện bảo quản" },
-            { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
+            { key: "status", header: "Trạng thái", sortable: true, sortKey: "status", render: (v) => <StatusBadge status={String(v)} /> },
             { key: "notes", header: "Ghi chú" },
             { key: "storageLocation", header: "Vị trí lưu" },
           ]}
           rows={filtered}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.rowKey}
           onRowClick={setSelected}
           rowActionsHeader="Hành động"
@@ -460,7 +505,14 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
                 {groupOptions.map((g) => <option key={g} value={g} />)}
               </datalist>
             </div>
-            {formFields.slice(0, 8).map((f) => (
+            <CodeSequenceInput
+              prefix="STD"
+              sequence={form.sequenceNumber}
+              onSequenceChange={(value) => setForm((p) => ({ ...p, sequenceNumber: value }))}
+              mode={isEditing ? "edit" : "create"}
+              label="Mã chuẩn"
+            />
+            {formFields.slice(0, 7).map((f) => (
               <div key={f.key} className={f.colSpan ? "sm:col-span-2" : ""}>
                 <label className="mb-1 block text-sm text-slate-600">{f.label}</label>
                 <input
@@ -482,7 +534,7 @@ export function StandardsClient({ items, groupOptions }: { items: StandardView[]
               {form.coaPath && !coaFile ? <p className="mt-1 text-xs text-slate-500">File hiện tại: <CoaLink path={form.coaPath} /></p> : null}
               {coaFile ? <p className="mt-1 text-xs text-slate-500">File mới: {coaFile.name}</p> : null}
             </div>
-            {formFields.slice(8).map((f) => (
+            {formFields.slice(7).map((f) => (
               <div key={f.key} className={f.colSpan ? "sm:col-span-2" : ""}>
                 <label className="mb-1 block text-sm text-slate-600">{f.label}</label>
                 {f.type === "textarea" ? (

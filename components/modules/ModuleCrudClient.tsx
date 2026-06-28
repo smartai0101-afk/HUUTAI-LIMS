@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Edit, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -20,10 +20,15 @@ import { StockLotPicker, applyDefaultLotIfSingle } from "@/components/StockLotPi
 import { missingFieldsMessage, STATUS_FILTERS } from "@/lib/modules/shared";
 import { exportToXlsx, type ExcelColumn } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
+import { groupedPreparedCell, type PreparedBatchRowMeta } from "@/lib/prepared-batch-rows";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { PreparedListParams } from "@/lib/services/prepared-list";
 import { InventoryItemPanel } from "@/components/inventory/InventoryItemPanel";
 import { PreparationDrawerTabContent } from "@/components/preparation/PreparationDrawerTabContent";
 import { WorkflowStatusBadge } from "@/components/preparation/WorkflowStatusBadge";
 import { AmendmentReasonDialog } from "@/components/preparation/AmendmentReasonDialog";
+import { ConcentrationPairFields } from "@/components/preparation/ConcentrationPairFields";
 import {
   PREPARATION_WORKFLOW_FILTERS,
   PREPARATION_WORKFLOW_STATUS_LABELS,
@@ -34,13 +39,33 @@ import {
   previewNextPreparedStrainBatchCode,
 } from "@/lib/actions/modules";
 
+type TableKeyDef = {
+  key: string;
+  header: string;
+  isDate?: boolean;
+  isStatus?: boolean;
+  sortable?: boolean;
+  sortKey?: string;
+};
+
+const PREPARED_GROUPED_COLUMN_KEYS = new Set([
+  "parentCode",
+  "name",
+  "formula",
+  "concentration",
+  "finalConcentration",
+  "level",
+]);
+
 type Props = {
   title: string;
   subtitle: string;
   exportName: string;
-  items: ModuleRow[];
+  items?: ModuleRow[];
+  result?: PaginatedResult<ModuleRow & PreparedBatchRowMeta>;
+  listQuery?: PreparedListParams;
   fields: FieldDef[];
-  tableKeys: { key: string; header: string; isDate?: boolean; isStatus?: boolean }[];
+  tableKeys: TableKeyDef[];
   searchKeys: string[];
   extraFilters?: { key: string; label: string; options: string[] }[];
   createAction: (fd: FormData) => Promise<{ error?: string; success?: boolean }>;
@@ -61,7 +86,9 @@ export function ModuleCrudClient(props: Props) {
     title,
     subtitle,
     exportName,
-    items,
+    items = [],
+    result,
+    listQuery,
     fields,
     tableKeys,
     searchKeys,
@@ -79,7 +106,9 @@ export function ModuleCrudClient(props: Props) {
     staff = [],
   } = props;
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const isServerList = Boolean(result && listQuery);
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
+  const [localQuery, setLocalQuery] = useState("");
   const [status, setStatus] = useState("All");
   const [workflowFilter, setWorkflowFilter] = useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
   const [drawerTab, setDrawerTab] = useState("Chi tiết");
@@ -97,26 +126,36 @@ export function ModuleCrudClient(props: Props) {
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => items.filter((row) => {
-    const q = query.toLowerCase();
-    const matchQ = !q || searchKeys.some((k) => String(row[k] ?? "").toLowerCase().includes(q));
-    const matchS = status === "All" || row.status === status;
-    const matchWorkflow =
-      !preparationType || workflowFilter === "All" || row.workflowStatus === workflowFilter;
-    const matchExtra = !extraFilters?.length || extraFilters.every((f) => !extra[f.key] || extra[f.key] === "All" || row[f.key] === extra[f.key]);
-    return matchQ && matchS && matchWorkflow && matchExtra;
-  }), [items, query, status, workflowFilter, extra, searchKeys, extraFilters, preparationType]);
+  const sourceItems = result?.items ?? items;
+
+  const filtered = useMemo(() => {
+    if (isServerList) return sourceItems;
+    return sourceItems.filter((row) => {
+      const q = localQuery.toLowerCase();
+      const matchQ = !q || searchKeys.some((k) => String(row[k] ?? "").toLowerCase().includes(q));
+      const matchS = status === "All" || row.status === status;
+      const matchWorkflow =
+        !preparationType || workflowFilter === "All" || row.workflowStatus === workflowFilter;
+      const matchExtra = !extraFilters?.length || extraFilters.every((f) => !extra[f.key] || extra[f.key] === "All" || row[f.key] === extra[f.key]);
+      return matchQ && matchS && matchWorkflow && matchExtra;
+    });
+  }, [isServerList, sourceItems, localQuery, status, workflowFilter, extra, searchKeys, extraFilters, preparationType]);
 
   useEffect(() => {
     if (!preparationType || edit || !open) return;
-    const parentCode = String(form.parentCode ?? "").trim();
-    if (!parentCode) {
+    const fixedParent = String(form.parentCode ?? "").trim();
+    const sequenceNumber = String(form.sequenceNumber ?? "").trim();
+    if (!fixedParent && !sequenceNumber) {
       setPreviewBatchCode("");
       setForm((p) => ({ ...p, code: "" }));
       return;
     }
     const fd = new FormData();
-    fd.set("parentCode", parentCode);
+    if (preparationType === "STRAIN") {
+      fd.set("level", String(form.level ?? "RootPrepared"));
+    }
+    if (fixedParent) fd.set("parentCode", fixedParent);
+    else fd.set("sequenceNumber", sequenceNumber);
     const previewAction =
       preparationType === "STRAIN" ? previewNextPreparedStrainBatchCode : null;
     if (!previewAction) return;
@@ -126,7 +165,7 @@ export function ModuleCrudClient(props: Props) {
         setForm((p) => ({ ...p, code: result.code }));
       }
     });
-  }, [form.parentCode, edit, open, preparationType]);
+  }, [form.parentCode, form.sequenceNumber, form.level, edit, open, preparationType]);
 
   const openCreate = () => {
     setEdit(false);
@@ -145,6 +184,7 @@ export function ModuleCrudClient(props: Props) {
     setForm({
       ...Object.fromEntries(fields.map((f) => [f.key, row[f.key] ?? ""])),
       parentCode,
+      sequenceNumber: "",
       code: "",
       preparedDate: "",
       expiryDate: "",
@@ -216,19 +256,35 @@ export function ModuleCrudClient(props: Props) {
   };
 
   const columns = [
-    ...tableKeys.map((c) => ({
-      key: c.key as keyof ModuleRow,
-      header: c.header,
-      render: c.isStatus
+    ...tableKeys.map((c) => {
+      const sortKey = c.sortKey ?? c.key;
+      const baseRender = c.isStatus
         ? (v: unknown) => <StatusBadge status={String(v)} />
         : c.isDate
           ? (v: unknown) => formatDate(String(v))
-          : undefined,
-    })),
+          : undefined;
+      const render: ((value: string | number | null, row: ModuleRow) => ReactNode) | undefined =
+        isServerList && PREPARED_GROUPED_COLUMN_KEYS.has(c.key)
+          ? (v, row) =>
+              groupedPreparedCell(
+                (row as ModuleRow & Partial<PreparedBatchRowMeta>).showGroupFields ?? true,
+                baseRender ? baseRender(v) : String(v ?? ""),
+              )
+          : baseRender;
+      return {
+        key: c.key as keyof ModuleRow,
+        header: c.header,
+        sortable: c.sortable,
+        sortKey: c.sortable ? sortKey : undefined,
+        render,
+      };
+    }),
     ...(preparationType
       ? [{
           key: "workflowStatus" as keyof ModuleRow,
           header: "Quy trình",
+          sortable: isServerList,
+          sortKey: isServerList ? "workflowStatus" : undefined,
           render: (_v: unknown, row: ModuleRow) => (
             <WorkflowStatusBadge status={String(row.workflowStatus ?? "Approved")} />
           ),
@@ -270,11 +326,21 @@ export function ModuleCrudClient(props: Props) {
           </div>
         </div>
         <div className="rounded-2xl border bg-white p-4 shadow-sm space-y-3">
-          <div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm kiếm..." className="h-10 w-full rounded-xl border pl-10 pr-3 text-sm" /></div>
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={isServerList ? (listQuery?.q ?? "") : localQuery}
+              onChange={(e) => (isServerList ? setQuery(e.target.value) : setLocalQuery(e.target.value))}
+              placeholder="Tìm kiếm..."
+              className="h-10 w-full rounded-xl border pl-10 pr-3 text-sm"
+            />
+          </div>
           <FilterChipBar
             options={STATUS_FILTERS.map((s) => ({ value: s, label: s }))}
-            value={status}
-            onChange={setStatus}
+            value={isServerList ? (listQuery?.status ?? "All") : status}
+            onChange={(value) =>
+              isServerList ? setFilter("status", value === "All" ? null : value) : setStatus(value)
+            }
             activeClassName="bg-slate-900 text-white"
             inactiveClassName="bg-slate-100 text-slate-700"
           />
@@ -295,12 +361,31 @@ export function ModuleCrudClient(props: Props) {
                     ? "Tất cả quy trình"
                     : PREPARATION_WORKFLOW_STATUS_LABELS[s as keyof typeof PREPARATION_WORKFLOW_STATUS_LABELS],
               }))}
-              value={workflowFilter}
-              onChange={setWorkflowFilter}
+              value={isServerList ? (listQuery?.workflow ?? "All") : workflowFilter}
+              onChange={(value) =>
+                isServerList
+                  ? setFilter("workflow", value === "All" ? null : value)
+                  : setWorkflowFilter(value as (typeof PREPARATION_WORKFLOW_FILTERS)[number])
+              }
             />
           ) : null}
         </div>
-        <DataTable columns={columns} rows={filtered} onRowClick={(row) => { setSelected(row); setDrawerTab("Chi tiết"); }} />
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          sort={
+            isServerList && listQuery
+              ? {
+                  sortBy: listQuery.sortBy,
+                  sortOrder: listQuery.sortOrder,
+                  sortActive: listQuery.sortActive,
+                  onSort: toggleSort,
+                }
+              : undefined
+          }
+          getRowKey={isServerList ? (row) => String((row as ModuleRow & PreparedBatchRowMeta).rowKey ?? row.id) : undefined}
+          onRowClick={(row) => { setSelected(row); setDrawerTab("Chi tiết"); }}
+        />
         <DetailDrawer open={!!selected} onClose={() => setSelected(null)} title={String(selected?.name ?? "")} subtitle={String(selected?.code ?? "")}
           tabs={preparationType ? ["Chi tiết", "Tồn kho", "Lịch sử", "Truy xuất"] : ["Chi tiết"]}
           activeTab={drawerTab}
@@ -355,7 +440,22 @@ export function ModuleCrudClient(props: Props) {
         />
         <ModalShell open={open} onClose={() => setOpen(false)} className="max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
               <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{edit ? "Sửa" : "Thêm mới"}</h2><button type="button" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">{fields.map((f) => (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">{fields.map((f) => {
+                if (f.key === "finalConcentration" && fields.some((field) => field.key === "concentration")) {
+                  return null;
+                }
+                if (f.key === "concentration" && fields.some((field) => field.key === "finalConcentration")) {
+                  return (
+                    <ConcentrationPairFields
+                      key="concentration-pair"
+                      concentration={String(form.concentration ?? "")}
+                      finalConcentration={String(form.finalConcentration ?? "")}
+                      onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
+                      showUnit={false}
+                    />
+                  );
+                }
+                return (
                 <div key={f.key} className={f.colSpan === 2 ? "sm:col-span-2" : ""}>
                   {f.type !== "stockLot" ? (
                     <label className="mb-1 block text-sm text-slate-600">{f.label}</label>
@@ -423,7 +523,8 @@ export function ModuleCrudClient(props: Props) {
                     <input type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} value={String(form[f.key] ?? "")} onChange={(e) => setForm((p) => ({ ...p, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))} className="h-11 w-full rounded-xl border px-3 text-sm" />
                   )}
                 </div>
-              ))}</div>
+                );
+              })}</div>
               <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="rounded-xl border px-4 py-2 text-sm">Huỷ</button><button type="button" disabled={pending} onClick={submit} className="rounded-xl bg-slate-950 px-4 py-2 text-sm text-white">{pending ? "..." : "Lưu"}</button></div>
         </ModalShell>
         <ConfirmDialog open={confirm} title="Xoá?" message={`Xoá mềm ${selected?.code}? Tồn kho sẽ được hoàn lại nếu đã trừ.`} onCancel={() => setConfirm(false)} onConfirm={remove} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRightLeft, Check, Edit, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -21,6 +21,9 @@ import {
 } from "@/lib/actions/equipment-maintenance";
 import { REPAIR_PRIORITY_LABELS, REPAIR_STATUS_LABELS } from "@/lib/equipment-fields";
 import { EQUIPMENT_COLUMN, EQUIPMENT_NAV, EQUIPMENT_SUBTITLE } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { RepairProposalListParams } from "@/lib/services/equipment-maintenance";
 import { exportToXlsx } from "@/lib/excel";
 import type { RepairProposalView } from "@/types";
 
@@ -35,17 +38,18 @@ const exportColumns = [
 const initialForm = { equipmentId: "", ticketNo: "", priority: "Medium", description: "", reportedBy: "", notes: "" };
 
 export function RepairProposalsClient({
-  items,
+  result,
   equipmentOptions,
   defaultTicketNo,
+  listQuery,
 }: {
-  items: RepairProposalView[];
+  result: PaginatedResult<RepairProposalView>;
   equipmentOptions: EquipmentOption[];
   defaultTicketNo?: string;
+  listQuery: RepairProposalListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | keyof typeof REPAIR_STATUS_LABELS>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<RepairProposalView | null>(null);
   const [form, setForm] = useState({ ...initialForm, ticketNo: defaultTicketNo ?? "" });
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -56,14 +60,7 @@ export function RepairProposalsClient({
   const { canManage, canEdit, canApprove, role } = useRole();
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter((item) => {
-      const matchQuery = !q || item.ticketNo.toLowerCase().includes(q) || item.equipmentCode.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchStatus;
-    });
-  }, [items, query, statusFilter]);
+  const rows = result.items;
 
   const submit = () => {
     if (!form.equipmentId || !form.description.trim()) {
@@ -126,9 +123,9 @@ export function RepairProposalsClient({
       <EquipmentModuleShell
         title="Đề xuất sửa chữa"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
-        onExport={() => { exportToXlsx("de-xuat-sua-chua", filtered.map((r) => ({ ...r })), exportColumns); addToast("Đã export Excel", "success"); }}
+        onExport={() => { exportToXlsx("de-xuat-sua-chua", rows.map((r) => ({ ...r })), exportColumns); addToast("Đã export Excel", "success"); }}
         onCreate={() => { setIsEditing(false); setEditingId(null); setForm({ ...initialForm, ticketNo: defaultTicketNo ?? "" }); setIsFormOpen(true); }}
         createLabel="Tạo đề xuất"
         canEdit={canEdit}
@@ -138,20 +135,26 @@ export function RepairProposalsClient({
               value: s,
               label: s === "All" ? "Tất cả" : REPAIR_STATUS_LABELS[s as keyof typeof REPAIR_STATUS_LABELS],
             }))}
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+            value={listQuery.status === "All" ? "All" : listQuery.status}
+            onChange={(value) => setFilter("status", value === "All" ? null : value)}
           />
         }
       >
         <DataTable
           columns={[
-            { key: "ticketNo", header: "Số phiếu" },
-            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode },
-            { key: "priorityLabel", header: "Ưu tiên" },
-            { key: "statusLabel", header: "Trạng thái" },
-            { key: "reportedBy", header: "Người báo" },
+            { key: "ticketNo", header: "Số phiếu", sortable: true, sortKey: "ticketNo" },
+            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode, sortable: true, sortKey: "equipmentCode" },
+            { key: "priorityLabel", header: "Ưu tiên", sortable: true, sortKey: "priority" },
+            { key: "statusLabel", header: "Trạng thái", sortable: true, sortKey: "status" },
+            { key: "reportedBy", header: "Người báo", sortable: true, sortKey: "reportedBy" },
           ]}
-          rows={filtered}
+          rows={rows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
           rowActions={(row) => (

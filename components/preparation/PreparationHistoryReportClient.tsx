@@ -1,19 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useTransition } from "react";
 import { Download, ExternalLink, Search } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { DataTable } from "@/components/DataTable";
 import { FilterChipBar } from "@/components/FilterChipBar";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { useToast } from "@/components/ToastProvider";
+import { fetchPreparationHistoryExport } from "@/lib/actions/list-export";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
 import { exportToXlsx } from "@/lib/excel";
+import { PREPARATION_WORKFLOW_FILTERS } from "@/lib/preparation-workflow-labels";
 import {
   PREPARATION_HISTORY_REPORT_COLUMNS,
   preparationHistoryReportToExcelRows,
+  type PreparationHistoryListParams,
   type PreparationHistoryReportRow,
 } from "@/lib/services/preparation-history-report";
-import { PREPARATION_WORKFLOW_FILTERS } from "@/lib/preparation-workflow-labels";
 
 const TYPE_FILTERS = [
   { value: "All", label: "Tất cả loại" },
@@ -32,49 +37,27 @@ const WORKFLOW_FILTER_LABELS: Record<(typeof PREPARATION_WORKFLOW_FILTERS)[numbe
   Cancelled: "Đã hủy",
 };
 
-export function PreparationHistoryReportClient({ rows }: { rows: PreparationHistoryReportRow[] }) {
+export function PreparationHistoryReportClient({
+  result,
+  listQuery,
+}: {
+  result: PaginatedResult<PreparationHistoryReportRow>;
+  listQuery: PreparationHistoryListParams;
+}) {
   const { addToast } = useToast();
-  const [query, setQuery] = useState("");
-  const [parentCodeFilter, setParentCodeFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]["value"]>("All");
-  const [statusFilter, setStatusFilter] =
-    useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-
-  const filtered = useMemo(() => {
-    return rows.filter((row) => {
-      const matchType = typeFilter === "All" || row.preparationType === typeFilter;
-      const matchStatus =
-        statusFilter === "All" || row.status === WORKFLOW_FILTER_LABELS[statusFilter];
-      const matchFrom = !dateFrom || row.preparedDate >= dateFrom;
-      const matchTo = !dateTo || row.preparedDate <= dateTo;
-      const parentQ = parentCodeFilter.toLowerCase();
-      const matchParentCode =
-        !parentQ || row.parentCode.toLowerCase().includes(parentQ);
-      const q = query.toLowerCase();
-      const matchQuery =
-        !q ||
-        [
-          row.code,
-          row.name,
-          row.preparedBy,
-          row.approvedBy,
-          row.sourceOrigin,
-          row.sourceLot,
-          row.notes,
-        ].some((value) => value.toLowerCase().includes(q));
-      return matchType && matchStatus && matchFrom && matchTo && matchParentCode && matchQuery;
-    });
-  }, [rows, query, parentCodeFilter, typeFilter, statusFilter, dateFrom, dateTo]);
+  const [pending, startTransition] = useTransition();
+  const { setQuery, setFilter, setFilters, toggleSort, setPage, setLimit } = useListQueryState();
 
   const handleExport = () => {
-    exportToXlsx(
-      "lich-su-pha-che",
-      preparationHistoryReportToExcelRows(filtered),
-      PREPARATION_HISTORY_REPORT_COLUMNS,
-    );
-    addToast(`Đã export ${filtered.length} dòng Excel`, "success");
+    startTransition(async () => {
+      const rows = await fetchPreparationHistoryExport(listQuery);
+      exportToXlsx(
+        "lich-su-pha-che",
+        preparationHistoryReportToExcelRows(rows),
+        PREPARATION_HISTORY_REPORT_COLUMNS,
+      );
+      addToast(`Đã export ${rows.length} dòng Excel`, "success");
+    });
   };
 
   return (
@@ -85,13 +68,14 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
             <p className="text-sm text-slate-500">ISO/IEC 17025</p>
             <h1 className="text-2xl font-semibold text-slate-900">Lịch sử pha chế</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Báo cáo truy xuất nguồn gốc — {filtered.length}/{rows.length} dòng
+              Báo cáo truy xuất nguồn gốc — {result.total} lô · trang {result.page}/{result.totalPages}
             </p>
           </div>
           <button
             type="button"
             onClick={handleExport}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700"
+            disabled={pending}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
             Export Excel (15 cột)
@@ -102,7 +86,7 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
           <div className="relative w-full md:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              value={query}
+              value={listQuery.q}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Tìm mã lô, tên, nguồn gốc, lô, người pha..."
               className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
@@ -110,8 +94,8 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
           </div>
           <div className="relative w-full md:max-w-xs">
             <input
-              value={parentCodeFilter}
-              onChange={(e) => setParentCodeFilter(e.target.value)}
+              value={listQuery.parentCodeFilter}
+              onChange={(e) => setFilter("parentCodeFilter", e.target.value || null)}
               placeholder="Lọc mã nhóm (parentCode)..."
               className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-cyan-300"
             />
@@ -119,8 +103,8 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
 
           <FilterChipBar
             options={TYPE_FILTERS.map((item) => ({ value: item.value, label: item.label }))}
-            value={typeFilter}
-            onChange={(value) => setTypeFilter(value as (typeof TYPE_FILTERS)[number]["value"])}
+            value={listQuery.typeFilter}
+            onChange={(value) => setFilter("typeFilter", value === "All" ? null : value)}
           />
 
           <FilterChipBar
@@ -128,10 +112,8 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
               value,
               label: WORKFLOW_FILTER_LABELS[value],
             }))}
-            value={statusFilter}
-            onChange={(value) =>
-              setStatusFilter(value as (typeof PREPARATION_WORKFLOW_FILTERS)[number])
-            }
+            value={listQuery.statusFilter}
+            onChange={(value) => setFilter("statusFilter", value === "All" ? null : value)}
           />
 
           <div className="flex flex-wrap gap-3">
@@ -139,8 +121,8 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
               Từ ngày
               <input
                 type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                value={listQuery.dateFrom}
+                onChange={(e) => setFilters({ dateFrom: e.target.value || null })}
                 className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
               />
             </label>
@@ -148,68 +130,83 @@ export function PreparationHistoryReportClient({ rows }: { rows: PreparationHist
               Đến ngày
               <input
                 type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                value={listQuery.dateTo}
+                onChange={(e) => setFilters({ dateTo: e.target.value || null })}
                 className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
               />
             </label>
           </div>
         </div>
 
-        <DataTable
-          columns={[
-            {
-              key: "parentCode",
-              header: "Mã nhóm",
-            },
-            {
-              key: "code",
-              header: "Mã lô",
-              render: (_value, row) => (
-                <Link href={row.detailHref} className="text-sky-700 hover:underline">
-                  {row.code}
-                </Link>
-              ),
-            },
-            { key: "type", header: "Loại" },
-            { key: "name", header: "Tên thành phẩm" },
-            { key: "preparedDate", header: "Ngày pha" },
-            { key: "preparedBy", header: "Người pha" },
-            { key: "approvedBy", header: "Người duyệt" },
-            { key: "sourceOrigin", header: "Nguồn gốc" },
-            { key: "sourceLot", header: "Số lô gốc" },
-            { key: "quantityUsed", header: "Lượng sử dụng" },
-            { key: "originalConcentration", header: "Nồng độ gốc" },
-            { key: "finalConcentration", header: "Nồng độ sau pha" },
-            { key: "expiryDate", header: "Hạn sử dụng" },
-            { key: "status", header: "Trạng thái" },
-            { key: "notes", header: "Ghi chú" },
-            {
-              key: "detailHref",
-              header: "",
-              render: (_value, row) => (
-                <div className="flex flex-col gap-1">
-                  <Link
-                    href={row.detailHref}
-                    className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-sky-700"
-                  >
-                    Chi tiết
-                    <ExternalLink className="h-3 w-3" />
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <DataTable
+            columns={[
+              { key: "parentCode", header: "Mã nhóm", sortable: true, sortKey: "parentCode" },
+              {
+                key: "code",
+                header: "Mã lô",
+                sortable: true,
+                sortKey: "code",
+                render: (_value, row) => (
+                  <Link href={row.detailHref} className="text-sky-700 hover:underline">
+                    {row.code}
                   </Link>
-                  <Link
-                    href={`/inventory-ledger?preparationId=${encodeURIComponent(row.preparationId)}`}
-                    className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-sky-700"
-                  >
-                    Sổ cái
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </div>
-              ),
-            },
-          ]}
-          rows={filtered}
-          getRowKey={(row) => row.id}
-        />
+                ),
+              },
+              { key: "type", header: "Loại", sortable: true, sortKey: "type" },
+              { key: "name", header: "Tên thành phẩm", sortable: true, sortKey: "name" },
+              { key: "preparedDate", header: "Ngày pha", sortable: true, sortKey: "preparedDate" },
+              { key: "preparedBy", header: "Người pha", sortable: true, sortKey: "preparedBy" },
+              { key: "approvedBy", header: "Người duyệt" },
+              { key: "sourceOrigin", header: "Nguồn gốc" },
+              { key: "sourceLot", header: "Số lô gốc" },
+              { key: "quantityUsed", header: "Lượng sử dụng" },
+              { key: "originalConcentration", header: "Nồng độ lý thuyết" },
+              { key: "finalConcentration", header: "Nồng độ thực tế" },
+              { key: "expiryDate", header: "Hạn sử dụng" },
+              { key: "status", header: "Trạng thái", sortable: true, sortKey: "status" },
+              { key: "notes", header: "Ghi chú" },
+              {
+                key: "detailHref",
+                header: "",
+                render: (_value, row) => (
+                  <div className="flex flex-col gap-1">
+                    <Link
+                      href={row.detailHref}
+                      className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-sky-700"
+                    >
+                      Chi tiết
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                    <Link
+                      href={`/inventory-ledger?preparationId=${encodeURIComponent(row.preparationId)}`}
+                      className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-sky-700"
+                    >
+                      Sổ cái
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </div>
+                ),
+              },
+            ]}
+            rows={result.items}
+            sort={{
+              sortBy: listQuery.sortBy,
+              sortOrder: listQuery.sortOrder,
+              sortActive: listQuery.sortActive,
+              onSort: toggleSort,
+            }}
+            getRowKey={(row) => row.id}
+          />
+          <ListPaginationBar
+            page={result.page}
+            totalPages={result.totalPages}
+            total={result.total}
+            limit={result.limit}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+          />
+        </div>
       </div>
     </AppShell>
   );

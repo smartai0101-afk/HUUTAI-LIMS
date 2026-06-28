@@ -1,4 +1,5 @@
 import type { PermissionKey } from "@/lib/auth/nav-permissions";
+import type { SortOrder } from "@/lib/list-query";
 
 export type NotificationAction =
   | "Created"
@@ -39,6 +40,8 @@ export type NotificationListParams = {
   module?: PermissionKey | "";
   from?: Date;
   to?: Date;
+  sortBy?: "createdAt" | "actorName" | "moduleLabel" | "action" | "recordLabel";
+  sortOrder?: SortOrder;
 };
 
 export type NotificationListResult = {

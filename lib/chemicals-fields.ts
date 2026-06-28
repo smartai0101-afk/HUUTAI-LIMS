@@ -2,17 +2,14 @@ export const DEFAULT_CHEMICAL_GROUPS = ["Dung môi", "Acid", "Base", "Muối", "
 
 export const CHEMICAL_GROUP_FILTER_ALL = "All" as const;
 
-export type ChemicalGroupFilter =
-  | typeof CHEMICAL_GROUP_FILTER_ALL
-  | (typeof DEFAULT_CHEMICAL_GROUPS)[number];
+export type ChemicalGroupFilter = typeof CHEMICAL_GROUP_FILTER_ALL | string;
 
-export const CHEMICAL_GROUP_FILTER_OPTIONS: {
-  value: ChemicalGroupFilter;
-  label: string;
-}[] = [
-  { value: CHEMICAL_GROUP_FILTER_ALL, label: "Tất cả nhóm" },
-  ...DEFAULT_CHEMICAL_GROUPS.map((group) => ({ value: group, label: group })),
-];
+export function buildChemicalGroupFilterOptions(groups: readonly string[]) {
+  return [
+    { value: CHEMICAL_GROUP_FILTER_ALL, label: "Tất cả nhóm" },
+    ...groups.map((group) => ({ value: group, label: group })),
+  ];
+}
 
 export const CHEMICAL_FORM_FIELD_KEYS = [
   "code",

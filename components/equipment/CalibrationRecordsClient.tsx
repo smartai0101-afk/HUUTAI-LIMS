@@ -28,6 +28,9 @@ import {
 } from "@/lib/calibration-results";
 import { CALIBRATION_RESULT_LABELS } from "@/lib/equipment-fields";
 import { CALIBRATION_EVAL, EQUIPMENT_COLUMN, EQUIPMENT_SUBTITLE } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult, SortOrder } from "@/lib/list-query";
+import type { CalibrationRecordListParams } from "@/lib/services/equipment-calibration";
 import { exportToXlsx } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 import type { CalibrationRecordView } from "@/types";
@@ -88,19 +91,59 @@ function buildGroups(items: CalibrationRecordView[]): EquipmentCalibrationGroup[
       records,
     });
   }
-  return groups.sort((a, b) => a.equipmentCode.localeCompare(b.equipmentCode));
+  return groups;
+}
+
+function sortCalibrationGroups(
+  groups: EquipmentCalibrationGroup[],
+  sortBy: string,
+  sortOrder: SortOrder,
+): EquipmentCalibrationGroup[] {
+  const dir = sortOrder === "asc" ? 1 : -1;
+  return [...groups].sort((a, b) => {
+    let av: string;
+    let bv: string;
+    switch (sortBy) {
+      case "equipmentName":
+        av = a.equipmentName;
+        bv = b.equipmentName;
+        break;
+      case "calibrationDate":
+        av = a.latest.calibrationDate;
+        bv = b.latest.calibrationDate;
+        break;
+      case "certificateNo":
+        av = a.latest.certificateNo;
+        bv = b.latest.certificateNo;
+        break;
+      case "result":
+        av = a.latest.result;
+        bv = b.latest.result;
+        break;
+      case "vendor":
+        av = a.latest.vendor;
+        bv = b.latest.vendor;
+        break;
+      case "equipmentCode":
+      default:
+        av = a.equipmentCode;
+        bv = b.equipmentCode;
+    }
+    return av.localeCompare(bv, "vi") * dir;
+  });
 }
 
 export function CalibrationRecordsClient({
-  items,
+  result,
   equipmentOptions,
+  listQuery,
 }: {
-  items: CalibrationRecordView[];
+  result: PaginatedResult<CalibrationRecordView>;
   equipmentOptions: EquipmentOption[];
+  listQuery: CalibrationRecordListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [resultFilter, setResultFilter] = useState<"All" | "Pass" | "Fail">("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selectedGroup, setSelectedGroup] = useState<EquipmentCalibrationGroup | null>(null);
   const [activeRecord, setActiveRecord] = useState<CalibrationRecordView | null>(null);
   const [form, setForm] = useState(initialForm);
@@ -113,30 +156,16 @@ export function CalibrationRecordsClient({
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const editingRecord = editingId ? items.find((item) => item.id === editingId) : null;
+  const editingRecord = editingId ? result.items.find((item) => item.id === editingId) : null;
 
-  const grouped = useMemo(() => buildGroups(items), [items]);
-
-  const filteredGroups = useMemo(() => {
-    const q = query.toLowerCase();
-    return grouped.filter((group) => {
-      const matchQuery =
-        !q ||
-        group.equipmentCode.toLowerCase().includes(q) ||
-        group.equipmentName.toLowerCase().includes(q) ||
-        group.records.some(
-          (record) =>
-            record.certificateNo.toLowerCase().includes(q) ||
-            record.vendor.toLowerCase().includes(q),
-        );
-      const matchResult = resultFilter === "All" || group.latest.result === resultFilter;
-      return matchQuery && matchResult;
-    });
-  }, [grouped, query, resultFilter]);
+  const grouped = useMemo(
+    () => sortCalibrationGroups(buildGroups(result.items), listQuery.sortBy, listQuery.sortOrder),
+    [result.items, listQuery.sortBy, listQuery.sortOrder],
+  );
 
   const tableRows = useMemo(
     () =>
-      filteredGroups.map((group) => ({
+      grouped.map((group) => ({
         id: group.equipmentId,
         equipmentCode: group.equipmentCode,
         equipmentName: group.equipmentName,
@@ -147,7 +176,7 @@ export function CalibrationRecordsClient({
         calibrationResultsLabel: group.latest.calibrationResultsLabel,
         recordCount: group.records.length,
       })),
-    [filteredGroups],
+    [grouped],
   );
 
   const openGroup = (group: EquipmentCalibrationGroup) => {
@@ -241,7 +270,7 @@ export function CalibrationRecordsClient({
   const handleExport = () => {
     exportToXlsx(
       "ho-so-hieu-chuan",
-      filteredGroups.map((group) => ({ ...group.latest })),
+      grouped.map((group) => ({ ...group.latest })),
       exportColumns,
     );
     addToast("Đã export Excel", "success");
@@ -259,7 +288,7 @@ export function CalibrationRecordsClient({
       <EquipmentModuleShell
         title="Hồ sơ hiệu chuẩn"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
         searchPlaceholder="Tìm theo mã thiết bị, số chứng nhận..."
         onExport={handleExport}
@@ -272,23 +301,25 @@ export function CalibrationRecordsClient({
               value: s,
               label: s === "All" ? "Tất cả" : CALIBRATION_RESULT_LABELS[s],
             }))}
-            value={resultFilter}
-            onChange={setResultFilter}
+            value={listQuery.result}
+            onChange={(v) => setFilter("result", v === "All" ? null : v)}
           />
         }
       >
         <DataTable
           columns={[
-            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode },
-            { key: "equipmentName", header: EQUIPMENT_COLUMN.equipmentName },
+            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode, sortable: true, sortKey: "equipmentCode" },
+            { key: "equipmentName", header: EQUIPMENT_COLUMN.equipmentName, sortable: true, sortKey: "equipmentName" },
             {
               key: "calibrationDate",
               header: EQUIPMENT_COLUMN.calibrationDate,
+              sortable: true,
+              sortKey: "calibrationDate",
               render: (v) => formatDate(String(v)),
             },
-            { key: "certificateNo", header: EQUIPMENT_COLUMN.certificateNo },
-            { key: "resultLabel", header: EQUIPMENT_COLUMN.result },
-            { key: "vendor", header: EQUIPMENT_COLUMN.calibrationVendor },
+            { key: "certificateNo", header: EQUIPMENT_COLUMN.certificateNo, sortable: true, sortKey: "certificateNo" },
+            { key: "resultLabel", header: EQUIPMENT_COLUMN.result, sortable: true, sortKey: "result" },
+            { key: "vendor", header: EQUIPMENT_COLUMN.calibrationVendor, sortable: true, sortKey: "vendor" },
             {
               key: "calibrationResultsLabel",
               header: EQUIPMENT_COLUMN.calibrationResults,
@@ -296,9 +327,15 @@ export function CalibrationRecordsClient({
             },
           ]}
           rows={tableRows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={(row) => {
-            const group = filteredGroups.find((g) => g.equipmentId === row.id);
+            const group = grouped.find((g) => g.equipmentId === row.id);
             if (group) openGroup(group);
           }}
         />

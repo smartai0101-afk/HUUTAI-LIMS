@@ -1,6 +1,18 @@
 import { EQUIPMENT_NAV } from "@/lib/equipment-labels";
+import { CHEM_INFO_NAV } from "@/lib/chem-info-labels";
+import { METHODS_NAV } from "@/lib/analytical-methods-labels";
 
 export const NAV_PERMISSION_GROUPS = [
+  {
+    id: "chem_info" as const,
+    label: "Thông tin hóa học",
+    items: [
+      { key: "chem_info_periodic" as const, label: CHEM_INFO_NAV.periodicTable, href: "/chem-info/periodic-table" },
+      { key: "chem_info_lookup" as const, label: CHEM_INFO_NAV.chemicalLookup, href: "/chem-info/chemicals" },
+      { key: "chem_info_calculators" as const, label: CHEM_INFO_NAV.calculators, href: "/chem-info/calculators" },
+      { key: "chem_info_compatibility" as const, label: CHEM_INFO_NAV.compatibility, href: "/chem-info/compatibility" },
+    ],
+  },
   {
     id: "materials" as const,
     label: "Hoá chất - Chuẩn - Chủng",
@@ -57,6 +69,14 @@ export const NAV_PERMISSION_GROUPS = [
     ],
   },
   {
+    id: "analytical_methods" as const,
+    label: "Phương pháp phân tích",
+    items: [
+      { key: "methods_dashboard" as const, label: METHODS_NAV.dashboard, href: "/analytical-methods" },
+      { key: "methods_list" as const, label: METHODS_NAV.list, href: "/analytical-methods/list" },
+    ],
+  },
+  {
     id: "admin" as const,
     label: "Quản trị",
     items: [
@@ -104,6 +124,16 @@ export function routePermission(pathname: string): PermissionKey | null {
       if (pathname === "/equipment") return item.key;
       continue;
     }
+    if (item.href === "/analytical-methods") {
+      if (pathname === "/analytical-methods") return item.key;
+      continue;
+    }
+    if (pathname.startsWith("/analytical-methods/")) {
+      return "methods_list";
+    }
+    if (pathname.startsWith("/method-executions/")) {
+      return "methods_list";
+    }
     if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
       return item.key;
     }
@@ -116,12 +146,20 @@ export function permissionGroupsForAdmin() {
   return NAV_PERMISSION_GROUPS;
 }
 
+export function getChemInfoNavItems() {
+  return NAV_PERMISSION_GROUPS.find((g) => g.id === "chem_info")!.items;
+}
+
 export function getMaterialsNavItems() {
   return NAV_PERMISSION_GROUPS.find((g) => g.id === "materials")!.items;
 }
 
 export function getEquipmentNavItems() {
   return NAV_PERMISSION_GROUPS.find((g) => g.id === "equipment")!.items;
+}
+
+export function getAnalyticalMethodsNavItems() {
+  return NAV_PERMISSION_GROUPS.find((g) => g.id === "analytical_methods")!.items;
 }
 
 export function getAdminNavItems() {

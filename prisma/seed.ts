@@ -14,6 +14,8 @@ import { addCycleMonths, computeScheduleStatus } from "../lib/equipment-schedule
 import { computeStandardStatus } from "../lib/standard-status";
 import { db as prisma } from "../lib/db";
 import { seedExtendedCatalog, seedExtendedEquipmentAll, seedExtendedPostStockLots } from "./seed-data";
+import { seedAnalyticalMethods } from "./seed-data/analytical-methods";
+import { seedChemInfoModule } from "./seed-data/chem-info";
 import { equipmentSpecificationsForCode } from "./seed-data/equipment-specifications";
 
 function parseDate(value: string): Date {
@@ -624,6 +626,10 @@ async function main() {
   if (std1 && chemWater) {
     const pstdRoot = await prisma.preparedStandard.create({
       data: {
+        parentCode: "PSTD-0000",
+        codePrefix: "PSTD",
+        sequenceNumber: 0,
+        batchNumber: 1,
         code: "PSTD-0000",
         name: "Caffeine stock 1000 ppm",
         level: PreparedStandardLevel.RootPrepared,
@@ -679,7 +685,11 @@ async function main() {
 
     const pstd2 = await prisma.preparedStandard.create({
       data: {
-        code: "PSTD-0002",
+        parentCode: "IST1-0002",
+        codePrefix: "IST1",
+        sequenceNumber: 2,
+        batchNumber: 1,
+        code: "IST1-0002",
         name: "Caffeine intermediate 100 ppm",
         level: PreparedStandardLevel.Intermediate1,
         concentration: "100",
@@ -736,7 +746,11 @@ async function main() {
 
     const pstd3 = await prisma.preparedStandard.create({
       data: {
-        code: "PSTD-0003",
+        parentCode: "IST2-0003",
+        codePrefix: "IST2",
+        sequenceNumber: 3,
+        batchNumber: 1,
+        code: "IST2-0003",
         name: "Caffeine intermediate 50 ppm",
         level: PreparedStandardLevel.Intermediate2,
         concentration: "50",
@@ -793,7 +807,11 @@ async function main() {
 
     const pstd4 = await prisma.preparedStandard.create({
       data: {
-        code: "PSTD-0004",
+        parentCode: "IST3-0004",
+        codePrefix: "IST3",
+        sequenceNumber: 4,
+        batchNumber: 1,
+        code: "IST3-0004",
         name: "Caffeine intermediate 20 ppm",
         level: PreparedStandardLevel.Intermediate3,
         concentration: "20",
@@ -850,7 +868,11 @@ async function main() {
 
     const pstd1 = await prisma.preparedStandard.create({
       data: {
-        code: "PSTD-0001",
+        parentCode: "WSTD-0001",
+        codePrefix: "WSTD",
+        sequenceNumber: 1,
+        batchNumber: 1,
+        code: "WSTD-0001",
         name: "Caffeine 10 ppm",
         level: PreparedStandardLevel.WorkingPrepared,
         concentration: "10",
@@ -970,6 +992,8 @@ async function main() {
   await seedExtendedEquipmentAll(prisma);
   await seedStockLotsFromCatalog();
   await seedExtendedPostStockLots(prisma);
+  await seedChemInfoModule(prisma);
+  await seedAnalyticalMethods(prisma);
   await seedAuth();
 
   const { ensureAllOpeningBalances } = await import("../lib/services/inventory-opening-balance");

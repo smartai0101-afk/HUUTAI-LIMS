@@ -50,30 +50,6 @@ export function PreparationIsoFormFields({
 
   return (
     <>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">Công thức</label>
-        <input
-          value={form.formula}
-          onChange={(e) => onChange({ formula: e.target.value })}
-          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">Nồng độ gốc</label>
-        <input
-          value={form.originalConcentration}
-          onChange={(e) => onChange({ originalConcentration: e.target.value })}
-          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">Nồng độ sau pha</label>
-        <input
-          value={form.finalConcentration}
-          onChange={(e) => onChange({ finalConcentration: e.target.value })}
-          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
-        />
-      </div>
       {showEquipmentPicker ? (
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm text-slate-600">Thiết bị sử dụng</label>

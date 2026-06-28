@@ -87,6 +87,8 @@ export async function getPreparedStrains() {
     sourceLotNumberSnapshot: r.sourceLotNumberSnapshot,
     formula: r.formula,
     concentration: r.concentration,
+    finalConcentration: r.finalConcentration,
+    level: r.level,
     preparedDate: toDateStr(r.preparedDate),
     preparedBy: r.preparedBy,
     checkedBy: r.checkedBy,

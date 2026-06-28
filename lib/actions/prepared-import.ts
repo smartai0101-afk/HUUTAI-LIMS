@@ -18,6 +18,11 @@ import {
   releaseSoftDeletedPreparedStrainCode,
 } from "@/lib/prepared-code-guard";
 import { inferPreparedBatchFields } from "@/lib/prepared-batch-code";
+import {
+  assertPrefixMatchesPreparedStandardLevel,
+  parseMasterCode,
+  prefixForPreparedStandard,
+} from "@/lib/code-prefixes";
 import { parseQuantityWithUnit } from "@/lib/excel-import-utils";
 import { isValidFormDate, parseFormDate, statusFromLabel } from "@/lib/modules/shared";
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
@@ -296,10 +301,20 @@ export async function bulkImportPreparedStandards(formData: FormData) {
     const preparedDate = parseFormDate(preparedDateStr)!;
     const expiryDate = parseFormDate(expiryDateStr)!;
     const batchFields = resolveImportBatchFields(group.header, code);
+    const parentParsed = parseMasterCode(batchFields.parentCode);
+    if (parentParsed) {
+      const prefixError = assertPrefixMatchesPreparedStandardLevel(parentParsed.prefix, level);
+      if (prefixError) {
+        errors.push(`Dòng ${firstLine} (${code}): ${prefixError}`);
+        continue;
+      }
+    }
 
     await db.preparedStandard.create({
       data: {
         parentCode: batchFields.parentCode,
+        codePrefix: parentParsed?.prefix ?? prefixForPreparedStandard(level),
+        sequenceNumber: parentParsed?.sequenceNumber ?? 0,
         batchNumber: batchFields.batchNumber,
         code,
         name,

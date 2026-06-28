@@ -16,6 +16,10 @@ async function main() {
   assertEqual("format CG01-003", formatPreparedBatchCode("CG01", 3), "CG01-003");
 
   assert.deepEqual(parsePreparedBatchCode("CG01-001"), { parentCode: "CG01", batchNumber: 1 });
+  assert.deepEqual(parsePreparedBatchCode("PSTD-0001-003"), {
+    parentCode: "PSTD-0001",
+    batchNumber: 3,
+  });
   assert.equal(parsePreparedBatchCode("PSTD-0005"), null);
 
   assert.deepEqual(inferPreparedBatchFields("PSTD-0005"), {

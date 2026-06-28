@@ -651,3 +651,5 @@ export type EquipmentDashboardStats = {
   upcomingMaintenanceCount: number;
   lowSparePartCount: number;
 };
+
+export type * from "./chem-info";

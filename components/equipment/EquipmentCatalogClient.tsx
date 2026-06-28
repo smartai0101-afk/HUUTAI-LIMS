@@ -27,6 +27,9 @@ import {
   EQUIPMENT_STATUS_FILTERS,
 } from "@/lib/equipment-fields";
 import { EQUIPMENT_COLUMN, EQUIPMENT_SUBTITLE } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { EquipmentListParams } from "@/lib/services/equipment-list";
 import { exportToXlsx } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 import type { EquipmentView } from "@/types";
@@ -95,18 +98,18 @@ function itemToForm(item: EquipmentView): FormState {
 }
 
 export function EquipmentCatalogClient({
-  items,
+  result,
   departments,
+  managers,
+  listQuery,
 }: {
-  items: EquipmentView[];
+  result: PaginatedResult<EquipmentView>;
   departments: string[];
+  managers: string[];
+  listQuery: EquipmentListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [deptFilter, setDeptFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState<(typeof EQUIPMENT_STATUS_FILTERS)[number]>("All");
-  const [managerFilter, setManagerFilter] = useState("All");
-  const [calExpiryFilter, setCalExpiryFilter] = useState<"All" | "Overdue" | "Soon" | "Valid">("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<EquipmentView | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -121,49 +124,11 @@ export function EquipmentCatalogClient({
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const managers = useMemo(() => {
-    const set = new Set<string>();
-    items.forEach((i) => {
-      if (i.manager.trim()) set.add(i.manager.trim());
-    });
-    return Array.from(set).sort();
-  }, [items]);
-
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    const now = new Date();
-    return items.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.code.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.model.toLowerCase().includes(q) ||
-        item.serialNumber.toLowerCase().includes(q) ||
-        item.manufacturer.toLowerCase().includes(q) ||
-        item.specifications.toLowerCase().includes(q) ||
-        item.department.toLowerCase().includes(q) ||
-        item.location.toLowerCase().includes(q) ||
-        item.manager.toLowerCase().includes(q);
-      const matchDept = deptFilter === "All" || item.department === deptFilter;
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      const matchManager = managerFilter === "All" || item.manager === managerFilter;
-      let matchCal = true;
-      if (calExpiryFilter !== "All" && item.calibrationExpiryDate) {
-        const exp = new Date(item.calibrationExpiryDate);
-        const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (86400000));
-        if (calExpiryFilter === "Overdue") matchCal = diffDays < 0;
-        else if (calExpiryFilter === "Soon") matchCal = diffDays >= 0 && diffDays <= 30;
-        else if (calExpiryFilter === "Valid") matchCal = diffDays > 30;
-      } else if (calExpiryFilter !== "All" && !item.calibrationExpiryDate) {
-        matchCal = calExpiryFilter === "Overdue";
-      }
-      return matchQuery && matchDept && matchStatus && matchManager && matchCal;
-    });
-  }, [items, query, deptFilter, statusFilter, managerFilter, calExpiryFilter]);
+  const rows = result.items;
 
   const selectedRows = useMemo(
-    () => filtered.filter((item) => selectedRowIds.has(item.id)),
-    [filtered, selectedRowIds],
+    () => rows.filter((item) => selectedRowIds.has(item.id)),
+    [rows, selectedRowIds],
   );
 
   const submitFormData = () => {
@@ -230,7 +195,7 @@ export function EquipmentCatalogClient({
   const handleExport = () => {
     exportToXlsx(
       "danh-muc-thiet-bi",
-      filtered.map((item) => ({ ...item })),
+      rows.map((item) => ({ ...item })),
       EQUIPMENT_CATALOG_COLUMNS.map((c) => ({ key: c.key, header: c.header })),
     );
     addToast("Đã export Excel", "success");
@@ -248,7 +213,7 @@ export function EquipmentCatalogClient({
       <EquipmentModuleShell
         title="Danh mục thiết bị"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
         searchPlaceholder="Tìm theo mã, tên, model, serial..."
         onExport={handleExport}
@@ -263,8 +228,8 @@ export function EquipmentCatalogClient({
             <div className="w-full sm:w-48">
               <label className="mb-1 block text-xs text-slate-500">Bộ phận</label>
               <select
-                value={deptFilter}
-                onChange={(e) => setDeptFilter(e.target.value)}
+                value={listQuery.department}
+                onChange={(e) => setFilter("department", e.target.value === "All" ? null : e.target.value)}
                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
               >
                 <option value="All">Tất cả</option>
@@ -276,8 +241,8 @@ export function EquipmentCatalogClient({
             <div className="w-full sm:w-48">
               <label className="mb-1 block text-xs text-slate-500">Người quản lý</label>
               <select
-                value={managerFilter}
-                onChange={(e) => setManagerFilter(e.target.value)}
+                value={listQuery.manager}
+                onChange={(e) => setFilter("manager", e.target.value === "All" ? null : e.target.value)}
                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
               >
                 <option value="All">Tất cả</option>
@@ -289,8 +254,11 @@ export function EquipmentCatalogClient({
             <div className="w-full sm:w-48">
               <label className="mb-1 block text-xs text-slate-500">{EQUIPMENT_COLUMN.calibrationExpiry}</label>
               <select
-                value={calExpiryFilter}
-                onChange={(e) => setCalExpiryFilter(e.target.value as typeof calExpiryFilter)}
+                value={listQuery.calExpiry}
+                onChange={(e) => {
+                  const v = e.target.value as EquipmentListParams["calExpiry"];
+                  setFilter("calExpiry", v === "All" ? null : v);
+                }}
                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
               >
                 <option value="All">Tất cả</option>
@@ -305,19 +273,19 @@ export function EquipmentCatalogClient({
                 value: s,
                 label: s === "All" ? "Tất cả TT" : s,
               }))}
-              value={statusFilter}
-              onChange={setStatusFilter}
+              value={listQuery.status === "All" ? "All" : listQuery.status}
+              onChange={(v) => setFilter("status", v === "All" ? null : v)}
             />
           </div>
         }
       >
         <DataTable
           columns={[
-            { key: "code", header: "Mã thiết bị" },
-            { key: "name", header: "Tên thiết bị" },
-            { key: "model", header: "Model" },
-            { key: "serialNumber", header: "Số serial" },
-            { key: "manufacturer", header: "Hãng SX" },
+            { key: "code", header: "Mã thiết bị", sortable: true, sortKey: "code" },
+            { key: "name", header: "Tên thiết bị", sortable: true, sortKey: "name" },
+            { key: "model", header: "Model", sortable: true, sortKey: "model" },
+            { key: "serialNumber", header: "Số serial", sortable: true, sortKey: "serialNumber" },
+            { key: "manufacturer", header: "Hãng SX", sortable: true, sortKey: "manufacturer" },
             {
               key: "specifications",
               header: "Thông số kỹ thuật",
@@ -328,14 +296,38 @@ export function EquipmentCatalogClient({
                 </span>
               ),
             },
-            { key: "department", header: "Bộ phận" },
-            { key: "manager", header: "Người quản lý" },
-            { key: "status", header: "Tình trạng", render: (v) => <EquipmentStatusBadge status={String(v)} /> },
-            { key: "lastCalibrationDate", header: EQUIPMENT_COLUMN.latestCalibration, render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "calibrationExpiryDate", header: EQUIPMENT_COLUMN.calibrationExpiry, render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "location", header: "Vị trí" },
+            { key: "department", header: "Bộ phận", sortable: true, sortKey: "department" },
+            { key: "manager", header: "Người quản lý", sortable: true, sortKey: "manager" },
+            {
+              key: "status",
+              header: "Tình trạng",
+              sortable: true,
+              sortKey: "status",
+              render: (v) => <EquipmentStatusBadge status={String(v)} />,
+            },
+            {
+              key: "lastCalibrationDate",
+              header: EQUIPMENT_COLUMN.latestCalibration,
+              sortable: true,
+              sortKey: "lastCalibrationDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
+            {
+              key: "calibrationExpiryDate",
+              header: EQUIPMENT_COLUMN.calibrationExpiry,
+              sortable: true,
+              sortKey: "calibrationExpiryDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
+            { key: "location", header: "Vị trí", sortable: true, sortKey: "location" },
           ]}
-          rows={filtered}
+          rows={rows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
           selection={{

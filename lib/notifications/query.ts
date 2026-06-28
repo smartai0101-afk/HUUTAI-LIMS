@@ -59,6 +59,20 @@ function buildWhere(user: SessionUser, params: NotificationListParams) {
   return where;
 }
 
+const NOTIFICATION_SORT_FIELDS = {
+  createdAt: "createdAt",
+  actorName: "actorName",
+  moduleLabel: "moduleLabel",
+  action: "action",
+  recordLabel: "recordLabel",
+} as const;
+
+function resolveNotificationOrderBy(params: NotificationListParams) {
+  const sortBy = params.sortBy && params.sortBy in NOTIFICATION_SORT_FIELDS ? params.sortBy : "createdAt";
+  const sortOrder = params.sortOrder === "asc" || params.sortOrder === "desc" ? params.sortOrder : "desc";
+  return { [NOTIFICATION_SORT_FIELDS[sortBy]]: sortOrder };
+}
+
 export async function listNotificationsForUser(
   user: SessionUser,
   params: NotificationListParams = {},
@@ -66,11 +80,12 @@ export async function listNotificationsForUser(
   const limit = Math.min(Math.max(params.limit ?? 20, 1), 100);
   const offset = Math.max(params.offset ?? 0, 0);
   const where = buildWhere(user, params);
+  const orderBy = resolveNotificationOrderBy(params);
 
   const [rows, total] = await Promise.all([
     db.notification.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy,
       skip: offset,
       take: limit,
       include: {

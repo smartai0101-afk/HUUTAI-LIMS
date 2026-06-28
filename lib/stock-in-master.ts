@@ -8,8 +8,10 @@ import {
   standardIdentityMatches,
   strainIdentityMatches,
 } from "@/lib/services/stock-in-match";
+import { reserveMasterCode, resolveCodeFromForm } from "@/lib/services/code-generator";
 import { computeStandardStatus } from "@/lib/standard-status";
 import { STOCK_IN_VALIDATION } from "@/lib/stock-in-fields";
+import { resolveStockInCode, stockInCodePrefix } from "@/lib/stock-in-code";
 import { findMasterByIdentity } from "@/lib/stock-lot";
 
 function str(fd: FormData, key: string) {
@@ -91,7 +93,7 @@ export async function ensureMaster(
   fd: FormData,
   coaPath: string | null,
 ): Promise<{ id: string; code: string; name: string } | { error: string }> {
-  const code = str(fd, "code");
+  const code = resolveStockInCode(sourceType, str(fd, "code"), str(fd, "sequenceNumber"));
   const name = str(fd, "name");
   if (!code) return { error: STOCK_IN_VALIDATION.missingCode };
   if (!name) return { error: STOCK_IN_VALIDATION.missingName };
@@ -175,10 +177,17 @@ export async function ensureMaster(
     return byCode;
   }
 
+  const prefix = stockInCodePrefix(sourceType);
+  const { sequenceInput } = resolveCodeFromForm(prefix, code, str(fd, "sequenceNumber"));
+  const reserved = await reserveMasterCode(tx, prefix, sequenceInput);
+  if ("error" in reserved) return { error: reserved.error };
+
   if (sourceType === "Chemical") {
     const row = await tx.chemical.create({
       data: {
-        code,
+        code: reserved.code,
+        codePrefix: reserved.prefix,
+        sequenceNumber: reserved.sequenceNumber,
         name,
         chemicalGroup: str(fd, "chemicalGroup") || "Dung môi",
         manufacturer: identity.manufacturer,
@@ -203,7 +212,9 @@ export async function ensureMaster(
   if (sourceType === "Standard") {
     const row = await tx.standard.create({
       data: {
-        code,
+        code: reserved.code,
+        codePrefix: reserved.prefix,
+        sequenceNumber: reserved.sequenceNumber,
         name,
         standardGroup: str(fd, "standardGroup") || "CRM",
         manufacturer: identity.manufacturer,
@@ -228,7 +239,9 @@ export async function ensureMaster(
 
   const row = await tx.microbialStrain.create({
     data: {
-      code,
+      code: reserved.code,
+      codePrefix: reserved.prefix,
+      sequenceNumber: reserved.sequenceNumber,
       name,
       strainGroup: str(fd, "strainGroup") || "Vi khuẩn",
       manufacturer: identity.manufacturer,

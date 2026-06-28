@@ -1,10 +1,20 @@
 import { Suspense } from "react";
 import { AppShell } from "@/components/AppShell";
 import { StandardsClient } from "@/components/standards/StandardsClient";
-import { getStandardGroups, getStandards } from "@/lib/services/standards";
+import { getStandardGroups } from "@/lib/services/standards";
+import { listCatalogLotRows, parseCatalogListParams } from "@/lib/services/catalog-lot-list";
 
-export default async function StandardsPage() {
-  const [items, groupOptions] = await Promise.all([getStandards(), getStandardGroups()]);
+export default async function StandardsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const listQuery = parseCatalogListParams(params);
+  const [result, groupOptions] = await Promise.all([
+    listCatalogLotRows("standard", listQuery),
+    getStandardGroups(),
+  ]);
 
   return (
     <Suspense
@@ -14,7 +24,7 @@ export default async function StandardsPage() {
         </AppShell>
       }
     >
-      <StandardsClient items={items} groupOptions={groupOptions} />
+      <StandardsClient result={result} groupOptions={groupOptions} listQuery={listQuery} />
     </Suspense>
   );
 }

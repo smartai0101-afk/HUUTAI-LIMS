@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Link2, PackageMinus, Trash2, Unlink, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -20,6 +20,9 @@ import {
   updateSparePart,
 } from "@/lib/actions/equipment-spare-parts";
 import { EQUIPMENT_NAV, EQUIPMENT_SUBTITLE, SPARE_PART } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { SparePartListParams } from "@/lib/services/equipment-spare-parts";
 import { exportToXlsx } from "@/lib/excel";
 import type { SparePartView } from "@/types";
 
@@ -61,15 +64,16 @@ const initialForm: Record<SparePartFormKey | "notes", string> = {
 };
 
 export function SparePartsClient({
-  items,
+  result,
   equipmentOptions,
+  listQuery,
 }: {
-  items: SparePartView[];
+  result: PaginatedResult<SparePartView>;
   equipmentOptions: EquipmentOption[];
+  listQuery: SparePartListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [lowOnly, setLowOnly] = useState(false);
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<SparePartView | null>(null);
   const [form, setForm] = useState(initialForm);
   const [linkEquipmentId, setLinkEquipmentId] = useState("");
@@ -84,20 +88,7 @@ export function SparePartsClient({
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.code.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.manufacturer.toLowerCase().includes(q) ||
-        item.productCode.toLowerCase().includes(q) ||
-        item.lotNumber.toLowerCase().includes(q);
-      const matchLow = !lowOnly || item.isLowStock;
-      return matchQuery && matchLow;
-    });
-  }, [items, query, lowOnly]);
+  const rows = result.items;
 
   const openCreate = () => {
     setIsEditing(false);
@@ -227,39 +218,51 @@ export function SparePartsClient({
       <EquipmentModuleShell
         title="Quản lý phụ kiện"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
         onCreate={openCreate}
         createLabel="Thêm phụ kiện"
         canEdit={canEdit}
-        onExport={() => exportToXlsx("phu-kien", filtered, exportColumns)}
+        onExport={() => exportToXlsx("phu-kien", rows, exportColumns)}
         filters={
           <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={listQuery.lowOnly}
+              onChange={(e) => setFilter("lowOnly", e.target.checked ? "1" : null)}
+            />
             Chỉ tồn thấp
           </label>
         }
       >
         <DataTable
           columns={[
-            { key: "code", header: SPARE_PART.code },
-            { key: "name", header: SPARE_PART.name },
-            { key: "manufacturer", header: SPARE_PART.manufacturer },
-            { key: "productCode", header: SPARE_PART.productCode },
-            { key: "lotNumber", header: SPARE_PART.lotNumber },
+            { key: "code", header: SPARE_PART.code, sortable: true, sortKey: "code" },
+            { key: "name", header: SPARE_PART.name, sortable: true, sortKey: "name" },
+            { key: "manufacturer", header: SPARE_PART.manufacturer, sortable: true, sortKey: "manufacturer" },
+            { key: "productCode", header: SPARE_PART.productCode, sortable: true, sortKey: "productCode" },
+            { key: "lotNumber", header: SPARE_PART.lotNumber, sortable: true, sortKey: "lotNumber" },
             {
               key: "stockQty",
               header: SPARE_PART.stockQty,
+              sortable: true,
+              sortKey: "stockQty",
               render: (_, row) => (
                 <span className={row.isLowStock ? "font-medium text-rose-600" : ""}>
                   {row.stockQty} {row.unit}
                 </span>
               ),
             },
-            { key: "minQty", header: SPARE_PART.minQty },
-            { key: "unit", header: SPARE_PART.unit },
+            { key: "minQty", header: SPARE_PART.minQty, sortable: true, sortKey: "minQty" },
+            { key: "unit", header: SPARE_PART.unit, sortable: true, sortKey: "unit" },
           ]}
-          rows={filtered}
+          rows={rows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
           rowActions={

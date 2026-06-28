@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Edit, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -21,6 +21,9 @@ import {
 } from "@/lib/actions/equipment-disposal";
 import { DISPOSAL_STATUS_LABELS } from "@/lib/equipment-fields";
 import { EQUIPMENT_COLUMN, EQUIPMENT_SUBTITLE } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { DisposalListParams } from "@/lib/services/equipment-disposal";
 import { exportToXlsx } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 import type { EquipmentDisposalView } from "@/types";
@@ -36,15 +39,16 @@ const exportColumns = [
 const initialForm = { equipmentId: "", disposalDate: "", residualValue: "0", decision: "", notes: "" };
 
 export function DisposalClient({
-  items,
+  result,
   equipmentOptions,
+  listQuery,
 }: {
-  items: EquipmentDisposalView[];
+  result: PaginatedResult<EquipmentDisposalView>;
   equipmentOptions: EquipmentOption[];
+  listQuery: DisposalListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | keyof typeof DISPOSAL_STATUS_LABELS>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<EquipmentDisposalView | null>(null);
   const [form, setForm] = useState(initialForm);
   const [docFile, setDocFile] = useState<File | null>(null);
@@ -56,14 +60,7 @@ export function DisposalClient({
   const { canManage, canEdit, canApprove, role } = useRole();
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter((item) => {
-      const matchQuery = !q || item.equipmentCode.toLowerCase().includes(q) || item.equipmentName.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchStatus;
-    });
-  }, [items, query, statusFilter]);
+  const rows = result.items;
 
   const submit = () => {
     if (!form.equipmentId || !form.disposalDate) {
@@ -117,9 +114,9 @@ export function DisposalClient({
       <EquipmentModuleShell
         title="Thanh lý thiết bị"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
-        onExport={() => { exportToXlsx("thanh-ly-thiet-bi", filtered.map((r) => ({ ...r })), exportColumns); addToast("Đã export Excel", "success"); }}
+        onExport={() => { exportToXlsx("thanh-ly-thiet-bi", rows.map((r) => ({ ...r })), exportColumns); addToast("Đã export Excel", "success"); }}
         onCreate={() => { setIsEditing(false); setEditingId(null); setForm(initialForm); setDocFile(null); setIsFormOpen(true); }}
         createLabel="Tạo hồ sơ thanh lý"
         canEdit={canEdit}
@@ -129,21 +126,27 @@ export function DisposalClient({
               value: s,
               label: s === "All" ? "Tất cả" : DISPOSAL_STATUS_LABELS[s as keyof typeof DISPOSAL_STATUS_LABELS],
             }))}
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+            value={listQuery.status === "All" ? "All" : listQuery.status}
+            onChange={(value) => setFilter("status", value === "All" ? null : value)}
           />
         }
       >
         <DataTable
           columns={[
-            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode },
-            { key: "equipmentName", header: "Tên thiết bị" },
-            { key: "disposalDate", header: "Ngày TL", render: (v) => formatDate(String(v)) },
-            { key: "residualValue", header: "Giá trị CL", render: (v) => Number(v).toLocaleString("vi-VN") },
-            { key: "statusLabel", header: "Trạng thái" },
-            { key: "approver", header: "Người duyệt" },
+            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode, sortable: true, sortKey: "equipmentCode" },
+            { key: "equipmentName", header: "Tên thiết bị", sortable: true, sortKey: "equipmentName" },
+            { key: "disposalDate", header: "Ngày TL", sortable: true, sortKey: "disposalDate", render: (v) => formatDate(String(v)) },
+            { key: "residualValue", header: "Giá trị CL", sortable: true, sortKey: "residualValue", render: (v) => Number(v).toLocaleString("vi-VN") },
+            { key: "statusLabel", header: "Trạng thái", sortable: true, sortKey: "status" },
+            { key: "approver", header: "Người duyệt", sortable: true, sortKey: "approver" },
           ]}
-          rows={filtered}
+          rows={rows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
           rowActions={(row) => (

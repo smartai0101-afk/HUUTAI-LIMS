@@ -9,6 +9,7 @@ import { DataTable } from "@/components/DataTable";
 import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { ModalShell } from "@/components/ModalShell";
+import { CodeSequenceInput } from "@/components/shared/CodeSequenceInput";
 import { PrintLabelButton } from "@/components/PrintLabelButton";
 import { PrintLabelsDialog } from "@/components/PrintLabelsDialog";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -20,7 +21,10 @@ import {
   previewNextPreparedChemicalBatchCode,
   updatePreparedChemical,
 } from "@/lib/actions/prepared-chemicals";
-import { expandPreparedToBatchRows, groupedPreparedCell, type PreparedBatchRowMeta } from "@/lib/prepared-batch-rows";
+import { groupedPreparedCell, type PreparedBatchRowMeta } from "@/lib/prepared-batch-rows";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { PreparedListParams } from "@/lib/services/prepared-list";
 import { bulkImportPreparedChemicals } from "@/lib/actions/prepared-import";
 import { formatCasProductSnapshot } from "@/lib/chemicals-fields";
 import { PREPARED_CHEMICAL_FORM_FIELD_KEYS, buildPreparedChemicalExportRows } from "@/lib/prepared-chemicals-fields";
@@ -52,6 +56,7 @@ import {
   PREPARATION_WORKFLOW_STATUS_LABELS,
 } from "@/lib/preparation-workflow-labels";
 import { PreparationIsoFormFields } from "@/components/preparation/PreparationIsoFormFields";
+import { ConcentrationPairFields } from "@/components/preparation/ConcentrationPairFields";
 import type { StaffView } from "@/lib/services/staff";
 import type { ChemicalView, EnvironmentalLogView, PreparedChemicalView } from "@/types";
 
@@ -68,6 +73,7 @@ type IngredientFormRow = {
 
 const initialForm = {
   parentCode: "",
+  sequenceNumber: "",
   code: "",
   name: "",
   concentration: "",
@@ -128,20 +134,20 @@ function emptyIngredient(): IngredientFormRow {
 type PreparedChemicalBatchRow = PreparedChemicalView & PreparedBatchRowMeta & { stt: number };
 
 export function PreparedChemicalsClient({
-  items,
+  result,
+  listQuery,
   chemicals,
   staff,
   environmentalLogs = [],
 }: {
-  items: PreparedChemicalView[];
+  result: PaginatedResult<PreparedChemicalView & PreparedBatchRowMeta>;
+  listQuery: PreparedListParams;
   chemicals: ChemicalView[];
   staff: StaffView[];
   environmentalLogs?: EnvironmentalLogView[];
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof PREPARED_CHEMICAL_STATUS_FILTERS)[number]>("All");
-  const [workflowFilter, setWorkflowFilter] = useState<(typeof PREPARATION_WORKFLOW_FILTERS)[number]>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [drawerTab, setDrawerTab] = useState("Chi tiết");
   const [selected, setSelected] = useState<PreparedChemicalView | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -168,39 +174,31 @@ export function PreparedChemicalsClient({
 
   useEffect(() => {
     if (isEditing || !isFormOpen) return;
-    const parentCode = form.parentCode.trim();
-    if (!parentCode) {
-      setPreviewBatchCode("");
-      return;
-    }
     const fd = new FormData();
-    fd.set("parentCode", parentCode);
+    const fixedParent = form.parentCode.trim();
+    if (fixedParent) {
+      fd.set("parentCode", fixedParent);
+    } else {
+      const seq = form.sequenceNumber.trim();
+      if (!seq) {
+        setPreviewBatchCode("");
+        return;
+      }
+      fd.set("sequenceNumber", seq);
+    }
     void previewNextPreparedChemicalBatchCode(fd).then((result) => {
       if ("success" in result && result.success && result.code) setPreviewBatchCode(result.code);
     });
-  }, [form.parentCode, isEditing, isFormOpen]);
+  }, [form.parentCode, form.sequenceNumber, isEditing, isFormOpen]);
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    const base = items.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.parentCode.toLowerCase().includes(q) ||
-        item.code.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.concentration.toLowerCase().includes(q) ||
-        item.ingredientsSummary.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      const matchWorkflow =
-        workflowFilter === "All" || item.workflowStatus === workflowFilter;
-      return matchQuery && matchStatus && matchWorkflow;
-    });
-    return expandPreparedToBatchRows(base).map((item, index) => ({ ...item, stt: index + 1 }));
-  }, [items, query, statusFilter, workflowFilter]);
+  const filtered = useMemo(
+    () => result.items.map((item, index) => ({ ...item, stt: index + 1 })),
+    [result.items],
+  );
 
   const selectedRows = useMemo(
-    () => items.filter((item) => selectedRowIds.has(item.id)),
-    [items, selectedRowIds],
+    () => result.items.filter((item) => selectedRowIds.has(item.id)),
+    [result.items, selectedRowIds],
   );
 
   const bulkPrintItems = useMemo(
@@ -249,6 +247,7 @@ export function PreparedChemicalsClient({
     setAttachmentFile(null);
     setForm({
       parentCode: item.parentCode || item.code.replace(/-\d{3}$/, ""),
+      sequenceNumber: "",
       code: "",
       name: item.name,
       concentration: item.concentration,
@@ -292,6 +291,7 @@ export function PreparedChemicalsClient({
       setAttachmentFile(null);
       setForm({
         parentCode: item.parentCode,
+        sequenceNumber: "",
         code: item.code,
         name: item.name,
         concentration: item.concentration,
@@ -329,6 +329,7 @@ export function PreparedChemicalsClient({
     setAttachmentFile(null);
     setForm({
       parentCode: item.parentCode,
+      sequenceNumber: "",
       code: item.code,
       name: item.name,
       concentration: item.concentration,
@@ -379,8 +380,8 @@ export function PreparedChemicalsClient({
   };
 
   const submitForm = (amendmentReason = "") => {
-    if (!form.parentCode.trim() || !form.name.trim()) {
-      addToast("Mã nhóm và tên hóa chất pha là bắt buộc", "error");
+    if ((!form.parentCode.trim() && !form.sequenceNumber.trim()) || !form.name.trim()) {
+      addToast("Mã hóa chất pha và tên là bắt buộc", "error");
       return;
     }
     if (isEditing && !form.code.trim()) {
@@ -531,7 +532,7 @@ export function PreparedChemicalsClient({
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              value={query}
+              value={listQuery.q}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Tìm hóa chất pha..."
               className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
@@ -542,8 +543,8 @@ export function PreparedChemicalsClient({
               <button
                 key={s}
                 type="button"
-                onClick={() => setWorkflowFilter(s)}
-                className={`rounded-xl px-3 py-2 text-sm ${workflowFilter === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
+                onClick={() => setFilter("workflow", s === "All" ? null : s)}
+                className={`rounded-xl px-3 py-2 text-sm ${listQuery.workflow === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
               >
                 {s === "All"
                   ? "Tất cả quy trình"
@@ -556,8 +557,8 @@ export function PreparedChemicalsClient({
               <button
                 key={s}
                 type="button"
-                onClick={() => setStatusFilter(s)}
-                className={`rounded-xl px-3 py-2 text-sm ${statusFilter === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"}`}
+                onClick={() => setFilter("status", s === "All" ? null : s)}
+                className={`rounded-xl px-3 py-2 text-sm ${listQuery.status === s ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"}`}
               >
                 {s === "All" ? "Tất cả trạng thái" : s}
               </button>
@@ -594,29 +595,59 @@ export function PreparedChemicalsClient({
             {
               key: "parentCode",
               header: "Mã nhóm",
+              sortable: true,
+              sortKey: "parentCode",
               render: (_v, row: PreparedChemicalBatchRow) =>
                 groupedPreparedCell(row.showGroupFields, row.parentCode),
             },
-            { key: "code", header: "Mã lô" },
+            { key: "code", header: "Mã lô", sortable: true, sortKey: "code" },
             {
               key: "name",
               header: "Tên hóa chất pha",
+              sortable: true,
+              sortKey: "name",
               render: (_v, row: PreparedChemicalBatchRow) =>
                 groupedPreparedCell(row.showGroupFields, row.name),
             },
-            { key: "concentration", header: "Nồng độ" },
+            {
+              key: "formula",
+              header: "Công thức",
+              render: (_v, row: PreparedChemicalBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.formula || "-"),
+            },
+            { key: "concentration", header: "Nồng độ lý thuyết" },
             { key: "concentrationUnit", header: "Đơn vị nồng độ" },
+            {
+              key: "finalConcentration",
+              header: "Nồng độ thực tế",
+              render: (_v, row: PreparedChemicalBatchRow) =>
+                groupedPreparedCell(row.showGroupFields, row.finalConcentration || "-"),
+            },
             {
               key: "preparedQuantity",
               header: "Thể tích/Khối lượng pha chế",
               render: (_v, row) => `${row.preparedQuantity} ${row.unit}`.trim(),
             },
-            { key: "preparedDate", header: "Ngày pha chế", render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "expiryDate", header: "Ngày hết hạn", render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "preparedBy", header: "Người pha" },
+            {
+              key: "preparedDate",
+              header: "Ngày pha chế",
+              sortable: true,
+              sortKey: "preparedDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
+            {
+              key: "expiryDate",
+              header: "Ngày hết hạn",
+              sortable: true,
+              sortKey: "expiryDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
+            { key: "preparedBy", header: "Người pha", sortable: true, sortKey: "preparedBy" },
             {
               key: "workflowStatus",
               header: "Quy trình",
+              sortable: true,
+              sortKey: "workflowStatus",
               render: (_v, row) => <WorkflowStatusBadge status={row.workflowStatus} />,
             },
             {
@@ -630,10 +661,23 @@ export function PreparedChemicalsClient({
                 </div>
               ),
             },
-            { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
+            {
+              key: "status",
+              header: "Trạng thái",
+              sortable: true,
+              sortKey: "status",
+              render: (v) => <StatusBadge status={String(v)} />,
+            },
             { key: "storageLocation", header: "Vị trí lưu" },
           ]}
           rows={filtered}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
+          getRowKey={(row) => row.rowKey}
           onRowClick={(row) => {
             setSelected(row);
             setDrawerTab("Chi tiết");
@@ -761,13 +805,23 @@ export function PreparedChemicalsClient({
                     <p className="text-xs text-slate-500">Tên hóa chất pha</p>
                     <p className="font-medium">{selected.name}</p>
                   </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-slate-500">Công thức</p>
+                    <p className="font-medium whitespace-pre-wrap">{selected.formula || "-"}</p>
+                  </div>
                   <div>
-                    <p className="text-xs text-slate-500">Nồng độ</p>
+                    <p className="text-xs text-slate-500">Nồng độ lý thuyết</p>
                     <p className="font-medium">{selected.concentration || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Đơn vị nồng độ</p>
                     <p className="font-medium">{selected.concentrationUnit || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Nồng độ thực tế</p>
+                    <p className="font-medium">
+                      {[selected.finalConcentration, selected.concentrationUnit].filter(Boolean).join(" ") || "-"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Thể tích/Khối lượng pha chế</p>
@@ -840,22 +894,31 @@ export function PreparedChemicalsClient({
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm text-slate-600">Mã nhóm *</label>
-                  <input
-                    value={form.parentCode}
-                    onChange={(e) => setForm((p) => ({ ...p, parentCode: e.target.value }))}
+                {!isEditing && form.parentCode.trim() ? (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">Mã master (pha lại)</label>
+                    <input
+                      readOnly
+                      value={form.parentCode}
+                      className="h-11 w-full rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <CodeSequenceInput
+                    prefix="PCHEM"
+                    sequence={form.sequenceNumber}
+                    onSequenceChange={(value) => setForm((p) => ({ ...p, sequenceNumber: value, parentCode: "" }))}
+                    mode={isEditing ? "edit" : "create"}
+                    label="Mã hóa chất pha"
                     disabled={isEditing}
-                    placeholder="VD: HC01"
-                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-50"
                   />
-                </div>
+                )}
                 <div>
                   <label className="mb-1 block text-sm text-slate-600">Mã lô {isEditing ? "" : "(tự sinh)"}</label>
                   <input
                     readOnly
                     value={isEditing ? form.code : previewBatchCode}
-                    placeholder={isEditing ? "" : "Nhập mã nhóm để xem mã lô"}
+                    placeholder={isEditing ? "" : "Nhập số thứ tự để xem mã lô"}
                     className="h-11 w-full rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm"
                   />
                 </div>
@@ -867,23 +930,21 @@ export function PreparedChemicalsClient({
                     className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
                   />
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm text-slate-600">Nồng độ</label>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-sm text-slate-600">Công thức</label>
                   <input
-                    value={form.concentration}
-                    onChange={(e) => setForm((p) => ({ ...p, concentration: e.target.value }))}
+                    value={form.formula}
+                    onChange={(e) => setForm((p) => ({ ...p, formula: e.target.value }))}
                     className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
                   />
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm text-slate-600">Đơn vị nồng độ</label>
-                  <input
-                    value={form.concentrationUnit}
-                    onChange={(e) => setForm((p) => ({ ...p, concentrationUnit: e.target.value }))}
-                    placeholder="vd: %, ppm, mg/L"
-                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
-                  />
-                </div>
+                <ConcentrationPairFields
+                  concentration={form.concentration}
+                  finalConcentration={form.finalConcentration}
+                  concentrationUnit={form.concentrationUnit}
+                  onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
+                  unitPlaceholder="vd: %, ppm, mg/L"
+                />
                 <div>
                   <label className="mb-1 block text-sm text-slate-600">Thể tích/Khối lượng pha chế</label>
                   <input

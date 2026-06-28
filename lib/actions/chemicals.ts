@@ -14,9 +14,12 @@ import {
 } from "@/lib/services/stock-in-match";
 import { findMasterByIdentity } from "@/lib/stock-lot";
 import { computeStandardStatus, type StandardExpiryStatus } from "@/lib/standard-status";
+import { reserveMasterCode, resolveCodeFromForm } from "@/lib/services/code-generator";
 
 type ChemicalWriteData = {
   code: string;
+  codePrefix: string;
+  sequenceNumber: number;
   name: string;
   chemicalGroup: string;
   manufacturer: string;
@@ -65,10 +68,12 @@ async function resolveCoaPathString(
   return { coaPath: kept || null };
 }
 
-function buildData(fd: FormData, coaPath: string | null): ChemicalWriteData {
+function buildData(fd: FormData, coaPath: string | null, code: string, sequenceNumber: number): ChemicalWriteData {
   const expiryDate = parseFormDate(str(fd, "expiryDate"));
   return {
-    code: str(fd, "code"),
+    code,
+    codePrefix: "CHEM",
+    sequenceNumber,
     name: str(fd, "name"),
     chemicalGroup: parseGroup(str(fd, "chemicalGroup")),
     manufacturer: str(fd, "manufacturer"),
@@ -110,33 +115,43 @@ export async function createChemical(formData: FormData) {
   if ("error" in auth) return { error: auth.error };
 
   const user = auth.user.name || auth.user.email;
-  const code = str(formData, "code");
   const name = str(formData, "name");
+  const { sequenceInput } = resolveCodeFromForm("CHEM", str(formData, "code"), str(formData, "sequenceNumber"));
 
-  if (!code || !name) return { error: "Mã và tên hoá chất là bắt buộc" };
+  if (!name) return { error: "Tên hoá chất là bắt buộc" };
   if (!isValidFormDate(str(formData, "expiryDate"))) return { error: "Ngày hết hạn không hợp lệ" };
-  if (await db.chemical.findUnique({ where: { code } })) return { error: "Mã hoá chất đã tồn tại" };
-
-  const manufacturer = str(formData, "manufacturer");
-  const casNumber = str(formData, "casNumber");
-  const productCode = str(formData, "productCode");
-  const matched = await db.$transaction(async (tx) =>
-    findMasterByIdentity(tx, "Chemical", {
-      name,
-      casNumber,
-      manufacturer,
-      productCode,
-    }),
-  );
-  if (matched && !codesMatch(matched.code, code)) {
-    return { error: identityCodeMismatchMessage("Chemical", matched.code) };
-  }
 
   const resolved = await resolveCoaPathString(formData);
   if (resolved.error) return { error: resolved.error };
 
-  const chemical = await db.chemical.create({ data: toPrisma(buildData(formData, resolved.coaPath)) });
+  const manufacturer = str(formData, "manufacturer");
+  const casNumber = str(formData, "casNumber");
+  const productCode = str(formData, "productCode");
 
+  const result = await db.$transaction(async (tx) => {
+    const matched = await findMasterByIdentity(tx, "Chemical", {
+      name,
+      casNumber,
+      manufacturer,
+      productCode,
+    });
+
+    const reserved = await reserveMasterCode(tx, "CHEM", sequenceInput);
+    if ("error" in reserved) return { error: reserved.error };
+
+    if (matched && !codesMatch(matched.code, reserved.code)) {
+      return { error: identityCodeMismatchMessage("Chemical", matched.code) };
+    }
+
+    const chemical = await tx.chemical.create({
+      data: toPrisma(buildData(formData, resolved.coaPath, reserved.code, reserved.sequenceNumber)),
+    });
+    return { chemical, code: reserved.code };
+  });
+
+  if ("error" in result) return { error: result.error };
+
+  const { chemical, code } = result;
   await logActivity({ user, action: "Created", entityType: "Chemical", entityId: chemical.id, object: code, after: chemical });
   revalidatePath("/chemicals");
   revalidatePath("/");
@@ -150,10 +165,9 @@ export async function updateChemical(formData: FormData) {
 
   const user = auth.user.name || auth.user.email;
   const id = str(formData, "id");
-  const code = str(formData, "code");
   const name = str(formData, "name");
 
-  if (!id || !code || !name) return { error: "Thiếu thông tin bắt buộc" };
+  if (!id || !name) return { error: "Thiếu thông tin bắt buộc" };
   if (!isValidFormDate(str(formData, "expiryDate"))) return { error: "Ngày hết hạn không hợp lệ" };
 
   const before = await db.chemical.findUnique({ where: { id } });
@@ -162,14 +176,14 @@ export async function updateChemical(formData: FormData) {
   const resolved = await resolveCoaPathString(formData, before.coaPath);
   if (resolved.error) return { error: resolved.error };
 
-  const writeData = buildData(formData, resolved.coaPath);
+  const writeData = buildData(formData, resolved.coaPath, before.code, before.sequenceNumber);
   const hasLots = await masterHasStockLots(db, "Chemical", id);
   const qtyBlock = quantityChangeBlocked(hasLots, before.quantity, writeData.quantity);
   if (qtyBlock) return { error: qtyBlock };
 
   const chemical = await db.chemical.update({ where: { id }, data: toPrisma(writeData) });
 
-  await logActivity({ user, action: "Updated", entityType: "Chemical", entityId: id, object: code, before, after: chemical });
+  await logActivity({ user, action: "Updated", entityType: "Chemical", entityId: id, object: before.code, before, after: chemical });
   revalidatePath("/chemicals");
   revalidatePath("/containers");
   revalidatePath("/");

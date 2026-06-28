@@ -20,14 +20,18 @@ import { StockInHistoryTable } from "@/components/stock-in/StockInHistoryTable";
 import { USER_DISPLAY_NAME, useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
 import { createStockIn } from "@/lib/actions/stock-in";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { StockInHistoryListParams } from "@/lib/services/stock-in-history";
 import type { StockInMasterOption } from "@/lib/services/stock-in-options";
 import { STOCK_IN_TYPE_OPTIONS } from "@/lib/stock-in-fields";
+import { resolveStockInCode } from "@/lib/stock-in-code";
 import type { StaffView } from "@/lib/services/staff";
 import type { StockInLogView } from "@/types";
 
 const initialChemicalForm: ChemicalStockInFormState = {
   existingMasterId: "",
   code: "",
+  sequenceNumber: "",
   name: "",
   chemicalGroup: "Dung môi",
   manufacturer: "",
@@ -48,6 +52,7 @@ const initialChemicalForm: ChemicalStockInFormState = {
 const initialStandardForm: StandardStockInFormState = {
   existingMasterId: "",
   code: "",
+  sequenceNumber: "",
   name: "",
   standardGroup: "CRM",
   manufacturer: "",
@@ -69,6 +74,7 @@ const initialStandardForm: StandardStockInFormState = {
 const initialStrainForm: StrainStockInFormState = {
   existingMasterId: "",
   code: "",
+  sequenceNumber: "",
   name: "",
   strainGroup: "Vi khuẩn",
   manufacturer: "",
@@ -87,18 +93,25 @@ type Tab = "form" | "history";
 
 export function StockInClient({
   masterOptions,
-  history,
+  historyResult,
+  historyListQuery,
   staff,
+  chemicalGroups,
+  standardGroups,
+  strainGroups,
 }: {
   masterOptions: StockInMasterOption[];
-  history: StockInLogView[];
+  historyResult: PaginatedResult<StockInLogView>;
+  historyListQuery: StockInHistoryListParams;
   staff: StaffView[];
+  chemicalGroups: string[];
+  standardGroups: string[];
+  strainGroups: string[];
 }) {
   const { canEdit, role } = useRole();
   const { addToast } = useToast();
   const [tab, setTab] = useState<Tab>("form");
   const [sourceType, setSourceType] = useState<StockInSourceType>("Chemical");
-  const [historyFilter, setHistoryFilter] = useState<"all" | StockInSourceType>("all");
   const [performedByStaffId, setPerformedByStaffId] = useState("");
   const [performedByCustom, setPerformedByCustom] = useState(USER_DISPLAY_NAME);
   const [chemicalForm, setChemicalForm] = useState(initialChemicalForm);
@@ -130,6 +143,18 @@ export function StockInClient({
       return;
     }
 
+    const activeForm =
+      sourceType === "Chemical"
+        ? chemicalForm
+        : sourceType === "Standard"
+          ? standardForm
+          : strainForm;
+    const resolvedCode = resolveStockInCode(sourceType, activeForm.code, activeForm.sequenceNumber);
+    if (!resolvedCode) {
+      addToast("Vui lòng nhập mã vật tư hoặc chọn vật tư có sẵn", "error");
+      return;
+    }
+
     const fd = new FormData(event.currentTarget);
     fd.set("user", role);
     fd.set("sourceType", sourceType);
@@ -141,11 +166,11 @@ export function StockInClient({
     );
 
     if (sourceType === "Chemical") {
-      appendFormFields(fd, chemicalForm);
+      appendFormFields(fd, { ...chemicalForm, code: resolvedCode });
     } else if (sourceType === "Standard") {
-      appendFormFields(fd, standardForm);
+      appendFormFields(fd, { ...standardForm, code: resolvedCode });
     } else {
-      appendFormFields(fd, strainForm);
+      appendFormFields(fd, { ...strainForm, code: resolvedCode });
     }
 
     startTransition(async () => {
@@ -190,7 +215,7 @@ export function StockInClient({
         </div>
 
         {tab === "history" ? (
-          <StockInHistoryTable items={history} filter={historyFilter} onFilterChange={setHistoryFilter} />
+          <StockInHistoryTable listResult={historyResult} listQuery={historyListQuery} />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -235,13 +260,28 @@ export function StockInClient({
             </div>
 
             {sourceType === "Chemical" ? (
-              <ChemicalStockInForm form={chemicalForm} options={filteredOptions} onChange={setChemicalForm} />
+              <ChemicalStockInForm
+                form={chemicalForm}
+                options={filteredOptions}
+                groupOptions={chemicalGroups}
+                onChange={setChemicalForm}
+              />
             ) : null}
             {sourceType === "Standard" ? (
-              <StandardStockInForm form={standardForm} options={filteredOptions} onChange={setStandardForm} />
+              <StandardStockInForm
+                form={standardForm}
+                options={filteredOptions}
+                groupOptions={standardGroups}
+                onChange={setStandardForm}
+              />
             ) : null}
             {sourceType === "MicrobialStrain" ? (
-              <StrainStockInForm form={strainForm} options={filteredOptions} onChange={setStrainForm} />
+              <StrainStockInForm
+                form={strainForm}
+                options={filteredOptions}
+                groupOptions={strainGroups}
+                onChange={setStrainForm}
+              />
             ) : null}
 
             <div className="flex justify-end">

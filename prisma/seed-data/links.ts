@@ -148,6 +148,10 @@ export async function seedExtendedPreparedAndUsage(prisma: PrismaClient) {
   if (std7 && chem9) {
     const pstdRoot = await prisma.preparedStandard.create({
       data: {
+        parentCode: "PSTD-0005",
+        codePrefix: "PSTD",
+        sequenceNumber: 5,
+        batchNumber: 1,
         code: "PSTD-0005",
         name: "Paracetamol stock 100 ppm",
         level: PreparedStandardLevel.RootPrepared,
@@ -202,7 +206,11 @@ export async function seedExtendedPreparedAndUsage(prisma: PrismaClient) {
 
     await prisma.preparedStandard.create({
       data: {
-        code: "PSTD-0006",
+        parentCode: "WSTD-0006",
+        codePrefix: "WSTD",
+        sequenceNumber: 6,
+        batchNumber: 1,
+        code: "WSTD-0006",
         name: "Paracetamol working 10 ppm",
         level: PreparedStandardLevel.WorkingPrepared,
         concentration: "10",

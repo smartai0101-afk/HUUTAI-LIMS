@@ -47,16 +47,22 @@ async function releaseSoftDeletedPreparedStrainCodeInner(code: string) {
   }
 }
 
+/** @deprecated ISO policy — sequences are not reused. Kept for import archive only. */
 export function releaseSoftDeletedPreparedChemicalCode(code: string) {
-  return releaseSoftDeletedPreparedChemicalCodeInner(code);
+  void code;
+  return Promise.resolve();
 }
 
+/** @deprecated ISO policy — sequences are not reused. */
 export function releaseSoftDeletedPreparedStandardCode(code: string) {
-  return releaseSoftDeletedPreparedStandardCodeInner(code);
+  void code;
+  return Promise.resolve();
 }
 
+/** @deprecated ISO policy — sequences are not reused. */
 export function releaseSoftDeletedPreparedStrainCode(code: string) {
-  return releaseSoftDeletedPreparedStrainCodeInner(code);
+  void code;
+  return Promise.resolve();
 }
 
 export async function findActivePreparedChemicalByCode(code: string, excludeId?: string) {

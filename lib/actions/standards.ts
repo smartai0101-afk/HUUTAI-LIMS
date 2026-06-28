@@ -9,9 +9,12 @@ import { requireSessionCanEdit, requireSessionCanManage } from "@/lib/auth/guard
 import { masterHasStockLots, quantityChangeBlocked } from "@/lib/catalog-quantity-guard";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import { computeStandardStatus, type StandardExpiryStatus } from "@/lib/standard-status";
+import { reserveMasterCode, resolveCodeFromForm } from "@/lib/services/code-generator";
 
 type StandardWriteData = {
   code: string;
+  codePrefix: string;
+  sequenceNumber: number;
   name: string;
   standardGroup: string;
   manufacturer: string;
@@ -67,11 +70,18 @@ async function resolveCoaPathString(
   return { coaPath: kept || null };
 }
 
-function buildStandardData(fd: FormData, coaPath: string | null): StandardWriteData {
+function buildStandardData(
+  fd: FormData,
+  coaPath: string | null,
+  code: string,
+  sequenceNumber: number,
+): StandardWriteData {
   const expiryDate = parseFormDate(str(fd, "expiryDate"));
   const afterOpenRaw = str(fd, "afterOpenExpiry");
   return {
-    code: str(fd, "code"),
+    code,
+    codePrefix: "STD",
+    sequenceNumber,
     name: str(fd, "name"),
     standardGroup: parseStandardGroup(str(fd, "standardGroup")),
     manufacturer: str(fd, "manufacturer"),
@@ -95,6 +105,8 @@ function buildStandardData(fd: FormData, coaPath: string | null): StandardWriteD
 function toPrismaCreateData(data: StandardWriteData): Prisma.StandardUncheckedCreateInput {
   return {
     code: data.code,
+    codePrefix: data.codePrefix,
+    sequenceNumber: data.sequenceNumber,
     name: data.name,
     standardGroup: data.standardGroup,
     manufacturer: data.manufacturer,
@@ -120,11 +132,11 @@ export async function createStandard(formData: FormData) {
   if ("error" in auth) return { error: auth.error };
 
   const user = auth.user.name || auth.user.email;
-  const code = str(formData, "code");
   const name = str(formData, "name");
+  const { sequenceInput } = resolveCodeFromForm("STD", str(formData, "code"), str(formData, "sequenceNumber"));
 
-  if (!code || !name) {
-    return { error: "Mã và tên chất chuẩn là bắt buộc" };
+  if (!name) {
+    return { error: "Tên chất chuẩn là bắt buộc" };
   }
 
   if (!isValidFormDate(str(formData, "expiryDate"))) {
@@ -136,16 +148,22 @@ export async function createStandard(formData: FormData) {
     return { error: "Hạn sau mở nắp không hợp lệ" };
   }
 
-  const existing = await db.standard.findUnique({ where: { code } });
-  if (existing) {
-    return { error: "Mã chất chuẩn đã tồn tại" };
-  }
-
   const resolved = await resolveCoaPathString(formData);
   if (resolved.error) return { error: resolved.error };
 
-  const writeData = buildStandardData(formData, resolved.coaPath);
-  const standard = await db.standard.create({ data: toPrismaCreateData(writeData) });
+  const result = await db.$transaction(async (tx) => {
+    const reserved = await reserveMasterCode(tx, "STD", sequenceInput);
+    if ("error" in reserved) return { error: reserved.error };
+
+    const standard = await tx.standard.create({
+      data: toPrismaCreateData(buildStandardData(formData, resolved.coaPath, reserved.code, reserved.sequenceNumber)),
+    });
+    return { standard, code: reserved.code };
+  });
+
+  if ("error" in result) return { error: result.error };
+
+  const { standard, code } = result;
 
   await logActivity({
     user,
@@ -168,10 +186,9 @@ export async function updateStandard(formData: FormData) {
 
   const user = auth.user.name || auth.user.email;
   const id = str(formData, "id");
-  const code = str(formData, "code");
   const name = str(formData, "name");
 
-  if (!id || !code || !name) {
+  if (!id || !name) {
     return { error: "Thiếu thông tin bắt buộc" };
   }
 
@@ -190,7 +207,7 @@ export async function updateStandard(formData: FormData) {
   const resolved = await resolveCoaPathString(formData, before.coaPath);
   if (resolved.error) return { error: resolved.error };
 
-  const writeData = buildStandardData(formData, resolved.coaPath);
+  const writeData = buildStandardData(formData, resolved.coaPath, before.code, before.sequenceNumber);
   const hasLots = await masterHasStockLots(db, "Standard", id);
   const qtyBlock = quantityChangeBlocked(hasLots, before.quantity, writeData.quantity);
   if (qtyBlock) return { error: qtyBlock };
@@ -202,7 +219,7 @@ export async function updateStandard(formData: FormData) {
     action: "Updated",
     entityType: "Standard",
     entityId: id,
-    object: code,
+    object: before.code,
     before,
     after: standard,
   });

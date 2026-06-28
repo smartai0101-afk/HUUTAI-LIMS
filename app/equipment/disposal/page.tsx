@@ -1,17 +1,23 @@
 import { Suspense } from "react";
 import { DisposalClient } from "@/components/equipment/DisposalClient";
 import { getEquipmentOptions } from "@/lib/services/equipment-catalog";
-import { getDisposals } from "@/lib/services/equipment-disposal";
+import { listDisposals, parseDisposalListParams } from "@/lib/services/equipment-disposal";
 
-export default async function DisposalPage() {
-  const [items, equipmentOptions] = await Promise.all([
-    getDisposals(),
+export default async function DisposalPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const query = parseDisposalListParams(params);
+  const [result, equipmentOptions] = await Promise.all([
+    listDisposals(query),
     getEquipmentOptions(),
   ]);
 
   return (
     <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-slate-100" />}>
-      <DisposalClient items={items} equipmentOptions={equipmentOptions} />
+      <DisposalClient result={result} equipmentOptions={equipmentOptions} listQuery={query} />
     </Suspense>
   );
 }

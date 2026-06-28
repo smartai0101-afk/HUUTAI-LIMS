@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { DataTable } from "@/components/DataTable";
 import type { PermissionKey } from "@/lib/auth/nav-permissions";
+import { nextSortParams, type SortOrder } from "@/lib/list-query";
 import type { NotificationView } from "@/lib/notifications/types";
 
 type ModuleOption = { key: PermissionKey; label: string };
@@ -12,6 +15,8 @@ type Props = {
 };
 
 type TimeFilter = "all" | "7d" | "30d";
+
+type NotificationSortKey = "createdAt" | "actorName" | "moduleLabel" | "action" | "recordLabel";
 
 function formatRelativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -32,6 +37,7 @@ function timeRange(filter: TimeFilter): { from?: string; to?: string } {
 }
 
 export function NotificationsClient({ modules }: Props) {
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [moduleKey, setModuleKey] = useState<string>("");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
@@ -39,6 +45,9 @@ export function NotificationsClient({ modules }: Props) {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<NotificationSortKey>("createdAt");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [sortActive, setSortActive] = useState(false);
 
   const pageSize = 20;
 
@@ -49,6 +58,8 @@ export function NotificationsClient({ modules }: Props) {
         limit: String(pageSize),
         offset: String(nextOffset),
         filter,
+        sortBy,
+        sortOrder,
       });
       if (moduleKey) params.set("module", moduleKey);
       const range = timeRange(timeFilter);
@@ -65,12 +76,20 @@ export function NotificationsClient({ modules }: Props) {
         setLoading(false);
       }
     },
-    [filter, moduleKey, timeFilter],
+    [filter, moduleKey, timeFilter, sortBy, sortOrder],
   );
 
   useEffect(() => {
     void fetchNotifications(0, false);
   }, [fetchNotifications]);
+
+  const toggleSort = (sortKey: string) => {
+    const key = sortKey as NotificationSortKey;
+    const next = nextSortParams(key, sortBy, sortOrder);
+    setSortBy((next.sortBy as NotificationSortKey) ?? "createdAt");
+    setSortOrder(next.sortOrder ?? "desc");
+    setSortActive(Boolean(next.sortBy));
+  };
 
   async function markAllRead() {
     await fetch("/api/notifications/read-all", { method: "PATCH" });
@@ -138,36 +157,73 @@ export function NotificationsClient({ modules }: Props) {
         ) : items.length === 0 ? (
           <p className="px-6 py-10 text-center text-sm text-slate-500">Không có thông báo phù hợp bộ lọc</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {items.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={item.href}
-                  onClick={() => {
-                    if (!item.read) void markOneRead(item.id);
-                  }}
-                  className={`flex flex-col gap-1 px-5 py-4 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between ${item.read ? "" : "bg-cyan-50/40"}`}
-                >
-                  <div>
-                    <p className="text-sm text-slate-900">
-                      <span className="font-semibold">{item.actorName}</span>{" "}
-                      <span className="text-slate-600">{item.actionLabel}</span>{" "}
-                      <span className="text-slate-800">{item.recordLabel}</span>
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {item.moduleLabel} · {item.entityType}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-400">
-                    {!item.read ? (
-                      <span className="rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-700">Mới</span>
+          <DataTable
+            columns={[
+              {
+                key: "createdAt",
+                header: "Thời gian",
+                sortable: true,
+                sortKey: "createdAt",
+                render: (v, row) => (
+                  <div className="flex items-center gap-2">
+                    {!row.read ? (
+                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">
+                        Mới
+                      </span>
                     ) : null}
-                    <span>{formatRelativeTime(item.createdAt)}</span>
+                    <span className="text-xs text-slate-500">{formatRelativeTime(String(v))}</span>
                   </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                ),
+              },
+              {
+                key: "actorName",
+                header: "Người thực hiện",
+                sortable: true,
+                sortKey: "actorName",
+                render: (v) => <span className="font-semibold text-slate-900">{String(v)}</span>,
+              },
+              {
+                key: "actionLabel",
+                header: "Hành động",
+                sortable: true,
+                sortKey: "action",
+              },
+              {
+                key: "recordLabel",
+                header: "Bản ghi",
+                sortable: true,
+                sortKey: "recordLabel",
+                render: (v, row) => (
+                  <Link href={row.href} onClick={() => !row.read && void markOneRead(row.id)} className="text-slate-800 hover:underline">
+                    {String(v)}
+                  </Link>
+                ),
+              },
+              {
+                key: "moduleLabel",
+                header: "Module",
+                sortable: true,
+                sortKey: "moduleLabel",
+                render: (v, row) => (
+                  <span className="text-xs text-slate-500">
+                    {String(v)} · {row.entityType}
+                  </span>
+                ),
+              },
+            ]}
+            rows={items}
+            getRowKey={(row) => row.id}
+            onRowClick={(row) => {
+              if (!row.read) void markOneRead(row.id);
+              router.push(row.href);
+            }}
+            sort={{
+              sortBy,
+              sortOrder,
+              sortActive,
+              onSort: toggleSort,
+            }}
+          />
         )}
       </div>
 

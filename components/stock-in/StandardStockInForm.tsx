@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
-import { DEFAULT_STANDARD_GROUPS } from "@/lib/standards-fields";
+import { useEffect, useMemo } from "react";
+import { CodeSequenceInput } from "@/components/shared/CodeSequenceInput";
 import { computeStandardStatus, standardStatusLabel } from "@/lib/standard-status";
 import type { StockInMasterOption } from "@/lib/services/stock-in-options";
+import { formatStockInCodeFromSequence } from "@/lib/stock-in-code";
 import { findStandardOptionByIdentity } from "@/lib/stock-in-form-helpers";
 
 export type StandardStockInFormState = {
   existingMasterId: string;
   code: string;
+  sequenceNumber: string;
   name: string;
   standardGroup: string;
   manufacturer: string;
@@ -30,6 +32,7 @@ export type StandardStockInFormState = {
 type Props = {
   form: StandardStockInFormState;
   options: StockInMasterOption[];
+  groupOptions: string[];
   onChange: (next: StandardStockInFormState) => void;
 };
 
@@ -40,7 +43,7 @@ function previewStatus(expiryDate: string) {
   return standardStatusLabel(computeStandardStatus(date));
 }
 
-export function StandardStockInForm({ form, options, onChange }: Props) {
+export function StandardStockInForm({ form, options, groupOptions, onChange }: Props) {
   const identityInput = useMemo(
     () => ({
       name: form.name,
@@ -55,7 +58,8 @@ export function StandardStockInForm({ form, options, onChange }: Props) {
     [options, identityInput],
   );
 
-  const codeLocked = identityMatch !== null;
+  const resolvedCode = identityMatch?.code ?? form.code;
+  const isExistingMaster = Boolean(identityMatch?.code || (form.existingMasterId && resolvedCode));
 
   const set = (patch: Partial<StandardStockInFormState>) => onChange({ ...form, ...patch });
 
@@ -70,6 +74,7 @@ export function StandardStockInForm({ form, options, onChange }: Props) {
         ...next,
         existingMasterId: match.id,
         code: match.code,
+        sequenceNumber: "",
         standardGroup: match.standardGroup ?? next.standardGroup,
         manufacturer: match.manufacturer,
         casNumber: match.casNumber ?? next.casNumber,
@@ -82,6 +87,13 @@ export function StandardStockInForm({ form, options, onChange }: Props) {
     }
     onChange({ ...next, existingMasterId: "" });
   };
+
+  useEffect(() => {
+    if (!identityMatch) return;
+    if (form.existingMasterId === identityMatch.id && form.code === identityMatch.code) return;
+    applyIdentityResolution(form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when identity match appears
+  }, [identityMatch?.id]);
 
   const handleIdentityFieldChange = (
     key: "name" | "manufacturer" | "productCode",
@@ -99,6 +111,7 @@ export function StandardStockInForm({ form, options, onChange }: Props) {
     set({
       existingMasterId: selected.id,
       code: selected.code,
+      sequenceNumber: "",
       name: selected.name,
       standardGroup: selected.standardGroup ?? form.standardGroup,
       manufacturer: selected.manufacturer,
@@ -134,15 +147,30 @@ export function StandardStockInForm({ form, options, onChange }: Props) {
         </p>
       ) : null}
 
-      <label className="space-y-1">
-        <span className="text-sm font-medium text-slate-700">Mã chuẩn</span>
-        <input
-          readOnly={codeLocked}
-          value={form.code}
-          onChange={(e) => set({ code: e.target.value })}
-          className={`h-10 w-full rounded-xl border border-slate-200 px-3 text-sm ${codeLocked ? "bg-slate-50 text-slate-600" : ""}`}
+      {isExistingMaster ? (
+        <label className="space-y-1">
+          <span className="text-sm font-medium text-slate-700">Mã chuẩn</span>
+          <input
+            readOnly
+            value={resolvedCode}
+            className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600"
+          />
+        </label>
+      ) : (
+        <CodeSequenceInput
+          prefix="STD"
+          sequence={form.sequenceNumber}
+          onSequenceChange={(sequence) =>
+            onChange({
+              ...form,
+              sequenceNumber: sequence,
+              code: formatStockInCodeFromSequence("STD", sequence),
+            })
+          }
+          mode="create"
+          label="Mã chuẩn"
         />
-      </label>
+      )}
 
       <label className="space-y-1">
         <span className="text-sm font-medium text-slate-700">Tên chuẩn</span>
@@ -203,17 +231,18 @@ export function StandardStockInForm({ form, options, onChange }: Props) {
 
       <label className="space-y-1">
         <span className="text-sm font-medium text-slate-700">Nhóm chuẩn</span>
-        <select
+        <input
+          list="stock-in-standard-group-options"
           value={form.standardGroup}
           onChange={(e) => set({ standardGroup: e.target.value })}
+          placeholder="CRM, RM, Working hoặc nhóm mới"
           className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
-        >
-          {DEFAULT_STANDARD_GROUPS.map((group) => (
-            <option key={group} value={group}>
-              {group}
-            </option>
+        />
+        <datalist id="stock-in-standard-group-options">
+          {groupOptions.map((group) => (
+            <option key={group} value={group} />
           ))}
-        </select>
+        </datalist>
       </label>
 
       <label className="space-y-1">

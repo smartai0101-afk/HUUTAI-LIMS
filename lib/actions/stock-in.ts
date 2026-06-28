@@ -1,6 +1,5 @@
 "use server";
 
-import type { StockInSourceType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/audit";
 import { requireSessionCanEdit } from "@/lib/auth/guards";
@@ -9,6 +8,7 @@ import { db } from "@/lib/db";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import { parseStockInSourceType } from "@/lib/services/stock-in-match";
 import { STOCK_IN_VALIDATION } from "@/lib/stock-in-fields";
+import { resolveStockInCode } from "@/lib/stock-in-code";
 import { describeUnitMismatch, unitsAreConvertible } from "@/lib/inventory-units";
 import { applyStockIn } from "@/lib/stock-lot";
 import { ensureMaster } from "@/lib/stock-in-master";
@@ -58,7 +58,8 @@ export async function createStockIn(formData: FormData) {
 
   if (!sourceType) return { error: STOCK_IN_VALIDATION.missingType };
 
-  const code = str(formData, "code");
+  const code = resolveStockInCode(sourceType, str(formData, "code"), str(formData, "sequenceNumber"));
+  formData.set("code", code);
   const name = str(formData, "name");
   const lot = str(formData, "lot");
   const unit = str(formData, "unit");

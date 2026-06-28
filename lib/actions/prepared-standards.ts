@@ -23,8 +23,15 @@ import {
 } from "@/lib/prepared-code-guard";
 import {
   assertValidParentCode,
+  previewPreparedBatchFromSequence,
+  resolvePreparedBatchFromSequence,
   resolvePreparedBatchIdentity,
 } from "@/lib/prepared-batch-code";
+import {
+  assertPrefixMatchesPreparedStandardLevel,
+  isPreparedStandardMasterCode,
+  prefixForPreparedStandard,
+} from "@/lib/code-prefixes";
 import { computePreparedStandardStatus } from "@/lib/prepared-standard-status";
 import {
   PARENT_LEVEL_REQUIRED_MESSAGE,
@@ -105,7 +112,7 @@ type SolventInput = {
   lotNumber?: string;
 };
 
-const PREPARED_STANDARD_CODE_PATTERN = /^PSTD-/i;
+const PREPARED_STANDARD_CODE_PATTERN = isPreparedStandardMasterCode;
 
 function str(fd: FormData, key: string) {
   return String(fd.get(key) ?? "").trim();
@@ -141,7 +148,7 @@ function parseJsonArray<T>(raw: string, label: string): T[] | { error: string } 
 function normalizeRelationId(value: unknown, label: string): string | { error: string } {
   const id = String(value ?? "").trim();
   if (!id) return { error: `${label} là bắt buộc` };
-  if (PREPARED_STANDARD_CODE_PATTERN.test(id)) {
+  if (PREPARED_STANDARD_CODE_PATTERN(id)) {
     return {
       error: `${label} không hợp lệ — phải là ID database, không phải mã chuẩn. Vui lòng chọn lại từ dropdown.`,
     };
@@ -429,6 +436,7 @@ async function buildSolventCreates(tx: Prisma.TransactionClient, items: SolventI
 function buildBaseData(fd: FormData) {
   return {
     parentCode: str(fd, "parentCode"),
+    sequenceNumber: str(fd, "sequenceNumber"),
     code: str(fd, "code"),
     name: str(fd, "name"),
     level: parseLevel(str(fd, "level")),
@@ -467,8 +475,9 @@ function validateBase(
   options?: { requireParentCode?: boolean },
 ) {
   if (options?.requireParentCode) {
-    const parentError = assertValidParentCode(data.parentCode);
-    if (parentError) return parentError;
+    if (!data.parentCode && !data.sequenceNumber) {
+      return "Số thứ tự mã chuẩn pha là bắt buộc";
+    }
   } else if (!data.code) {
     return "Mã chuẩn pha chế là bắt buộc";
   }
@@ -484,10 +493,22 @@ function validateBase(
 }
 
 export async function previewNextPreparedStandardBatchCode(fd: FormData) {
-  const parentCode = str(fd, "parentCode");
-  const parentError = assertValidParentCode(parentCode);
-  if (parentError) return { error: parentError };
-  const resolved = await resolvePreparedBatchIdentity(db, "PreparedStandard", parentCode);
+  const level = parseLevel(str(fd, "level"));
+  if (!level) return { error: "Cấp chuẩn là bắt buộc" };
+  const prefix = prefixForPreparedStandard(level);
+  const fixedParent = str(fd, "parentCode");
+
+  if (fixedParent) {
+    const parentError = assertValidParentCode(fixedParent);
+    if (parentError) return { error: parentError };
+    const resolved = await resolvePreparedBatchIdentity(db, "PreparedStandard", fixedParent);
+    if ("error" in resolved) return { error: resolved.error };
+    return { success: true, ...resolved, codePrefix: prefix, sequenceNumber: 0 };
+  }
+
+  const sequenceNumber = str(fd, "sequenceNumber");
+  if (!sequenceNumber) return { error: "Nhập số thứ tự để xem mã lô" };
+  const resolved = await previewPreparedBatchFromSequence(db, "PreparedStandard", prefix, sequenceNumber);
   if ("error" in resolved) return { error: resolved.error };
   return { success: true, ...resolved };
 }
@@ -517,8 +538,17 @@ export async function createPreparedStandard(fd: FormData) {
 
   try {
     const row = await db.$transaction(async (tx) => {
-      const batchIdentity = await resolvePreparedBatchIdentity(tx, "PreparedStandard", data.parentCode);
+      const prefix = prefixForPreparedStandard(data.level!);
+      const batchIdentity = data.parentCode
+        ? await resolvePreparedBatchFromSequence(tx, "PreparedStandard", prefix, null, data.parentCode)
+        : await resolvePreparedBatchFromSequence(tx, "PreparedStandard", prefix, data.sequenceNumber);
       if ("error" in batchIdentity) throw new Error(batchIdentity.error);
+
+      const prefixError = assertPrefixMatchesPreparedStandardLevel(
+        batchIdentity.codePrefix,
+        data.level!,
+      );
+      if (prefixError) throw new Error(prefixError);
 
       const resolvedComponents = await resolveComponentLots(tx, components, data.level!);
       if ("error" in resolvedComponents) throw new Error(resolvedComponents.error);
@@ -534,6 +564,8 @@ export async function createPreparedStandard(fd: FormData) {
         data: {
           id: newId,
           parentCode: batchIdentity.parentCode,
+          codePrefix: batchIdentity.codePrefix,
+          sequenceNumber: batchIdentity.sequenceNumber,
           batchNumber: batchIdentity.batchNumber,
           code: batchIdentity.code,
           name: data.name,
@@ -611,6 +643,9 @@ export async function updatePreparedStandard(fd: FormData) {
   });
   if (!before) return { error: "Không tìm thấy chuẩn pha chế" };
   if (before.deletedAt) return { error: "Bản ghi đã bị xóa" };
+  if (data.level !== before.level) {
+    return { error: "Không thể đổi cấp chuẩn sau khi đã tạo — mã prefix đã cố định" };
+  }
   if (before.workflowStatus === "Prepared" || before.workflowStatus === "Checked") {
     return { error: "Không thể sửa trực tiếp — hủy hoặc chuyển trạng thái trước" };
   }

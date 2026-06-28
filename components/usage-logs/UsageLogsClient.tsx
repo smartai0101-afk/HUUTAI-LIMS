@@ -7,6 +7,7 @@ import { Download, Plus, Search, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { UsageStatsPanel } from "@/components/usage-logs/UsageStatsPanel";
@@ -14,6 +15,9 @@ import { USER_DISPLAY_NAME, useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
 import { StockLotPicker } from "@/components/StockLotPicker";
 import { createUsageLog, deleteUsageLog } from "@/lib/actions/usage-logs";
+import { fetchUsageLogsExport } from "@/lib/actions/list-export";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
 import {
   emptyStockLotSelection,
   pickDefaultStockLot,
@@ -28,6 +32,7 @@ import type {
   UsagePurposeStatRow,
 } from "@/lib/services/usage-log-stats";
 import type { StaffView } from "@/lib/services/staff";
+import type { UsageLogListParams } from "@/lib/services/usage-logs";
 import {
   USAGE_LOG_TYPE_LABELS,
   USAGE_PURPOSE_SUGGESTIONS,
@@ -82,7 +87,8 @@ function buildInitialForm(defaultPerformer: string): FormState {
 }
 
 export function UsageLogsClient({
-  items,
+  journalResult,
+  listQuery,
   itemOptions,
   staff,
   employeeStats,
@@ -94,7 +100,8 @@ export function UsageLogsClient({
   employeeNames,
   statsPeriod,
 }: {
-  items: UsageLogView[];
+  journalResult: PaginatedResult<UsageLogView>;
+  listQuery: UsageLogListParams;
   itemOptions: UsageLogItemOption[];
   staff: StaffView[];
   employeeStats: UsageEmployeeStatRow[];
@@ -108,12 +115,10 @@ export function UsageLogsClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setQuery, setFilter, toggleSort, setPage, setLimit } = useListQueryState();
   const [activeTab, setActiveTab] = useState<"journal" | "stats">(
     searchParams.get("tab") === "stats" ? "stats" : "journal",
   );
-  const [selectedType, setSelectedType] = useState("All");
-  const [sourceFilter, setSourceFilter] = useState<(typeof sourceTypeFilters)[number]["value"]>("all");
-  const [query, setQuery] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(searchParams.get("openForm") === "1");
   const [form, setForm] = useState<FormState>(() => buildInitialForm(USER_DISPLAY_NAME));
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -162,17 +167,6 @@ export function UsageLogsClient({
     () => itemOptions.find((item) => item.id === form.sourceId) ?? null,
     [form.sourceId, itemOptions],
   );
-
-  const rows = useMemo(() => {
-    return items.filter((row) => {
-      const matchType = selectedType === "All" || row.type === selectedType;
-      const matchSource = sourceFilter === "all" || row.sourceType === sourceFilter;
-      const matchQuery = [row.itemCode, row.itemName, row.performedBy, row.purpose, row.sourceLabel, row.notes].some(
-        (value) => value.toLowerCase().includes(query.toLowerCase()),
-      );
-      return matchType && matchSource && matchQuery;
-    });
-  }, [items, query, selectedType, sourceFilter]);
 
   const handleSourceTypeChange = (sourceType: UsageSourceType) => {
     setForm((prev) => ({
@@ -274,23 +268,26 @@ export function UsageLogsClient({
   };
 
   const handleExport = () => {
-    downloadCsv(
-      "usage-logs-export",
-      rows.map((item) => ({
-        date: item.date,
-        type: item.type,
-        sourceType: item.sourceLabel,
-        itemCode: item.itemCode,
-        itemName: item.itemName,
-        quantity: item.quantity,
-        unit: item.unit,
-        performedBy: item.performedBy,
-        purpose: item.purpose,
-        referenceCode: item.referenceCode,
-        notes: item.notes,
-      })),
-    );
-    addToast("Đã export CSV thành công", "success");
+    startTransition(async () => {
+      const rows = await fetchUsageLogsExport(listQuery);
+      downloadCsv(
+        "usage-logs-export",
+        rows.map((item) => ({
+          date: item.date,
+          type: item.type,
+          sourceType: item.sourceLabel,
+          itemCode: item.itemCode,
+          itemName: item.itemName,
+          quantity: item.quantity,
+          unit: item.unit,
+          performedBy: item.performedBy,
+          purpose: item.purpose,
+          referenceCode: item.referenceCode,
+          notes: item.notes,
+        })),
+      );
+      addToast(`Đã export ${rows.length} dòng CSV`, "success");
+    });
   };
 
   const openCreateForm = () => {
@@ -318,13 +315,19 @@ export function UsageLogsClient({
           <div>
             <p className="text-sm text-slate-500">Operation</p>
             <h1 className="text-2xl font-semibold text-slate-900">Nhật ký sử dụng</h1>
+            {activeTab === "journal" ? (
+              <p className="mt-1 text-sm text-slate-600">
+                {journalResult.total} bản ghi · trang {journalResult.page}/{journalResult.totalPages}
+              </p>
+            ) : null}
           </div>
           <div className="flex gap-2">
             {activeTab === "journal" ? (
               <button
                 type="button"
                 onClick={handleExport}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+                disabled={pending}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-50"
               >
                 <Download className="h-4 w-4" />
                 Export CSV
@@ -373,7 +376,7 @@ export function UsageLogsClient({
                 <div className="relative max-w-sm">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
-                    value={query}
+                    value={listQuery.q}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Tìm mã, tên, nhân viên, mục đích..."
                     className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
@@ -384,9 +387,9 @@ export function UsageLogsClient({
                     <button
                       key={filter.value}
                       type="button"
-                      onClick={() => setSourceFilter(filter.value)}
+                      onClick={() => setFilter("sourceFilter", filter.value === "all" ? null : filter.value)}
                       className={`rounded-xl px-3 py-2 text-sm ${
-                        sourceFilter === filter.value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+                        listQuery.sourceFilter === filter.value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
                       }`}
                     >
                       {filter.label}
@@ -398,9 +401,9 @@ export function UsageLogsClient({
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setSelectedType(type)}
+                      onClick={() => setFilter("typeFilter", type === "All" ? null : type)}
                       className={`rounded-xl px-3 py-2 text-sm ${
-                        selectedType === type ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"
+                        listQuery.typeFilter === type ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"
                       }`}
                     >
                       {type === "All" ? "Tất cả loại GD" : (USAGE_LOG_TYPE_LABELS[type] ?? type)}
@@ -410,37 +413,59 @@ export function UsageLogsClient({
               </div>
             </div>
 
-            <DataTable
-              columns={[
-                { key: "date", header: "Ngày", render: (v) => formatDate(String(v)) },
-                { key: "type", header: "Loại", render: (v) => <StatusBadge status={String(v)} /> },
-                { key: "sourceLabel", header: "Loại vật tư" },
-                { key: "itemCode", header: "Mã" },
-                { key: "itemName", header: "Tên" },
-                { key: "quantity", header: "Số lượng", render: (_, row) => `${row.quantity} ${row.unit}` },
-                { key: "performedBy", header: "Người thực hiện" },
-                { key: "purpose", header: "Mục đích" },
-                { key: "notes", header: "Ghi chú" },
-                {
-                  key: "id",
-                  header: "",
-                  render: (_v, row) =>
-                    canManage ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteId(row.id);
-                        }}
-                        className="rounded-lg p-1 text-rose-600 hover:bg-rose-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : null,
-                },
-              ]}
-              rows={rows}
-            />
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <DataTable
+                columns={[
+                  { key: "date", header: "Ngày", sortable: true, sortKey: "date", render: (v) => formatDate(String(v)) },
+                  { key: "type", header: "Loại", sortable: true, sortKey: "type", render: (v) => <StatusBadge status={String(v)} /> },
+                  { key: "sourceLabel", header: "Loại vật tư" },
+                  { key: "itemCode", header: "Mã" },
+                  { key: "itemName", header: "Tên" },
+                  {
+                    key: "quantity",
+                    header: "Số lượng",
+                    sortable: true,
+                    sortKey: "quantity",
+                    render: (_, row) => `${row.quantity} ${row.unit}`,
+                  },
+                  { key: "performedBy", header: "Người thực hiện", sortable: true, sortKey: "performedBy" },
+                  { key: "purpose", header: "Mục đích" },
+                  { key: "notes", header: "Ghi chú" },
+                  {
+                    key: "id",
+                    header: "",
+                    render: (_v, row) =>
+                      canManage ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(row.id);
+                          }}
+                          className="rounded-lg p-1 text-rose-600 hover:bg-rose-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : null,
+                  },
+                ]}
+                rows={journalResult.items}
+                sort={{
+                  sortBy: listQuery.sortBy,
+                  sortOrder: listQuery.sortOrder,
+                  sortActive: listQuery.sortActive,
+                  onSort: toggleSort,
+                }}
+              />
+              <ListPaginationBar
+                page={journalResult.page}
+                totalPages={journalResult.totalPages}
+                total={journalResult.total}
+                limit={journalResult.limit}
+                onPageChange={setPage}
+                onLimitChange={setLimit}
+              />
+            </div>
           </>
         ) : (
           <UsageStatsPanel

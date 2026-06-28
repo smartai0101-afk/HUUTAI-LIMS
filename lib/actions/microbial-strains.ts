@@ -9,9 +9,12 @@ import { requireSessionCanEdit, requireSessionCanManage } from "@/lib/auth/guard
 import { masterHasStockLots, quantityChangeBlocked } from "@/lib/catalog-quantity-guard";
 import { isValidFormDate, parseFormDate } from "@/lib/modules/shared";
 import { computeStandardStatus, type StandardExpiryStatus } from "@/lib/standard-status";
+import { reserveMasterCode, resolveCodeFromForm } from "@/lib/services/code-generator";
 
 type StrainWriteData = {
   code: string;
+  codePrefix: string;
+  sequenceNumber: number;
   name: string;
   strainGroup: string;
   manufacturer: string;
@@ -58,10 +61,12 @@ async function resolveCoaPathString(
   return { coaPath: kept || null };
 }
 
-function buildData(fd: FormData, coaPath: string | null): StrainWriteData {
+function buildData(fd: FormData, coaPath: string | null, code: string, sequenceNumber: number): StrainWriteData {
   const expiryDate = parseFormDate(str(fd, "expiryDate"));
   return {
-    code: str(fd, "code"),
+    code,
+    codePrefix: "STR",
+    sequenceNumber,
     name: str(fd, "name"),
     strainGroup: parseGroup(str(fd, "strainGroup")),
     manufacturer: str(fd, "manufacturer"),
@@ -93,17 +98,28 @@ export async function createMicrobialStrain(formData: FormData) {
   if ("error" in auth) return { error: auth.error };
 
   const user = auth.user.name || auth.user.email;
-  const code = str(formData, "code");
   const name = str(formData, "name");
+  const { sequenceInput } = resolveCodeFromForm("STR", str(formData, "code"), str(formData, "sequenceNumber"));
 
-  if (!code || !name) return { error: "Mã và tên chủng là bắt buộc" };
+  if (!name) return { error: "Tên chủng là bắt buộc" };
   if (!isValidFormDate(str(formData, "expiryDate"))) return { error: "Ngày hết hạn không hợp lệ" };
-  if (await db.microbialStrain.findUnique({ where: { code } })) return { error: "Mã chủng đã tồn tại" };
 
   const resolved = await resolveCoaPathString(formData);
   if (resolved.error) return { error: resolved.error };
 
-  const row = await db.microbialStrain.create({ data: toPrisma(buildData(formData, resolved.coaPath)) });
+  const result = await db.$transaction(async (tx) => {
+    const reserved = await reserveMasterCode(tx, "STR", sequenceInput);
+    if ("error" in reserved) return { error: reserved.error };
+
+    const row = await tx.microbialStrain.create({
+      data: toPrisma(buildData(formData, resolved.coaPath, reserved.code, reserved.sequenceNumber)),
+    });
+    return { row, code: reserved.code };
+  });
+
+  if ("error" in result) return { error: result.error };
+
+  const { row, code } = result;
 
   await logActivity({ user, action: "Created", entityType: "MicrobialStrain", entityId: row.id, object: code, after: row });
   revalidatePath("/microbial-strains");
@@ -118,10 +134,9 @@ export async function updateMicrobialStrain(formData: FormData) {
 
   const user = auth.user.name || auth.user.email;
   const id = str(formData, "id");
-  const code = str(formData, "code");
   const name = str(formData, "name");
 
-  if (!id || !code || !name) return { error: "Thiếu thông tin bắt buộc" };
+  if (!id || !name) return { error: "Thiếu thông tin bắt buộc" };
   if (!isValidFormDate(str(formData, "expiryDate"))) return { error: "Ngày hết hạn không hợp lệ" };
 
   const before = await db.microbialStrain.findUnique({ where: { id } });
@@ -130,14 +145,14 @@ export async function updateMicrobialStrain(formData: FormData) {
   const resolved = await resolveCoaPathString(formData, before.coaPath);
   if (resolved.error) return { error: resolved.error };
 
-  const writeData = buildData(formData, resolved.coaPath);
+  const writeData = buildData(formData, resolved.coaPath, before.code, before.sequenceNumber);
   const hasLots = await masterHasStockLots(db, "MicrobialStrain", id);
   const qtyBlock = quantityChangeBlocked(hasLots, before.quantity, writeData.quantity);
   if (qtyBlock) return { error: qtyBlock };
 
   const row = await db.microbialStrain.update({ where: { id }, data: toPrisma(writeData) });
 
-  await logActivity({ user, action: "Updated", entityType: "MicrobialStrain", entityId: id, object: code, before, after: row });
+  await logActivity({ user, action: "Updated", entityType: "MicrobialStrain", entityId: id, object: before.code, before, after: row });
   revalidatePath("/microbial-strains");
   revalidatePath("/prepared-strains");
   revalidatePath("/");

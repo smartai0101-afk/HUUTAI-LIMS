@@ -13,6 +13,8 @@ import { ModalShell } from "@/components/ModalShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CoaLink } from "@/components/standards/CoaLink";
 import { CatalogPreparedDerivatives } from "@/components/preparation/CatalogPreparedDerivatives";
+import { CodeSequenceInput } from "@/components/shared/CodeSequenceInput";
+import { parseMasterCode, parseLegacyStrainCode, formatSequenceDisplay } from "@/lib/code-prefixes";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
 import { bulkImportMicrobialStrains, previewMicrobialStrainsImport } from "@/lib/actions/catalog-import";
@@ -21,13 +23,15 @@ import { deleteStockLot } from "@/lib/actions/stock-lot";
 import {
   STRAIN_FORM_FIELD_KEYS,
   STRAIN_GROUP_FILTER_ALL,
-  STRAIN_GROUP_FILTER_OPTIONS,
+  buildStrainGroupFilterOptions,
   STRAIN_IMPORT_COLUMN_MAP,
-  type StrainGroupFilter,
 } from "@/lib/strains-fields";
 import { CATALOG_EXCEL, buildStrainExportRows } from "@/lib/catalog-excel";
-import { expandCatalogToLotRows, groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
+import { groupedCell, type CatalogLotRowMeta } from "@/lib/catalog-lot-rows";
 import { exportToXlsx } from "@/lib/excel";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { CatalogListParams } from "@/lib/services/catalog-lot-list";
 import { computeStandardStatus, STANDARD_STATUS_FILTERS, standardStatusLabel } from "@/lib/standard-status";
 import { formatDate } from "@/lib/utils";
 import type { MicrobialStrainView } from "@/types";
@@ -36,6 +40,7 @@ type StrainLotRow = MicrobialStrainView & CatalogLotRowMeta;
 
 const initialForm = {
   code: "",
+  sequenceNumber: "",
   name: "",
   strainGroup: "Vi khuẩn",
   manufacturer: "",
@@ -54,7 +59,6 @@ const initialForm = {
 type FormState = typeof initialForm;
 
 const formFields: { key: keyof FormState; label: string; type?: "text" | "date" | "number"; colSpan?: boolean }[] = [
-  { key: "code", label: "Mã" },
   { key: "name", label: "Tên chủng" },
   { key: "manufacturer", label: "Hãng/Nguồn cung cấp" },
   { key: "atccProductCode", label: "Mã ATCC / PRODUCT CODE" },
@@ -95,17 +99,26 @@ function previewStatus(expiryDate: string) {
   return standardStatusLabel(computeStandardStatus(date));
 }
 
-export function MicrobialStrainsClient({ items, groupOptions }: { items: MicrobialStrainView[]; groupOptions: string[] }) {
+export function MicrobialStrainsClient({
+  result,
+  groupOptions,
+  listQuery,
+}: {
+  result: PaginatedResult<StrainLotRow>;
+  groupOptions: string[];
+  listQuery: CatalogListParams;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<StrainGroupFilter>(STRAIN_GROUP_FILTER_ALL);
-  const [statusFilter, setStatusFilter] = useState<(typeof STANDARD_STATUS_FILTERS)[number]>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<StrainLotRow | null>(() => {
     const code = searchParams.get("code");
     if (!code) return null;
-    const rows = expandCatalogToLotRows(items);
-    return rows.find((i) => i.code === code && i.showMasterFields) ?? rows.find((i) => i.code === code) ?? null;
+    return (
+      result.items.find((i) => i.code === code && i.showMasterFields) ??
+      result.items.find((i) => i.code === code) ??
+      null
+    );
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -114,29 +127,15 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StrainLotRow | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const groupFilterOptions = useMemo(
+    () => buildStrainGroupFilterOptions(groupOptions),
+    [groupOptions],
+  );
   const [pending, startTransition] = useTransition();
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const displayRows = useMemo(() => expandCatalogToLotRows(items), [items]);
-
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return displayRows.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.code.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.manufacturer.toLowerCase().includes(q) ||
-        item.atccProductCode.toLowerCase().includes(q) ||
-        item.lot.toLowerCase().includes(q) ||
-        item.storageLocation.toLowerCase().includes(q) ||
-        item.storageCondition.toLowerCase().includes(q);
-      const matchGroup = group === STRAIN_GROUP_FILTER_ALL || item.strainGroup === group;
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchGroup && matchStatus;
-    });
-  }, [displayRows, query, group, statusFilter]);
+  const filtered = result.items;
 
   const openCreate = () => {
     setIsEditing(false);
@@ -151,6 +150,10 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
     setEditingId(item.id);
     setForm({
       code: item.code,
+      sequenceNumber: (() => {
+        const parsed = parseMasterCode(item.code) ?? parseLegacyStrainCode(item.code);
+        return parsed ? formatSequenceDisplay(parsed.sequenceNumber) : item.code.replace(/^(STR|MS)-/i, "");
+      })(),
       name: item.name,
       strainGroup: item.strainGroup,
       manufacturer: item.manufacturer,
@@ -170,7 +173,7 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
   };
 
   const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim()) {
+    if ((!isEditing && !form.sequenceNumber.trim()) || !form.name.trim()) {
       addToast("Mã và tên chủng là bắt buộc", "error");
       return;
     }
@@ -182,6 +185,8 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
     const fd = new FormData();
     fd.set("user", role);
     STRAIN_FORM_FIELD_KEYS.forEach((key) => fd.set(key, String(form[key] ?? "")));
+    fd.set("sequenceNumber", form.sequenceNumber);
+    if (isEditing) fd.set("code", form.code);
     if (coaFile) fd.set("coa", coaFile);
     if (isEditing && editingId) fd.set("id", editingId);
 
@@ -282,16 +287,23 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="relative max-w-sm flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm chủng..." className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300" />
+              <input
+                value={listQuery.q}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Tìm chủng..."
+                className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
+              />
             </div>
             <div className="w-full sm:w-64">
               <label className="mb-1 block text-xs text-slate-500">Nhóm vi sinh</label>
               <select
-                value={group}
-                onChange={(e) => setGroup(e.target.value as StrainGroupFilter)}
+                value={listQuery.group}
+                onChange={(e) =>
+                  setFilter("group", e.target.value === STRAIN_GROUP_FILTER_ALL ? null : e.target.value)
+                }
                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-cyan-300"
               >
-                {STRAIN_GROUP_FILTER_OPTIONS.map((option) => (
+                {groupFilterOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -304,34 +316,72 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
               value: s,
               label: s === "All" ? "Tất cả trạng thái" : s,
             }))}
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+            value={listQuery.status === "All" ? "All" : listQuery.status}
+            onChange={(value) => setFilter("status", value === "All" ? null : value)}
           />
         </div>
 
         <DataTable
           columns={[
-            { key: "code", header: "Mã", render: (v, row) => groupedCell(row.showMasterFields, v) },
-            { key: "name", header: "Tên chủng", render: (v, row) => groupedCell(row.showMasterFields, v) },
+            {
+              key: "code",
+              header: "Mã",
+              sortable: true,
+              sortKey: "code",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
+            {
+              key: "name",
+              header: "Tên chủng",
+              sortable: true,
+              sortKey: "name",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
             {
               key: "strainGroup",
               header: "Nhóm chủng",
+              sortable: true,
+              sortKey: "group",
               render: (v, row) => groupedCell(row.showMasterFields, v, (value) => <StatusBadge status={String(value)} />),
             },
-            { key: "manufacturer", header: "Hãng/Nguồn cung cấp", render: (v, row) => groupedCell(row.showMasterFields, v) },
-            { key: "atccProductCode", header: "Mã ATCC / PRODUCT CODE", render: (v, row) => groupedCell(row.showMasterFields, v) },
-            { key: "lot", header: "Lot Number" },
+            {
+              key: "manufacturer",
+              header: "Hãng/Nguồn cung cấp",
+              sortable: true,
+              sortKey: "manufacturer",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
+            {
+              key: "atccProductCode",
+              header: "Mã ATCC / PRODUCT CODE",
+              sortable: true,
+              sortKey: "casNumber",
+              render: (v, row) => groupedCell(row.showMasterFields, v),
+            },
+            { key: "lot", header: "Lot Number", sortable: true, sortKey: "lot" },
             { key: "purity", header: "Purity" },
             { key: "uncertainty", header: "Uncertainty" },
             { key: "coaPath", header: "COA", render: (_v, row) => <CoaLink path={row.coaPath} /> },
             { key: "unit", header: "ĐVT" },
-            { key: "quantity", header: "Số lượng" },
-            { key: "expiryDate", header: "Ngày hết hạn", render: (v) => (v ? formatDate(String(v)) : "-") },
+            { key: "quantity", header: "Số lượng", sortable: true, sortKey: "quantity" },
+            {
+              key: "expiryDate",
+              header: "Ngày hết hạn",
+              sortable: true,
+              sortKey: "expiryDate",
+              render: (v) => (v ? formatDate(String(v)) : "-"),
+            },
             { key: "storageCondition", header: "Điều kiện bảo quản" },
-            { key: "status", header: "Trạng thái", render: (v) => <StatusBadge status={String(v)} /> },
+            { key: "status", header: "Trạng thái", sortable: true, sortKey: "status", render: (v) => <StatusBadge status={String(v)} /> },
             { key: "storageLocation", header: "Vị trí lưu" },
           ]}
           rows={filtered}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.rowKey}
           onRowClick={setSelected}
           rowActionsHeader="Hành động"
@@ -420,7 +470,14 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
                     {groupOptions.map((g) => <option key={g} value={g} />)}
                   </datalist>
                 </div>
-                {formFields.slice(0, 7).map((f) => (
+                <CodeSequenceInput
+                  prefix="STR"
+                  sequence={form.sequenceNumber}
+                  onSequenceChange={(value) => setForm((p) => ({ ...p, sequenceNumber: value }))}
+                  mode={isEditing ? "edit" : "create"}
+                  label="Mã chủng"
+                />
+                {formFields.slice(0, 6).map((f) => (
                   <div key={f.key} className={f.colSpan ? "sm:col-span-2" : ""}>
                     <label className="mb-1 block text-sm text-slate-600">{f.label}</label>
                     <input
@@ -442,7 +499,7 @@ export function MicrobialStrainsClient({ items, groupOptions }: { items: Microbi
                   {form.coaPath && !coaFile ? <p className="mt-1 text-xs text-slate-500">File hiện tại: <CoaLink path={form.coaPath} /></p> : null}
                   {coaFile ? <p className="mt-1 text-xs text-slate-500">File mới: {coaFile.name}</p> : null}
                 </div>
-                {formFields.slice(7).map((f) => (
+                {formFields.slice(6).map((f) => (
                   <div key={f.key} className={f.colSpan ? "sm:col-span-2" : ""}>
                     <label className="mb-1 block text-sm text-slate-600">{f.label}</label>
                     <input

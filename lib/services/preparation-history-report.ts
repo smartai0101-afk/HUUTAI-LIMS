@@ -1,9 +1,17 @@
+import type { PreparationWorkflowStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import type { ExcelColumn } from "@/lib/excel";
+import {
+  parseListQueryParams,
+  type ListQueryParams,
+  type PaginatedResult,
+  type SearchParamsInput,
+  type SortOrder,
+} from "@/lib/list-query";
+import { PREPARATION_WORKFLOW_STATUS_LABELS } from "@/lib/preparation-workflow-labels";
 import { toDateString } from "@/lib/mappers";
 import { preparationDetailHref } from "@/lib/services/preparation-traceability";
 import type { PreparationRecordType } from "@/lib/services/preparation-workflow";
-import { PREPARATION_WORKFLOW_STATUS_LABELS } from "@/lib/preparation-workflow-labels";
-import type { ExcelColumn } from "@/lib/excel";
 
 export const PREPARATION_HISTORY_REPORT_HEADERS = [
   "Mã nhóm",
@@ -16,8 +24,8 @@ export const PREPARATION_HISTORY_REPORT_HEADERS = [
   "Nguồn gốc",
   "Số lô gốc",
   "Lượng sử dụng",
-  "Nồng độ gốc",
-  "Nồng độ sau pha",
+  "Nồng độ lý thuyết",
+  "Nồng độ thực tế",
   "Hạn sử dụng",
   "Trạng thái",
   "Ghi chú",
@@ -123,6 +131,418 @@ function baseRow(
   };
 }
 
+export const PREPARATION_HISTORY_SORT_ALLOWLIST = [
+  "preparedDate",
+  "code",
+  "name",
+  "parentCode",
+  "preparedBy",
+  "status",
+  "type",
+] as const;
+
+export type PreparationHistoryListParams = ListQueryParams & {
+  typeFilter: string;
+  statusFilter: string;
+  parentCodeFilter: string;
+  dateFrom: string;
+  dateTo: string;
+};
+
+function firstParam(searchParams: SearchParamsInput, key: string): string | undefined {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export function parsePreparationHistoryListParams(
+  searchParams: SearchParamsInput,
+): PreparationHistoryListParams {
+  const base = parseListQueryParams(
+    searchParams,
+    { sortBy: "preparedDate", sortOrder: "desc", page: 1, limit: 50 },
+    PREPARATION_HISTORY_SORT_ALLOWLIST,
+  );
+
+  return {
+    ...base,
+    typeFilter: firstParam(searchParams, "typeFilter")?.trim() || "All",
+    statusFilter: firstParam(searchParams, "statusFilter")?.trim() || "All",
+    parentCodeFilter: firstParam(searchParams, "parentCodeFilter")?.trim() || "",
+    dateFrom: firstParam(searchParams, "dateFrom")?.trim() || "",
+    dateTo: firstParam(searchParams, "dateTo")?.trim() || "",
+  };
+}
+
+function workflowFilterValue(label: string): PreparationWorkflowStatus | null {
+  const map: Record<string, PreparationWorkflowStatus> = {
+    Draft: "Draft",
+    Prepared: "Prepared",
+    Checked: "Checked",
+    Approved: "Approved",
+    Rejected: "Rejected",
+    Cancelled: "Cancelled",
+  };
+  return map[label] ?? null;
+}
+
+function buildPreparedTextWhere(q: string, fields: string[]) {
+  return {
+    OR: fields.map((field) => ({ [field]: { contains: q } })),
+  };
+}
+
+function buildPreparedCommonWhere(params: PreparationHistoryListParams) {
+  const and: Record<string, unknown>[] = [{ deletedAt: null }];
+
+  if (params.q) {
+    and.push(
+      buildPreparedTextWhere(params.q, [
+        "code",
+        "name",
+        "parentCode",
+        "preparedBy",
+        "notes",
+        "formula",
+      ]),
+    );
+  }
+
+  if (params.statusFilter !== "All") {
+    const wf = workflowFilterValue(params.statusFilter);
+    if (wf) and.push({ workflowStatus: wf });
+  }
+
+  if (params.parentCodeFilter) {
+    and.push({ parentCode: { contains: params.parentCodeFilter } });
+  }
+
+  if (params.dateFrom) {
+    and.push({ preparedDate: { gte: new Date(`${params.dateFrom}T00:00:00.000Z`) } });
+  }
+
+  if (params.dateTo) {
+    and.push({ preparedDate: { lte: new Date(`${params.dateTo}T23:59:59.999Z`) } });
+  }
+
+  return { AND: and };
+}
+
+function preparedOrderBy(
+  sortBy: string,
+  sortOrder: SortOrder,
+): Record<string, SortOrder>[] {
+  const dir = sortOrder;
+  switch (sortBy) {
+    case "code":
+      return [{ code: dir }];
+    case "name":
+      return [{ name: dir }];
+    case "parentCode":
+      return [{ parentCode: dir }, { code: "asc" }];
+    case "preparedBy":
+      return [{ preparedBy: dir }, { code: "asc" }];
+    case "status":
+      return [{ workflowStatus: dir }, { preparedDate: "desc" }];
+    case "type":
+      return [{ code: dir }];
+    case "preparedDate":
+    default:
+      return [{ preparedDate: dir }, { code: "asc" }];
+  }
+}
+
+function mapChemicalBatchRow(row: {
+  id: string;
+  parentCode: string | null;
+  batchNumber: number;
+  code: string;
+  name: string;
+  preparedDate: Date;
+  preparedBy: string;
+  concentration: string;
+  concentrationUnit: string;
+  finalConcentration: string;
+  expiryDate: Date;
+  workflowStatus: PreparationWorkflowStatus;
+  notes: string;
+  preparedByStaff: { name: string } | null;
+  approvedByStaff: { name: string } | null;
+  approvedByStaffId: string | null;
+}): PreparationHistoryReportRow {
+  const approvedBy = resolveApprovedBy(row.approvedByStaff?.name ?? "", row.approvedByStaffId);
+  const parentCode = row.parentCode || row.code;
+  const finalConc = formatConcentration(row.finalConcentration || row.concentration, row.concentrationUnit);
+  const theoreticalConc = formatConcentration(row.concentration, row.concentrationUnit);
+
+  return baseRow(
+    "CHEMICAL",
+    row.id,
+    row.code,
+    row.name,
+    row.preparedDate,
+    row.preparedByStaff?.name || row.preparedBy,
+    approvedBy,
+    theoreticalConc,
+    finalConc,
+    row.expiryDate,
+    row.workflowStatus,
+    row.notes,
+    { origin: "", lot: "", quantityUsed: "" },
+    parentCode,
+    row.batchNumber,
+  );
+}
+
+function mapStandardBatchRow(row: {
+  id: string;
+  parentCode: string | null;
+  batchNumber: number;
+  code: string;
+  name: string;
+  preparedDate: Date;
+  preparedBy: string;
+  concentration: string;
+  concentrationUnit: string;
+  finalConcentration: string;
+  expiryDate: Date;
+  workflowStatus: PreparationWorkflowStatus;
+  notes: string;
+  preparedByStaff: { name: string } | null;
+  approvedByStaff: { name: string } | null;
+  approvedByStaffId: string | null;
+}): PreparationHistoryReportRow {
+  const approvedBy = resolveApprovedBy(row.approvedByStaff?.name ?? "", row.approvedByStaffId);
+  const parentCode = row.parentCode || row.code;
+  const finalConc = formatConcentration(row.finalConcentration || row.concentration, row.concentrationUnit);
+  const theoreticalConc = formatConcentration(row.concentration, row.concentrationUnit);
+
+  return baseRow(
+    "STANDARD",
+    row.id,
+    row.code,
+    row.name,
+    row.preparedDate,
+    row.preparedByStaff?.name || row.preparedBy,
+    approvedBy,
+    theoreticalConc,
+    finalConc,
+    row.expiryDate,
+    row.workflowStatus,
+    row.notes,
+    { origin: "", lot: "", quantityUsed: "" },
+    parentCode,
+    row.batchNumber,
+  );
+}
+
+function mapStrainBatchRow(row: {
+  id: string;
+  parentCode: string | null;
+  batchNumber: number;
+  code: string;
+  name: string;
+  preparedDate: Date;
+  preparedBy: string;
+  concentration: string;
+  finalConcentration: string;
+  expiryDate: Date;
+  workflowStatus: PreparationWorkflowStatus;
+  notes: string;
+  sourceLotNumberSnapshot: string;
+  preparedByStaff: { name: string } | null;
+  approvedByStaff: { name: string } | null;
+  approvedByStaffId: string | null;
+  sourceStrain: { code: string; name: string };
+}): PreparationHistoryReportRow {
+  const approvedBy = resolveApprovedBy(row.approvedByStaff?.name ?? "", row.approvedByStaffId);
+  const parentCode = row.parentCode || row.code;
+  const finalConc = formatConcentration(row.finalConcentration || row.concentration, "");
+  const theoreticalConc = formatConcentration(row.concentration, "");
+
+  return baseRow(
+    "STRAIN",
+    row.id,
+    row.code,
+    row.name,
+    row.preparedDate,
+    row.preparedByStaff?.name || row.preparedBy,
+    approvedBy,
+    theoreticalConc,
+    finalConc,
+    row.expiryDate,
+    row.workflowStatus,
+    row.notes,
+    {
+      origin: row.sourceStrain.code,
+      lot: row.sourceLotNumberSnapshot,
+      quantityUsed: "1",
+    },
+    parentCode,
+    row.batchNumber,
+  );
+}
+
+function batchSortValue(row: PreparationHistoryReportRow, sortBy: string): string | number {
+  switch (sortBy) {
+    case "code":
+      return row.code;
+    case "name":
+      return row.name;
+    case "parentCode":
+      return row.parentCode;
+    case "preparedBy":
+      return row.preparedBy;
+    case "status":
+      return row.status;
+    case "type":
+      return row.preparationType;
+    case "preparedDate":
+    default:
+      return row.preparedDate;
+  }
+}
+
+function compareBatchRows(
+  a: PreparationHistoryReportRow,
+  b: PreparationHistoryReportRow,
+  sortBy: string,
+  sortOrder: SortOrder,
+): number {
+  const av = batchSortValue(a, sortBy);
+  const bv = batchSortValue(b, sortBy);
+  let cmp: number;
+  if (typeof av === "number" && typeof bv === "number") {
+    cmp = av - bv;
+  } else {
+    cmp = String(av).localeCompare(String(bv), "vi");
+  }
+  if (cmp === 0) {
+    cmp = a.code.localeCompare(b.code, "vi");
+  }
+  return sortOrder === "asc" ? cmp : -cmp;
+}
+
+function mergeSortedBatchRows(
+  rows: PreparationHistoryReportRow[],
+  sortBy: string,
+  sortOrder: SortOrder,
+): PreparationHistoryReportRow[] {
+  return [...rows].sort((a, b) => compareBatchRows(a, b, sortBy, sortOrder));
+}
+
+const PREPARATION_TYPES: PreparationRecordType[] = ["CHEMICAL", "STANDARD", "STRAIN"];
+
+function activePreparationTypes(typeFilter: string): PreparationRecordType[] {
+  if (typeFilter === "CHEMICAL" || typeFilter === "STANDARD" || typeFilter === "STRAIN") {
+    return [typeFilter];
+  }
+  return PREPARATION_TYPES;
+}
+
+async function countPreparedBatches(
+  type: PreparationRecordType,
+  params: PreparationHistoryListParams,
+): Promise<number> {
+  const where = buildPreparedCommonWhere(params);
+  if (type === "CHEMICAL") return db.preparedChemical.count({ where });
+  if (type === "STANDARD") return db.preparedStandard.count({ where });
+  return db.preparedStrain.count({ where });
+}
+
+async function fetchPreparedBatchRows(
+  type: PreparationRecordType,
+  params: PreparationHistoryListParams,
+  take: number,
+): Promise<PreparationHistoryReportRow[]> {
+  const where = buildPreparedCommonWhere(params);
+  const orderBy = preparedOrderBy(params.sortBy, params.sortOrder);
+  const staffSelect = {
+    preparedByStaff: { select: { name: true } },
+    approvedByStaff: { select: { name: true } },
+  };
+
+  if (type === "CHEMICAL") {
+    const rows = await db.preparedChemical.findMany({
+      where,
+      include: staffSelect,
+      orderBy,
+      take,
+    });
+    return rows.map(mapChemicalBatchRow);
+  }
+
+  if (type === "STANDARD") {
+    const rows = await db.preparedStandard.findMany({
+      where,
+      include: staffSelect,
+      orderBy,
+      take,
+    });
+    return rows.map(mapStandardBatchRow);
+  }
+
+  const rows = await db.preparedStrain.findMany({
+    where,
+    include: {
+      ...staffSelect,
+      sourceStrain: { select: { code: true, name: true } },
+    },
+    orderBy,
+    take,
+  });
+  return rows.map(mapStrainBatchRow);
+}
+
+export async function listPreparationHistoryReportRows(
+  params: PreparationHistoryListParams,
+): Promise<PaginatedResult<PreparationHistoryReportRow>> {
+  const types = activePreparationTypes(params.typeFilter);
+  const skip = (params.page - 1) * params.limit;
+  const fetchLimit = skip + params.limit;
+
+  const counts = await Promise.all(types.map((type) => countPreparedBatches(type, params)));
+  const total = counts.reduce((sum, count) => sum + count, 0);
+
+  const batches = await Promise.all(
+    types.map((type) => fetchPreparedBatchRows(type, params, fetchLimit)),
+  );
+  const items = mergeSortedBatchRows(batches.flat(), params.sortBy, params.sortOrder).slice(
+    skip,
+    skip + params.limit,
+  );
+
+  return {
+    items,
+    total,
+    page: params.page,
+    limit: params.limit,
+    totalPages: Math.max(Math.ceil(total / params.limit), 1),
+  };
+}
+
+export function filterPreparationHistoryReportRows(
+  rows: PreparationHistoryReportRow[],
+  params: PreparationHistoryListParams,
+): PreparationHistoryReportRow[] {
+  return rows.filter((row) => {
+    const matchType = params.typeFilter === "All" || row.preparationType === params.typeFilter;
+    const matchStatus =
+      params.statusFilter === "All" ||
+      row.status === PREPARATION_WORKFLOW_STATUS_LABELS[params.statusFilter as PreparationWorkflowStatus];
+    const matchFrom = !params.dateFrom || row.preparedDate >= params.dateFrom;
+    const matchTo = !params.dateTo || row.preparedDate <= params.dateTo;
+    const parentQ = params.parentCodeFilter.toLowerCase();
+    const matchParentCode = !parentQ || row.parentCode.toLowerCase().includes(parentQ);
+    const q = params.q.toLowerCase();
+    const matchQuery =
+      !q ||
+      [row.code, row.name, row.preparedBy, row.approvedBy, row.sourceOrigin, row.sourceLot, row.notes].some(
+        (value) => value.toLowerCase().includes(q),
+      );
+    return matchType && matchStatus && matchFrom && matchTo && matchParentCode && matchQuery;
+  });
+}
+
 export async function getPreparationHistoryReportRows(): Promise<PreparationHistoryReportRow[]> {
   const [chemicals, standards, strains] = await Promise.all([
     db.preparedChemical.findMany({
@@ -171,7 +591,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
       row.finalConcentration || row.concentration,
       row.concentrationUnit,
     );
-    const defaultOriginal = formatConcentration(row.originalConcentration, row.concentrationUnit);
+    const theoreticalConc = formatConcentration(row.concentration, row.concentrationUnit);
 
     if (row.ingredients.length === 0) {
       rows.push(
@@ -183,7 +603,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           row.preparedDate,
           row.preparedByStaff?.name || row.preparedBy,
           approvedBy,
-          defaultOriginal,
+          theoreticalConc,
           finalConc,
           row.expiryDate,
           row.workflowStatus,
@@ -206,7 +626,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           row.preparedDate,
           row.preparedByStaff?.name || row.preparedBy,
           approvedBy,
-          defaultOriginal,
+          theoreticalConc,
           finalConc,
           row.expiryDate,
           row.workflowStatus,
@@ -235,7 +655,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
       row.finalConcentration || row.concentration,
       row.concentrationUnit,
     );
-    const defaultOriginal = formatConcentration(row.originalConcentration, row.concentrationUnit);
+    const theoreticalConc = formatConcentration(row.concentration, row.concentrationUnit);
     const sources = [
       ...row.components.map((comp) => ({
         origin: comp.standardCodeSnapshot || comp.standardNameSnapshot,
@@ -266,7 +686,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           row.preparedDate,
           row.preparedByStaff?.name || row.preparedBy,
           approvedBy,
-          defaultOriginal,
+          theoreticalConc,
           finalConc,
           row.expiryDate,
           row.workflowStatus,
@@ -289,7 +709,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
           row.preparedDate,
           row.preparedByStaff?.name || row.preparedBy,
           approvedBy,
-          defaultOriginal,
+          theoreticalConc,
           finalConc,
           row.expiryDate,
           row.workflowStatus,
@@ -314,7 +734,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
       row.finalConcentration || row.concentration,
       "",
     );
-    const defaultOriginal = formatConcentration(row.originalConcentration, "");
+    const theoreticalConc = formatConcentration(row.concentration, "");
 
     rows.push(
       baseRow(
@@ -325,7 +745,7 @@ export async function getPreparationHistoryReportRows(): Promise<PreparationHist
         row.preparedDate,
         row.preparedByStaff?.name || row.preparedBy,
         approvedBy,
-        defaultOriginal,
+        theoreticalConc,
         finalConc,
         row.expiryDate,
         row.workflowStatus,
@@ -362,8 +782,8 @@ export function preparationHistoryReportToExcelRows(
     "Nguồn gốc": row.sourceOrigin,
     "Số lô gốc": row.sourceLot,
     "Lượng sử dụng": row.quantityUsed,
-    "Nồng độ gốc": row.originalConcentration,
-    "Nồng độ sau pha": row.finalConcentration,
+    "Nồng độ lý thuyết": row.originalConcentration,
+    "Nồng độ thực tế": row.finalConcentration,
     "Hạn sử dụng": row.expiryDate,
     "Trạng thái": row.status,
     "Ghi chú": row.notes,

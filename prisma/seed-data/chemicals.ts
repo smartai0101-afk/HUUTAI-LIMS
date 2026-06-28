@@ -43,6 +43,7 @@ export const EXTENDED_CHEMICALS: ChemSeed[] = [
   { code: "CHEM-0027", name: "Sodium azide", chemicalGroup: "Muối", manufacturer: "Sigma-Aldrich", casNumber: "26628-22-8", productCode: "71290", lot: "NaN3-2406", purity: "≥99.5%", unit: "g", quantity: 25, expiryDate: "2027-12-01", storageCondition: "Tủ độc", location: "B3-04", notes: "Bảo quản mẫu", status: "Available" },
   { code: "CHEM-0028", name: "Cyclohexane", chemicalGroup: "Dung môi", manufacturer: "Honeywell", casNumber: "110-82-7", productCode: "179191", lot: "C6H12-2411", purity: "≥99.5%", unit: "L", quantity: 8, expiryDate: "2027-02-28", storageCondition: "15-25°C", location: "A2-09", notes: "GC calibration", status: "Available" },
   { code: "CHEM-0029", name: "Ammonium formate", chemicalGroup: "Muối", manufacturer: "Merck", casNumber: "540-69-2", productCode: "70221", lot: "NH4HCO2-2412", purity: "≥99%", unit: "g", quantity: 250, expiryDate: "2027-07-01", storageCondition: "Khô", location: "C1-12", notes: "Mobile phase LC-MS", status: "Available" },
+  { code: "CHEM-0030", name: "Nitric acid 65%", chemicalGroup: "Acid", manufacturer: "Merck", casNumber: "7697-37-2", productCode: "100441", lot: "HNO3-2412", purity: "≥65%, trace metal grade", unit: "L", quantity: 2, expiryDate: "2027-09-01", storageCondition: "Tủ acid", location: "B2-09", notes: "Acid hóa ICP-OES", status: "Available" },
 ];
 
 export async function seedExtendedChemicals(prisma: PrismaClient) {

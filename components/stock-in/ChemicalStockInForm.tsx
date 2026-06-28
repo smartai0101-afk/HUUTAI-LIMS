@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
-import { DEFAULT_CHEMICAL_GROUPS } from "@/lib/chemicals-fields";
+import { useEffect, useMemo } from "react";
+import { CodeSequenceInput } from "@/components/shared/CodeSequenceInput";
 import { computeStandardStatus, standardStatusLabel } from "@/lib/standard-status";
 import type { StockInMasterOption } from "@/lib/services/stock-in-options";
 import { lotsMatch } from "@/lib/services/stock-in-match";
 import { unitsAreConvertible } from "@/lib/inventory-units";
+import { formatStockInCodeFromSequence } from "@/lib/stock-in-code";
 import { findChemicalOptionByIdentity } from "@/lib/stock-in-form-helpers";
 
 export type ChemicalStockInFormState = {
   existingMasterId: string;
   code: string;
+  sequenceNumber: string;
   name: string;
   chemicalGroup: string;
   manufacturer: string;
@@ -31,6 +33,7 @@ export type ChemicalStockInFormState = {
 type Props = {
   form: ChemicalStockInFormState;
   options: StockInMasterOption[];
+  groupOptions: string[];
   onChange: (next: ChemicalStockInFormState) => void;
 };
 
@@ -43,7 +46,7 @@ function previewStatus(expiryDate: string) {
 
 const IDENTITY_KEYS = ["name", "manufacturer", "casNumber", "productCode"] as const;
 
-export function ChemicalStockInForm({ form, options, onChange }: Props) {
+export function ChemicalStockInForm({ form, options, groupOptions, onChange }: Props) {
   const identityInput = useMemo(
     () => ({
       name: form.name,
@@ -74,6 +77,9 @@ export function ChemicalStockInForm({ form, options, onChange }: Props) {
     return null;
   }, [form.lot, form.unit, selectedMaster]);
 
+  const resolvedCode = identityMatch?.code ?? form.code;
+  const isExistingMaster = Boolean(identityMatch?.code || (form.existingMasterId && resolvedCode));
+
   const set = (patch: Partial<ChemicalStockInFormState>) => onChange({ ...form, ...patch });
 
   const applyIdentityResolution = (next: ChemicalStockInFormState) => {
@@ -88,6 +94,7 @@ export function ChemicalStockInForm({ form, options, onChange }: Props) {
         ...next,
         existingMasterId: match.id,
         code: match.code,
+        sequenceNumber: "",
         unit: next.unit.trim() || match.unit || next.unit,
         chemicalGroup: match.chemicalGroup ?? next.chemicalGroup,
         manufacturer: match.manufacturer,
@@ -102,6 +109,13 @@ export function ChemicalStockInForm({ form, options, onChange }: Props) {
     onChange({ ...next, existingMasterId: "" });
   };
 
+  useEffect(() => {
+    if (!identityMatch) return;
+    if (form.existingMasterId === identityMatch.id && form.code === identityMatch.code) return;
+    applyIdentityResolution(form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when identity match appears
+  }, [identityMatch?.id]);
+
   const handleIdentityFieldChange = (key: typeof IDENTITY_KEYS[number], value: string) => {
     applyIdentityResolution({ ...form, [key]: value });
   };
@@ -115,6 +129,7 @@ export function ChemicalStockInForm({ form, options, onChange }: Props) {
     set({
       existingMasterId: selected.id,
       code: selected.code,
+      sequenceNumber: "",
       name: selected.name,
       unit: form.unit.trim() || selected.unit || form.unit,
       chemicalGroup: selected.chemicalGroup ?? form.chemicalGroup,
@@ -159,14 +174,30 @@ export function ChemicalStockInForm({ form, options, onChange }: Props) {
         </p>
       ) : null}
 
-      <label className="space-y-1">
-        <span className="text-sm font-medium text-slate-700">Mã hoá chất</span>
-        <input
-          value={form.code}
-          onChange={(e) => set({ code: e.target.value })}
-          className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
+      {isExistingMaster ? (
+        <label className="space-y-1">
+          <span className="text-sm font-medium text-slate-700">Mã hoá chất</span>
+          <input
+            readOnly
+            value={resolvedCode}
+            className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600"
+          />
+        </label>
+      ) : (
+        <CodeSequenceInput
+          prefix="CHEM"
+          sequence={form.sequenceNumber}
+          onSequenceChange={(sequence) =>
+            onChange({
+              ...form,
+              sequenceNumber: sequence,
+              code: formatStockInCodeFromSequence("CHEM", sequence),
+            })
+          }
+          mode="create"
+          label="Mã hoá chất"
         />
-      </label>
+      )}
 
       <label className="space-y-1">
         <span className="text-sm font-medium text-slate-700">Tên hoá chất</span>
@@ -226,17 +257,18 @@ export function ChemicalStockInForm({ form, options, onChange }: Props) {
 
       <label className="space-y-1">
         <span className="text-sm font-medium text-slate-700">Nhóm hoá chất</span>
-        <select
+        <input
+          list="stock-in-chemical-group-options"
           value={form.chemicalGroup}
           onChange={(e) => set({ chemicalGroup: e.target.value })}
+          placeholder="Dung môi, Acid, Base hoặc nhóm mới"
           className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
-        >
-          {DEFAULT_CHEMICAL_GROUPS.map((group) => (
-            <option key={group} value={group}>
-              {group}
-            </option>
+        />
+        <datalist id="stock-in-chemical-group-options">
+          {groupOptions.map((group) => (
+            <option key={group} value={group} />
           ))}
-        </select>
+        </datalist>
       </label>
 
       <label className="space-y-1">

@@ -2,17 +2,14 @@ export const DEFAULT_STANDARD_GROUPS = ["CRM", "RM", "Working"] as const;
 
 export const STANDARD_GROUP_FILTER_ALL = "All" as const;
 
-export type StandardGroupFilter =
-  | typeof STANDARD_GROUP_FILTER_ALL
-  | (typeof DEFAULT_STANDARD_GROUPS)[number];
+export type StandardGroupFilter = typeof STANDARD_GROUP_FILTER_ALL | string;
 
-export const STANDARD_GROUP_FILTER_OPTIONS: {
-  value: StandardGroupFilter;
-  label: string;
-}[] = [
-  { value: STANDARD_GROUP_FILTER_ALL, label: "Tất cả nhóm chuẩn" },
-  ...DEFAULT_STANDARD_GROUPS.map((group) => ({ value: group, label: group })),
-];
+export function buildStandardGroupFilterOptions(groups: readonly string[]) {
+  return [
+    { value: STANDARD_GROUP_FILTER_ALL, label: "Tất cả nhóm chuẩn" },
+    ...groups.map((group) => ({ value: group, label: group })),
+  ];
+}
 
 export const STANDARD_FORM_FIELD_KEYS = [
   "code",

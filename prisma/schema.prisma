@@ -50,6 +50,22 @@ enum PreparedStandardLevel {
   WorkingPrepared
 }
 
+enum PreparedStrainLevel {
+  RootPrepared
+  Intermediate1
+  Intermediate2
+  Intermediate3
+}
+
+enum CodeEntityType {
+  Chemical
+  Standard
+  MicrobialStrain
+  PreparedChemical
+  PreparedStandard
+  PreparedStrain
+}
+
 enum PreparedStandardComponentSourceType {
   Standard
   PreparedStandard
@@ -178,9 +194,30 @@ enum EquipmentHistorySourceType {
   RepairProposal
 }
 
+model CodeSequence {
+  prefix    String   @id
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model CodeAlias {
+  id         String         @id @default(cuid())
+  oldCode    String
+  newCode    String
+  entityType CodeEntityType
+  entityId   String
+  migratedAt DateTime       @default(now())
+
+  @@unique([oldCode, entityType])
+  @@index([newCode])
+  @@index([entityId])
+}
+
 model Chemical {
   id                String               @id @default(cuid())
   code              String               @unique
+  codePrefix        String               @default("CHEM")
+  sequenceNumber    Int                  @default(0)
   name              String
   chemicalGroup     String               @default("Dung môi")
   manufacturer      String               @default("")
@@ -205,15 +242,19 @@ model Chemical {
   preparedChemicalIngredients   PreparedChemicalIngredient[]
   preparedStandardSolvents      PreparedStandardSolvent[]
   stockLots                     StockLot[]
+  methodReagents                MethodReagent[]
 
   @@index([status])
   @@index([chemicalGroup])
   @@index([expiryDate])
+  @@index([codePrefix, sequenceNumber])
 }
 
 model Standard {
   id                String               @id @default(cuid())
   code              String               @unique
+  codePrefix        String               @default("STD")
+  sequenceNumber    Int                  @default(0)
   name              String
   standardGroup     String               @default("CRM")
   manufacturer      String               @default("")
@@ -237,15 +278,19 @@ model Standard {
   containers                  Container[]
   preparedStandardComponents  PreparedStandardComponent[]
   stockLots                   StockLot[]
+  methodReagents              MethodReagent[]
 
   @@index([status])
   @@index([standardGroup])
   @@index([expiryDate])
+  @@index([codePrefix, sequenceNumber])
 }
 
 model MicrobialStrain {
   id                String               @id @default(cuid())
   code              String               @unique
+  codePrefix        String               @default("STR")
+  sequenceNumber    Int                  @default(0)
   name              String
   strainGroup       String               @default("Vi khuẩn")
   manufacturer      String               @default("")
@@ -273,6 +318,7 @@ model MicrobialStrain {
   @@index([status])
   @@index([strainGroup])
   @@index([expiryDate])
+  @@index([codePrefix, sequenceNumber])
 }
 
 model StockLot {
@@ -332,6 +378,8 @@ model StockInLog {
 model PreparedChemical {
   id                    String                       @id @default(cuid())
   parentCode            String                       @default("")
+  codePrefix            String                       @default("PCHEM")
+  sequenceNumber        Int                          @default(0)
   batchNumber           Int                          @default(1)
   code                  String                       @unique
   name                  String
@@ -374,6 +422,7 @@ model PreparedChemical {
   @@index([workflowStatus])
   @@index([deletedAt])
   @@index([parentCode])
+  @@index([codePrefix, sequenceNumber])
   @@index([equipmentId])
   @@unique([parentCode, batchNumber])
 }
@@ -401,6 +450,8 @@ model PreparedChemicalIngredient {
 model PreparedStandard {
   id                    String                      @id @default(cuid())
   parentCode            String                      @default("")
+  codePrefix            String                      @default("PSTD")
+  sequenceNumber        Int                         @default(0)
   batchNumber           Int                         @default(1)
   code                  String                      @unique
   name                  String
@@ -445,10 +496,12 @@ model PreparedStandard {
 
   @@index([level])
   @@index([status])
+  @@index([preparedDate])
   @@index([expiryDate])
   @@index([workflowStatus])
   @@index([deletedAt])
   @@index([parentCode])
+  @@index([codePrefix, sequenceNumber])
   @@index([equipmentId])
   @@unique([parentCode, batchNumber])
 }
@@ -509,7 +562,10 @@ model PreparedStandardSolvent {
 model PreparedStrain {
   id                      String                    @id @default(cuid())
   parentCode              String                    @default("")
+  codePrefix              String                    @default("PSTR")
+  sequenceNumber          Int                       @default(0)
   batchNumber             Int                       @default(1)
+  level                   PreparedStrainLevel       @default(RootPrepared)
   code                    String                    @unique
   name                    String
   sourceStrainId          String
@@ -554,6 +610,7 @@ model PreparedStrain {
   @@index([workflowStatus])
   @@index([deletedAt])
   @@index([parentCode])
+  @@index([codePrefix, sequenceNumber])
   @@index([equipmentId])
   @@unique([parentCode, batchNumber])
 }
@@ -763,6 +820,7 @@ model Equipment {
   preparedChemicals       PreparedChemical[]
   preparedStandards       PreparedStandard[]
   preparedStrains         PreparedStrain[]
+  methodEquipmentLinks    MethodEquipment[]
 
   @@index([status])
   @@index([department])
@@ -1124,4 +1182,476 @@ model NotificationRead {
   @@unique([notificationId, userId])
   @@index([userId])
   @@map("notification_reads")
+}
+
+// --- Chem Info Module (reference data, separate from inventory catalog) ---
+
+model Element {
+  id                String   @id @default(cuid())
+  symbol            String   @unique
+  name              String
+  nameVi            String   @default("")
+  atomicNumber      Int      @unique
+  atomicMass        Float
+  group             Int?
+  period            Int
+  block             String   @default("")
+  classification    String   @default("")
+  electronConfig    String   @default("")
+  electronegativity Float?
+  meltingPointC     Float?
+  boilingPointC     Float?
+  gridRow           Int      @default(0)
+  gridColumn        Int      @default(0)
+  applications      String   @default("[]")
+  createdAt         DateTime @default(now())
+
+  @@index([name])
+  @@index([atomicNumber])
+  @@map("elements")
+}
+
+model ChemicalReference {
+  id                 String   @id @default(cuid())
+  casNumber          String   @unique
+  name               String
+  normalizedName     String   @default("")
+  molecularFormula   String   @default("")
+  molecularWeight    Float?
+  synonyms           String   @default("[]")
+  pubchemCid         Int?     @unique
+  smiles             String   @default("")
+  isomericSmiles     String   @default("")
+  inchi              String   @default("")
+  inchiKey           String   @default("")
+  iupacName          String   @default("")
+  structure2dUrl     String?
+  notes              String   @default("")
+  source             String   @default("seed")
+  syncStatus         String   @default("local")
+  lastSyncedAt       DateTime?
+  physicalProperties String   @default("{}")
+  extendedData       String   @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  safetyProfile      ChemicalSafetyProfile?
+  sdsDocuments       SdsDocument[]
+  hazardCategory     ChemicalHazardCategory?
+  syncLogs           ChemicalReferenceSyncLog[]
+  methodSafetyNotes  MethodSafetyNote[]
+
+  @@index([name])
+  @@index([normalizedName])
+  @@index([molecularFormula])
+  @@index([pubchemCid])
+  @@index([inchiKey])
+  @@index([syncStatus])
+  @@map("chemical_references")
+}
+
+model ChemicalReferenceSyncLog {
+  id                  String   @id @default(cuid())
+  chemicalReferenceId String?
+  chemicalReference   ChemicalReference? @relation(fields: [chemicalReferenceId], references: [id], onDelete: SetNull)
+  action              String
+  query               String   @default("")
+  pubchemCid          Int?
+  source              String   @default("PubChem")
+  status              String
+  message             String   @default("")
+  performedBy         String   @default("")
+  createdAt           DateTime @default(now())
+
+  @@index([chemicalReferenceId])
+  @@index([createdAt])
+  @@map("chemical_reference_sync_logs")
+}
+
+model GhsPictogram {
+  code        String @id
+  label       String
+  imagePath   String
+  description String @default("")
+
+  @@map("ghs_pictograms")
+}
+
+model ChemicalSafetyProfile {
+  id                      String            @id @default(cuid())
+  chemicalReferenceId     String            @unique
+  chemicalReference       ChemicalReference @relation(fields: [chemicalReferenceId], references: [id], onDelete: Cascade)
+  signalWord              String            @default("")
+  hazardStatements        String            @default("[]")
+  precautionaryStatements String            @default("[]")
+  pictogramCodes          String            @default("[]")
+  unNumber                String            @default("")
+  hazardClass             String            @default("")
+  packingGroup            String            @default("")
+  updatedAt               DateTime          @updatedAt
+
+  @@map("chemical_safety_profiles")
+}
+
+model SdsDocument {
+  id                  String            @id @default(cuid())
+  chemicalReferenceId String
+  chemicalReference   ChemicalReference @relation(fields: [chemicalReferenceId], references: [id], onDelete: Cascade)
+  title               String            @default("")
+  supplier            String            @default("")
+  revisionDate        DateTime?
+  filePath            String?
+  externalUrl         String?
+  isPrimary           Boolean           @default(false)
+  uploadedBy          String            @default("")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([chemicalReferenceId])
+  @@map("sds_documents")
+}
+
+model CompatibilityRule {
+  id               String  @id @default(cuid())
+  code             String  @unique
+  ruleType         String  @default("HAZARD")
+  operandAKind     String  @default("hazard")
+  operandAValue    String  @default("")
+  operandBKind     String  @default("hazard")
+  operandBValue    String  @default("")
+  categoryA        String
+  categoryB        String
+  categoryALabel   String
+  categoryBLabel   String
+  severity         String  @default("high")
+  title            String
+  message          String
+  storageGuidance  String  @default("")
+  examples         String  @default("[]")
+  isActive         Boolean @default(true)
+
+  @@index([categoryA, categoryB])
+  @@index([ruleType])
+  @@index([operandAKind, operandAValue])
+  @@index([operandBKind, operandBValue])
+  @@map("compatibility_rules")
+}
+
+model ChemicalHazardCategory {
+  id                  String            @id @default(cuid())
+  chemicalReferenceId String            @unique
+  chemicalReference   ChemicalReference @relation(fields: [chemicalReferenceId], references: [id], onDelete: Cascade)
+  categories          String            @default("[]")
+
+  @@map("chemical_hazard_categories")
+}
+
+model PubChemCache {
+  id        String   @id @default(cuid())
+  cacheKey  String   @unique
+  payload   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("pubchem_cache")
+}
+
+// --- Analytical Methods module ---
+
+enum MethodVersionStatus {
+  Draft
+  Review
+  Approved
+  Obsolete
+}
+
+enum WorkflowNodeType {
+  Start
+  Step
+  Condition
+  Qc
+  Equipment
+  Reagent
+  End
+}
+
+enum WorkflowSourceType {
+  Manual
+  AI
+  Imported
+}
+
+enum MethodExecutionStatus {
+  InProgress
+  Completed
+  Aborted
+}
+
+enum MethodExecutionStepStatus {
+  Pending
+  Done
+  Skipped
+  Failed
+}
+
+enum MethodAIExtractionStatus {
+  Pending
+  Processing
+  Completed
+  Failed
+  Superseded
+}
+
+model AnalyticalMethod {
+  id               String          @id @default(cuid())
+  methodCode       String          @unique
+  methodName       String
+  matrix           String          @default("")
+  analyte          String          @default("")
+  technique        String          @default("")
+  standardRef      String          @default("")
+  currentVersionId String?         @unique
+  createdBy        String          @default("")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  currentVersion   MethodVersion?  @relation("CurrentMethodVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions         MethodVersion[] @relation("MethodVersions")
+
+  @@index([methodCode])
+  @@map("analytical_methods")
+}
+
+model MethodVersion {
+  id                       String                    @id @default(cuid())
+  methodId                 String
+  version                  Int
+  status                   MethodVersionStatus       @default(Draft)
+  effectiveDate            DateTime?
+  reviewDate               DateTime?
+  changeLog                String                    @default("")
+  createdBy                String                    @default("")
+  reviewerId               String                    @default("")
+  approverId               String                    @default("")
+  approvedAt               DateTime?
+  estimatedDurationMinutes Int?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  method                   AnalyticalMethod          @relation("MethodVersions", fields: [methodId], references: [id], onDelete: Cascade)
+  currentForMethod         AnalyticalMethod?         @relation("CurrentMethodVersion")
+  documents                MethodDocument[]
+  workflow                 MethodWorkflow?
+  reagents                 MethodReagent[]
+  equipmentLinks           MethodEquipment[]
+  qcRequirements           MethodQCRequirement[]
+  acceptanceCriteria       MethodAcceptanceCriteria[]
+  safetyNotes              MethodSafetyNote[]
+  approvals                MethodApproval[]
+  aiExtractionLogs         MethodAIExtractionLog[]
+  executions               MethodExecution[]
+
+  @@unique([methodId, version])
+  @@index([methodId])
+  @@index([status])
+  @@map("method_versions")
+}
+
+model MethodDocument {
+  id              String        @id @default(cuid())
+  methodVersionId String
+  filePath        String
+  fileName        String
+  fileType        String        @default("")
+  fileSizeBytes   Int           @default(0)
+  uploadedBy      String        @default("")
+  uploadedAt      DateTime      @default(now())
+  isPrimary       Boolean       @default(false)
+  methodVersion   MethodVersion @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+
+  @@index([methodVersionId])
+  @@map("method_documents")
+}
+
+model MethodWorkflow {
+  id              String           @id @default(cuid())
+  methodVersionId String           @unique
+  layoutJson      String           @default("{}")
+  sourceType      WorkflowSourceType @default(Manual)
+  isDraft         Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  methodVersion   MethodVersion    @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+  nodes           WorkflowNode[]
+  edges           WorkflowEdge[]
+
+  @@map("method_workflows")
+}
+
+model WorkflowNode {
+  id          String           @id @default(cuid())
+  workflowId  String
+  nodeKey     String
+  type        WorkflowNodeType @default(Step)
+  label       String           @default("")
+  description String           @default("")
+  positionX   Float            @default(0)
+  positionY   Float            @default(0)
+  configJson  String           @default("{}")
+  workflow    MethodWorkflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, nodeKey])
+  @@index([workflowId])
+  @@map("workflow_nodes")
+}
+
+model WorkflowEdge {
+  id            String         @id @default(cuid())
+  workflowId    String
+  sourceNodeKey String
+  targetNodeKey String
+  label         String         @default("")
+  conditionJson String         @default("{}")
+  workflow      MethodWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@map("workflow_edges")
+}
+
+model MethodReagent {
+  id              String        @id @default(cuid())
+  methodVersionId String
+  workflowNodeKey String        @default("")
+  chemicalId      String?
+  standardId      String?
+  nameFreeText    String        @default("")
+  casNumber       String        @default("")
+  amountPerSample Float         @default(0)
+  unit            String        @default("")
+  isConsumable    Boolean       @default(false)
+  methodVersion   MethodVersion @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+  chemical        Chemical?     @relation(fields: [chemicalId], references: [id], onDelete: SetNull)
+  standard        Standard?     @relation(fields: [standardId], references: [id], onDelete: SetNull)
+
+  @@index([methodVersionId])
+  @@map("method_reagents")
+}
+
+model MethodEquipment {
+  id              String        @id @default(cuid())
+  methodVersionId String
+  workflowNodeKey String        @default("")
+  equipmentId     String
+  role            String        @default("")
+  methodVersion   MethodVersion @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+  equipment       Equipment     @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([methodVersionId])
+  @@index([equipmentId])
+  @@map("method_equipment")
+}
+
+model MethodQCRequirement {
+  id              String        @id @default(cuid())
+  methodVersionId String
+  qcType          String
+  frequency       String        @default("")
+  frequencyUnit   String        @default("")
+  limitsJson      String        @default("{}")
+  methodVersion   MethodVersion @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+
+  @@index([methodVersionId])
+  @@map("method_qc_requirements")
+}
+
+model MethodAcceptanceCriteria {
+  id              String        @id @default(cuid())
+  methodVersionId String
+  analyte         String        @default("")
+  criteriaJson    String        @default("{}")
+  methodVersion   MethodVersion @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+
+  @@index([methodVersionId])
+  @@map("method_acceptance_criteria")
+}
+
+model MethodSafetyNote {
+  id                  String             @id @default(cuid())
+  methodVersionId     String
+  noteType            String             @default("Warning")
+  content             String             @default("")
+  chemicalReferenceId String?
+  methodVersion       MethodVersion      @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+  chemicalReference   ChemicalReference? @relation(fields: [chemicalReferenceId], references: [id], onDelete: SetNull)
+
+  @@index([methodVersionId])
+  @@map("method_safety_notes")
+}
+
+model MethodApproval {
+  id              String              @id @default(cuid())
+  methodVersionId String
+  action          String
+  fromStatus      MethodVersionStatus
+  toStatus        MethodVersionStatus
+  performedBy     String              @default("")
+  performedAt     DateTime            @default(now())
+  comment         String              @default("")
+  methodVersion   MethodVersion       @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+
+  @@index([methodVersionId])
+  @@map("method_approvals")
+}
+
+model MethodAIExtractionLog {
+  id              String                   @id @default(cuid())
+  methodVersionId String
+  documentId      String                   @default("")
+  status          MethodAIExtractionStatus @default(Pending)
+  provider        String                   @default("")
+  model           String                   @default("")
+  promptVersion   String                   @default("")
+  rawResponseJson String                   @default("{}")
+  parsedJson      String                   @default("{}")
+  errorMessage    String                   @default("")
+  extractedAt     DateTime?
+  reviewedBy      String                   @default("")
+  reviewedAt      DateTime?
+  createdAt       DateTime                 @default(now())
+  methodVersion   MethodVersion            @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+
+  @@index([methodVersionId])
+  @@map("method_ai_extraction_logs")
+}
+
+model MethodExecution {
+  id              String                  @id @default(cuid())
+  methodVersionId String
+  sampleCount     Int                     @default(1)
+  status          MethodExecutionStatus   @default(InProgress)
+  startedBy       String                  @default("")
+  startedAt       DateTime                @default(now())
+  completedAt     DateTime?
+  methodVersion   MethodVersion           @relation(fields: [methodVersionId], references: [id], onDelete: Cascade)
+  steps           MethodExecutionStep[]
+
+  @@index([methodVersionId])
+  @@map("method_executions")
+}
+
+model MethodExecutionStep {
+  id             String                    @id @default(cuid())
+  executionId    String
+  stepOrder      Int                       @default(0)
+  stepName       String                    @default("")
+  instruction    String                    @default("")
+  requiredInput  String                    @default("")
+  expectedResult String                    @default("")
+  operator       String                    @default("")
+  timestamp      DateTime?
+  status         MethodExecutionStepStatus @default(Pending)
+  comment        String                    @default("")
+  workflowNodeKey String                   @default("")
+  execution      MethodExecution           @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId])
+  @@map("method_execution_steps")
 }

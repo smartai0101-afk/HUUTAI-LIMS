@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
-import { DEFAULT_STRAIN_GROUPS } from "@/lib/strains-fields";
+import { useEffect, useMemo } from "react";
+import { CodeSequenceInput } from "@/components/shared/CodeSequenceInput";
 import { computeStandardStatus, standardStatusLabel } from "@/lib/standard-status";
 import type { StockInMasterOption } from "@/lib/services/stock-in-options";
+import { formatStockInCodeFromSequence } from "@/lib/stock-in-code";
 import { findStrainOptionByIdentity } from "@/lib/stock-in-form-helpers";
 
 export type StrainStockInFormState = {
   existingMasterId: string;
   code: string;
+  sequenceNumber: string;
   name: string;
   strainGroup: string;
   manufacturer: string;
@@ -26,6 +28,7 @@ export type StrainStockInFormState = {
 type Props = {
   form: StrainStockInFormState;
   options: StockInMasterOption[];
+  groupOptions: string[];
   onChange: (next: StrainStockInFormState) => void;
 };
 
@@ -36,7 +39,7 @@ function previewStatus(expiryDate: string) {
   return standardStatusLabel(computeStandardStatus(date));
 }
 
-export function StrainStockInForm({ form, options, onChange }: Props) {
+export function StrainStockInForm({ form, options, groupOptions, onChange }: Props) {
   const identityInput = useMemo(
     () => ({
       name: form.name,
@@ -51,7 +54,8 @@ export function StrainStockInForm({ form, options, onChange }: Props) {
     [options, identityInput],
   );
 
-  const codeLocked = identityMatch !== null;
+  const resolvedCode = identityMatch?.code ?? form.code;
+  const isExistingMaster = Boolean(identityMatch?.code || (form.existingMasterId && resolvedCode));
 
   const set = (patch: Partial<StrainStockInFormState>) => onChange({ ...form, ...patch });
 
@@ -66,6 +70,7 @@ export function StrainStockInForm({ form, options, onChange }: Props) {
         ...next,
         existingMasterId: match.id,
         code: match.code,
+        sequenceNumber: "",
         strainGroup: match.strainGroup ?? next.strainGroup,
         manufacturer: match.manufacturer,
         atccProductCode: match.atccProductCode ?? "",
@@ -75,6 +80,13 @@ export function StrainStockInForm({ form, options, onChange }: Props) {
     }
     onChange({ ...next, existingMasterId: "" });
   };
+
+  useEffect(() => {
+    if (!identityMatch) return;
+    if (form.existingMasterId === identityMatch.id && form.code === identityMatch.code) return;
+    applyIdentityResolution(form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when identity match appears
+  }, [identityMatch?.id]);
 
   const handleIdentityFieldChange = (
     key: "name" | "manufacturer" | "atccProductCode",
@@ -92,6 +104,7 @@ export function StrainStockInForm({ form, options, onChange }: Props) {
     set({
       existingMasterId: selected.id,
       code: selected.code,
+      sequenceNumber: "",
       name: selected.name,
       strainGroup: selected.strainGroup ?? form.strainGroup,
       manufacturer: selected.manufacturer,
@@ -124,15 +137,30 @@ export function StrainStockInForm({ form, options, onChange }: Props) {
         </p>
       ) : null}
 
-      <label className="space-y-1">
-        <span className="text-sm font-medium text-slate-700">Mã chủng</span>
-        <input
-          readOnly={codeLocked}
-          value={form.code}
-          onChange={(e) => set({ code: e.target.value })}
-          className={`h-10 w-full rounded-xl border border-slate-200 px-3 text-sm ${codeLocked ? "bg-slate-50 text-slate-600" : ""}`}
+      {isExistingMaster ? (
+        <label className="space-y-1">
+          <span className="text-sm font-medium text-slate-700">Mã chủng</span>
+          <input
+            readOnly
+            value={resolvedCode}
+            className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600"
+          />
+        </label>
+      ) : (
+        <CodeSequenceInput
+          prefix="STR"
+          sequence={form.sequenceNumber}
+          onSequenceChange={(sequence) =>
+            onChange({
+              ...form,
+              sequenceNumber: sequence,
+              code: formatStockInCodeFromSequence("STR", sequence),
+            })
+          }
+          mode="create"
+          label="Mã chủng"
         />
-      </label>
+      )}
 
       <label className="space-y-1">
         <span className="text-sm font-medium text-slate-700">Tên chủng</span>
@@ -181,17 +209,18 @@ export function StrainStockInForm({ form, options, onChange }: Props) {
 
       <label className="space-y-1">
         <span className="text-sm font-medium text-slate-700">Nhóm vi sinh</span>
-        <select
+        <input
+          list="stock-in-strain-group-options"
           value={form.strainGroup}
           onChange={(e) => set({ strainGroup: e.target.value })}
+          placeholder="Vi khuẩn, Nấm men hoặc nhóm mới"
           className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
-        >
-          {DEFAULT_STRAIN_GROUPS.map((group) => (
-            <option key={group} value={group}>
-              {group}
-            </option>
+        />
+        <datalist id="stock-in-strain-group-options">
+          {groupOptions.map((group) => (
+            <option key={group} value={group} />
           ))}
-        </select>
+        </datalist>
       </label>
 
       <label className="space-y-1">

@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { DetailDrawer } from "@/components/DetailDrawer";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { ModalShell } from "@/components/ModalShell";
 import { useRole } from "@/components/RoleProvider";
 import { useToast } from "@/components/ToastProvider";
@@ -15,7 +16,11 @@ import {
   deleteEnvironmentalLog,
   updateEnvironmentalLog,
 } from "@/lib/actions/environmental-logs";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { EnvironmentalLogListParams } from "@/lib/services/environmental-logs";
 import type { StaffView } from "@/lib/services/staff";
+import { formatDate } from "@/lib/utils";
 import type { EnvironmentalLogView } from "@/types";
 
 const initialForm = {
@@ -28,16 +33,18 @@ const initialForm = {
 };
 
 export function EnvironmentalLogsClient({
-  items,
+  listResult,
+  listQuery,
   staff,
 }: {
-  items: EnvironmentalLogView[];
+  listResult: PaginatedResult<EnvironmentalLogView>;
+  listQuery: EnvironmentalLogListParams;
   staff: StaffView[];
 }) {
   const router = useRouter();
   const { canEdit } = useRole();
   const { addToast } = useToast();
-  const [query, setQuery] = useState("");
+  const { setQuery, toggleSort, setPage, setLimit } = useListQueryState();
   const [selected, setSelected] = useState<EnvironmentalLogView | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -46,16 +53,7 @@ export function EnvironmentalLogsClient({
   const [deleteTarget, setDeleteTarget] = useState<EnvironmentalLogView | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter(
-      (item) =>
-        !q ||
-        [item.location, item.recordedByStaffName, item.notes, item.snapshotText].some((v) =>
-          v.toLowerCase().includes(q),
-        ),
-    );
-  }, [items, query]);
+  const rows = useMemo(() => listResult.items, [listResult.items]);
 
   const openCreate = () => {
     setIsEditing(false);
@@ -140,7 +138,7 @@ export function EnvironmentalLogsClient({
           <div className="relative w-full md:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              value={query}
+              value={listQuery.q}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Tìm vị trí, người ghi, ghi chú..."
               className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-cyan-300"
@@ -148,27 +146,58 @@ export function EnvironmentalLogsClient({
           </div>
         </div>
 
-        <DataTable
-          columns={[
-            { key: "loggedAt", header: "Ngày ghi" },
-            { key: "location", header: "Vị trí" },
-            {
-              key: "temperature",
-              header: "Nhiệt độ",
-              render: (v) => (v != null ? `${v}°C` : "—"),
-            },
-            {
-              key: "humidity",
-              header: "Độ ẩm",
-              render: (v) => (v != null ? `${v}%` : "—"),
-            },
-            { key: "recordedByStaffName", header: "Người ghi" },
-            { key: "notes", header: "Ghi chú" },
-          ]}
-          rows={filtered}
-          getRowKey={(row) => row.id}
-          onRowClick={(row) => setSelected(row)}
-        />
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <DataTable
+            columns={[
+              {
+                key: "loggedAt",
+                header: "Ngày ghi",
+                sortable: true,
+                sortKey: "loggedAt",
+                render: (v) => formatDate(String(v)),
+              },
+              { key: "location", header: "Vị trí", sortable: true, sortKey: "location" },
+              {
+                key: "temperature",
+                header: "Nhiệt độ",
+                sortable: true,
+                sortKey: "temperature",
+                render: (v) => (v != null ? `${v}°C` : "—"),
+              },
+              {
+                key: "humidity",
+                header: "Độ ẩm",
+                sortable: true,
+                sortKey: "humidity",
+                render: (v) => (v != null ? `${v}%` : "—"),
+              },
+              {
+                key: "recordedByStaffName",
+                header: "Người ghi",
+                sortable: true,
+                sortKey: "recordedByStaffName",
+              },
+              { key: "notes", header: "Ghi chú", sortable: true, sortKey: "notes" },
+            ]}
+            rows={rows}
+            getRowKey={(row) => row.id}
+            onRowClick={(row) => setSelected(row)}
+            sort={{
+              sortBy: listQuery.sortBy,
+              sortOrder: listQuery.sortOrder,
+              sortActive: listQuery.sortActive,
+              onSort: toggleSort,
+            }}
+          />
+          <ListPaginationBar
+            page={listResult.page}
+            totalPages={listResult.totalPages}
+            total={listResult.total}
+            limit={listResult.limit}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+          />
+        </div>
       </div>
 
       <DetailDrawer

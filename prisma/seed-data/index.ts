@@ -6,6 +6,8 @@ import { seedExtendedPostStockLots } from "./links";
 import { seedExtendedStandards } from "./standards";
 import { seedExtendedStrains } from "./strains";
 
+export { seedAnalyticalMethods } from "./analytical-methods";
+
 export async function seedExtendedCatalog(prisma: PrismaClient) {
   console.log("Seeding extended catalog demo data...");
   await seedExtendedChemicals(prisma);

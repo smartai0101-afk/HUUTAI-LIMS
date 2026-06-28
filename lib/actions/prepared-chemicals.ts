@@ -19,6 +19,8 @@ import {
 } from "@/lib/prepared-code-guard";
 import {
   assertValidParentCode,
+  previewPreparedBatchFromSequence,
+  resolvePreparedBatchFromSequence,
   resolvePreparedBatchIdentity,
 } from "@/lib/prepared-batch-code";
 import { computePreparedChemicalStatus } from "@/lib/prepared-chemical-status";
@@ -170,6 +172,7 @@ function buildBaseData(fd: FormData) {
   const preparedQuantity = parseQuantity(str(fd, "preparedQuantity"));
   return {
     parentCode: str(fd, "parentCode"),
+    sequenceNumber: str(fd, "sequenceNumber"),
     code: str(fd, "code"),
     name: str(fd, "name"),
     concentration: str(fd, "concentration"),
@@ -210,10 +213,18 @@ function isStockError(message: string) {
 }
 
 export async function previewNextPreparedChemicalBatchCode(fd: FormData) {
-  const parentCode = str(fd, "parentCode");
-  const parentError = assertValidParentCode(parentCode);
-  if (parentError) return { error: parentError };
-  const resolved = await resolvePreparedBatchIdentity(db, "PreparedChemical", parentCode);
+  const fixedParent = str(fd, "parentCode");
+  if (fixedParent) {
+    const parentError = assertValidParentCode(fixedParent);
+    if (parentError) return { error: parentError };
+    const resolved = await resolvePreparedBatchIdentity(db, "PreparedChemical", fixedParent);
+    if ("error" in resolved) return { error: resolved.error };
+    return { success: true, ...resolved, codePrefix: "PCHEM", sequenceNumber: 0 };
+  }
+
+  const sequenceNumber = str(fd, "sequenceNumber");
+  if (!sequenceNumber) return { error: "Nhập số thứ tự để xem mã lô" };
+  const resolved = await previewPreparedBatchFromSequence(db, "PreparedChemical", "PCHEM", sequenceNumber);
   if ("error" in resolved) return { error: resolved.error };
   return { success: true, ...resolved };
 }
@@ -224,8 +235,6 @@ export async function createPreparedChemical(fd: FormData) {
   const ingredients = parseIngredients(fd);
   if ("error" in ingredients) return { error: ingredients.error };
 
-  const parentError = assertValidParentCode(data.parentCode);
-  if (parentError) return { error: parentError };
   if (!data.name) return { error: "Tên hóa chất pha là bắt buộc" };
   if (!data.preparedDate || !data.expiryDate) return { error: "Ngày pha chế và ngày hết hạn không hợp lệ" };
   const preparedDate = data.preparedDate;
@@ -242,7 +251,9 @@ export async function createPreparedChemical(fd: FormData) {
 
   try {
     const row = await db.$transaction(async (tx) => {
-      const batchIdentity = await resolvePreparedBatchIdentity(tx, "PreparedChemical", data.parentCode);
+      const batchIdentity = data.parentCode
+        ? await resolvePreparedBatchFromSequence(tx, "PreparedChemical", "PCHEM", null, data.parentCode)
+        : await resolvePreparedBatchFromSequence(tx, "PreparedChemical", "PCHEM", data.sequenceNumber);
       if ("error" in batchIdentity) throw new Error(batchIdentity.error);
 
       const resolved = await resolveIngredientUnits(tx, ingredients);
@@ -258,6 +269,8 @@ export async function createPreparedChemical(fd: FormData) {
         data: {
           id: newId,
           parentCode: batchIdentity.parentCode,
+          codePrefix: batchIdentity.codePrefix,
+          sequenceNumber: batchIdentity.sequenceNumber,
           batchNumber: batchIdentity.batchNumber,
           code: batchIdentity.code,
           name: data.name,

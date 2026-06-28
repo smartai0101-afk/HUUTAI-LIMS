@@ -49,6 +49,16 @@ export async function middleware(request: NextRequest) {
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!token) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        {
+          error: "Vui lòng đăng nhập",
+          code: "UNAUTHORIZED",
+          message: "Phiên đăng nhập hết hạn — vui lòng đăng nhập lại.",
+        },
+        { status: 401 },
+      );
+    }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
@@ -58,12 +68,34 @@ export async function middleware(request: NextRequest) {
   try {
     payload = await verifySessionToken(token);
   } catch {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        {
+          error: "Vui lòng đăng nhập",
+          code: "UNAUTHORIZED",
+          message: "Phiên đăng nhập hết hạn — vui lòng đăng nhập lại.",
+        },
+        { status: 401 },
+      );
+    }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   if (!payload) {
+    if (pathname.startsWith("/api/")) {
+      const response = NextResponse.json(
+        {
+          error: "Vui lòng đăng nhập",
+          code: "UNAUTHORIZED",
+          message: "Phiên đăng nhập hết hạn — vui lòng đăng nhập lại.",
+        },
+        { status: 401 },
+      );
+      response.cookies.delete(SESSION_COOKIE);
+      return response;
+    }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     const response = NextResponse.redirect(loginUrl);

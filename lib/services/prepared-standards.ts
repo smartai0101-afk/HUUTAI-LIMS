@@ -19,7 +19,20 @@ import type {
   PreparedStandardSolventView,
   PreparedStandardView,
 } from "@/types";
-import type { PreparedStandardLevel } from "@prisma/client";
+import type { PreparedStandardLevel, Prisma } from "@prisma/client";
+
+const preparedStandardDetailInclude = {
+  components: { orderBy: { id: "asc" } },
+  solvents: { orderBy: { id: "asc" } },
+  preparedByStaff: { select: { name: true } },
+  checkedByStaff: { select: { name: true } },
+  approvedByStaff: { select: { name: true } },
+  equipment: { select: { code: true, name: true } },
+} satisfies Prisma.PreparedStandardInclude;
+
+export type PreparedStandardDetailRow = Prisma.PreparedStandardGetPayload<{
+  include: typeof preparedStandardDetailInclude;
+}>;
 
 function mapComponent(row: {
   id: string;
@@ -107,53 +120,48 @@ function mapSolvent(row: {
   };
 }
 
+export function mapPreparedStandardRow(row: PreparedStandardDetailRow): PreparedStandardView {
+  const components = row.components.map(mapComponent);
+  const solvents = row.solvents.map(mapSolvent);
+  return {
+    id: row.id,
+    parentCode: row.parentCode || row.code,
+    batchNumber: row.batchNumber,
+    code: row.code,
+    name: row.name,
+    level: row.level,
+    levelLabel: PREPARED_STANDARD_LEVEL_LABELS[row.level],
+    concentration: row.concentration,
+    concentrationUnit: row.concentrationUnit,
+    solventVolume: row.solventVolume,
+    solventUnit: row.solventUnit,
+    preparedDate: toDateStr(row.preparedDate),
+    expiryDate: toDateStr(row.expiryDate),
+    preparedBy: row.preparedByStaff?.name || row.preparedBy,
+    status: preparedStandardStatusLabel(computePreparedStandardStatus(row.expiryDate)),
+    storageLocation: row.storageLocation,
+    storageCondition: row.storageCondition,
+    quantity: row.quantity,
+    unit: row.unit || row.solventUnit,
+    inventoryStatus: row.inventoryStatus ?? "Active",
+    notes: row.notes,
+    components,
+    solvents,
+    componentsSummary: components.map((c) => c.displayLine).join("\n"),
+    solventsSummary: solvents.map((s) => s.displayLine).join("\n"),
+    ...mapPreparationWorkflowFields(row),
+    ...mapPreparationIsoFields(row),
+  };
+}
+
 export async function getPreparedStandards(): Promise<PreparedStandardView[]> {
   const rows = await db.preparedStandard.findMany({
     where: { deletedAt: null },
-    include: {
-      components: { orderBy: { id: "asc" } },
-      solvents: { orderBy: { id: "asc" } },
-      preparedByStaff: { select: { name: true } },
-      checkedByStaff: { select: { name: true } },
-      approvedByStaff: { select: { name: true } },
-      equipment: { select: { code: true, name: true } },
-    },
+    include: preparedStandardDetailInclude,
     orderBy: { code: "asc" },
   });
 
-  return rows.map((row) => {
-    const components = row.components.map(mapComponent);
-    const solvents = row.solvents.map(mapSolvent);
-    return {
-      id: row.id,
-      parentCode: row.parentCode || row.code,
-      batchNumber: row.batchNumber,
-      code: row.code,
-      name: row.name,
-      level: row.level,
-      levelLabel: PREPARED_STANDARD_LEVEL_LABELS[row.level],
-      concentration: row.concentration,
-      concentrationUnit: row.concentrationUnit,
-      solventVolume: row.solventVolume,
-      solventUnit: row.solventUnit,
-      preparedDate: toDateStr(row.preparedDate),
-      expiryDate: toDateStr(row.expiryDate),
-      preparedBy: row.preparedBy,
-      status: preparedStandardStatusLabel(computePreparedStandardStatus(row.expiryDate)),
-      storageLocation: row.storageLocation,
-      storageCondition: row.storageCondition,
-      quantity: row.quantity,
-      unit: row.unit || row.solventUnit,
-      inventoryStatus: row.inventoryStatus ?? "Active",
-      notes: row.notes,
-      components,
-      solvents,
-      componentsSummary: components.map((c) => c.displayLine).join("\n"),
-      solventsSummary: solvents.map((s) => s.displayLine).join("\n"),
-      ...mapPreparationWorkflowFields(row),
-      ...mapPreparationIsoFields(row),
-    };
-  });
+  return rows.map(mapPreparedStandardRow);
 }
 
 export async function getPreparedStandardCatalog() {

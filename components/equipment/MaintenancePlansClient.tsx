@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -20,6 +20,9 @@ import {
 } from "@/lib/actions/equipment-maintenance";
 import { SCHEDULE_STATUS_FILTERS } from "@/lib/equipment-schedule";
 import { EQUIPMENT_COLUMN, EQUIPMENT_SUBTITLE } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { MaintenancePlanListParams } from "@/lib/services/equipment-maintenance";
 import { exportToXlsx } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 import type { MaintenancePlanView } from "@/types";
@@ -35,15 +38,16 @@ const exportColumns = [
 const initialForm = { equipmentId: "", name: "", cycleMonths: "6", lastDate: "", vendor: "", notes: "" };
 
 export function MaintenancePlansClient({
-  items,
+  result,
   equipmentOptions,
+  listQuery,
 }: {
-  items: MaintenancePlanView[];
+  result: PaginatedResult<MaintenancePlanView>;
   equipmentOptions: EquipmentOption[];
+  listQuery: MaintenancePlanListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof SCHEDULE_STATUS_FILTERS)[number]>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<MaintenancePlanView | null>(null);
   const [form, setForm] = useState(initialForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -54,14 +58,7 @@ export function MaintenancePlansClient({
   const { canManage, canEdit, role } = useRole();
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter((item) => {
-      const matchQuery = !q || item.equipmentCode.toLowerCase().includes(q) || item.name.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchStatus;
-    });
-  }, [items, query, statusFilter]);
+  const rows = result.items;
 
   const submit = () => {
     if (!form.equipmentId || !form.name.trim()) {
@@ -100,9 +97,9 @@ export function MaintenancePlansClient({
       <EquipmentModuleShell
         title="Kế hoạch bảo trì"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
-        onExport={() => { exportToXlsx("ke-hoach-bao-tri", filtered.map((r) => ({ ...r })), exportColumns); addToast("Đã export Excel", "success"); }}
+        onExport={() => { exportToXlsx("ke-hoach-bao-tri", rows.map((r) => ({ ...r })), exportColumns); addToast("Đã export Excel", "success"); }}
         onCreate={() => { setIsEditing(false); setEditingId(null); setForm(initialForm); setIsFormOpen(true); }}
         createLabel="Thêm kế hoạch"
         canEdit={canEdit}
@@ -119,21 +116,27 @@ export function MaintenancePlansClient({
                       ? "Sắp đến hạn"
                       : "Quá hạn",
             }))}
-            value={statusFilter}
-            onChange={setStatusFilter}
+            value={listQuery.status}
+            onChange={(v) => setFilter("status", v === "All" ? null : v)}
           />
         }
       >
         <DataTable
           columns={[
-            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode },
-            { key: "equipmentName", header: "Tên thiết bị" },
-            { key: "name", header: "Kế hoạch" },
-            { key: "cycleMonths", header: "Chu kỳ (tháng)" },
-            { key: "nextDate", header: EQUIPMENT_COLUMN.maintenanceNext, render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "status", header: "Trạng thái", render: (v) => <ScheduleStatusBadge status={String(v)} /> },
+            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode, sortable: true, sortKey: "equipmentCode" },
+            { key: "equipmentName", header: "Tên thiết bị", sortable: true, sortKey: "equipmentName" },
+            { key: "name", header: "Kế hoạch", sortable: true, sortKey: "name" },
+            { key: "cycleMonths", header: "Chu kỳ (tháng)", sortable: true, sortKey: "cycleMonths" },
+            { key: "nextDate", header: EQUIPMENT_COLUMN.maintenanceNext, sortable: true, sortKey: "nextDate", render: (v) => (v ? formatDate(String(v)) : "-") },
+            { key: "status", header: "Trạng thái", sortable: true, sortKey: "status", render: (v) => <ScheduleStatusBadge status={String(v)} /> },
           ]}
-          rows={filtered}
+          rows={rows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
           rowActions={canManage ? (row) => (

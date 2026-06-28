@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Atom,
   ChevronDown,
   FlaskConical,
   Menu,
@@ -15,6 +16,8 @@ import {
 import { useSession } from "@/components/SessionProvider";
 import {
   getAdminNavItems,
+  getAnalyticalMethodsNavItems,
+  getChemInfoNavItems,
   getEquipmentNavItems,
   getMaterialsNavItems,
 } from "@/lib/auth/nav-permissions";
@@ -29,16 +32,26 @@ export function Sidebar() {
   const pathname = usePathname();
   const { hasPermission } = useSession();
   const [open, setOpen] = useState(false);
+  const [chemInfoOpen, setChemInfoOpen] = useState(true);
   const [materialsOpen, setMaterialsOpen] = useState(true);
   const [equipmentOpen, setEquipmentOpen] = useState(true);
+  const [methodsOpen, setMethodsOpen] = useState(true);
   const [adminOpen, setAdminOpen] = useState(true);
 
+  const visibleChemInfo = useMemo(
+    () => getChemInfoNavItems().filter((item) => hasPermission(item.key, "read")),
+    [hasPermission],
+  );
   const visibleMaterials = useMemo(
     () => getMaterialsNavItems().filter((item) => hasPermission(item.key, "read")),
     [hasPermission],
   );
   const visibleEquipment = useMemo(
     () => getEquipmentNavItems().filter((item) => hasPermission(item.key, "read")),
+    [hasPermission],
+  );
+  const visibleMethods = useMemo(
+    () => getAnalyticalMethodsNavItems().filter((item) => hasPermission(item.key, "read")),
     [hasPermission],
   );
   const visibleAdmin = useMemo(
@@ -56,17 +69,32 @@ export function Sidebar() {
   }, [open]);
 
   useEffect(() => {
+    const savedChemInfo = localStorage.getItem("chem-info-nav-open");
+    if (savedChemInfo !== null) setChemInfoOpen(savedChemInfo === "true");
     const savedMaterials = localStorage.getItem("materials-nav-open");
     if (savedMaterials !== null) setMaterialsOpen(savedMaterials === "true");
     const savedEquipment = localStorage.getItem("equipment-nav-open");
     if (savedEquipment !== null) setEquipmentOpen(savedEquipment === "true");
+    const savedMethods = localStorage.getItem("methods-nav-open");
+    if (savedMethods !== null) setMethodsOpen(savedMethods === "true");
     const savedAdmin = localStorage.getItem("admin-nav-open");
     if (savedAdmin !== null) setAdminOpen(savedAdmin === "true");
   }, []);
 
+  const isChemInfoActive = pathname.startsWith("/chem-info");
   const isMaterialsActive = visibleMaterials.some((item) => isMaterialsRoute(pathname, item.href));
   const isEquipmentActive = pathname.startsWith("/equipment");
+  const isMethodsActive =
+    pathname.startsWith("/analytical-methods") || pathname.startsWith("/method-executions");
   const isAdminActive = pathname.startsWith("/admin");
+
+  const toggleChemInfo = () => {
+    setChemInfoOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem("chem-info-nav-open", String(next));
+      return next;
+    });
+  };
 
   const toggleMaterials = () => {
     setMaterialsOpen((prev) => {
@@ -80,6 +108,14 @@ export function Sidebar() {
     setEquipmentOpen((prev) => {
       const next = !prev;
       localStorage.setItem("equipment-nav-open", String(next));
+      return next;
+    });
+  };
+
+  const toggleMethods = () => {
+    setMethodsOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem("methods-nav-open", String(next));
       return next;
     });
   };
@@ -110,8 +146,54 @@ export function Sidebar() {
       </div>
       <TouchVerticalScroll className="min-h-0 flex-1" fadeClassName="from-slate-950">
         <nav className="space-y-1 px-3 py-5">
-        {visibleMaterials.length > 0 ? (
+        {visibleChemInfo.length > 0 ? (
           <div>
+            <button
+              type="button"
+              onClick={toggleChemInfo}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                isChemInfoActive
+                  ? "bg-cyan-500/10 text-cyan-300"
+                  : "text-slate-300 hover:bg-slate-900 hover:text-white",
+              )}
+            >
+              <Atom className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Thông tin hóa học</span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-transform",
+                  chemInfoOpen ? "rotate-180" : "",
+                )}
+              />
+            </button>
+            {chemInfoOpen ? (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+                {visibleChemInfo.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "block rounded-lg px-3 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-cyan-500/10 text-cyan-300"
+                          : "text-slate-400 hover:bg-slate-900 hover:text-white",
+                      )}
+                      onClick={() => setOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {visibleMaterials.length > 0 ? (
+          <div className="pt-2">
             <button
               type="button"
               onClick={toggleMaterials}
@@ -183,6 +265,55 @@ export function Sidebar() {
                   const isActive =
                     item.href === "/equipment"
                       ? pathname === "/equipment"
+                      : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "block rounded-lg px-3 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-cyan-500/10 text-cyan-300"
+                          : "text-slate-400 hover:bg-slate-900 hover:text-white",
+                      )}
+                      onClick={() => setOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {visibleMethods.length > 0 ? (
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={toggleMethods}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                isMethodsActive
+                  ? "bg-cyan-500/10 text-cyan-300"
+                  : "text-slate-300 hover:bg-slate-900 hover:text-white",
+              )}
+            >
+              <FlaskConical className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Phương pháp phân tích</span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-transform",
+                  methodsOpen ? "rotate-180" : "",
+                )}
+              />
+            </button>
+            {methodsOpen ? (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+                {visibleMethods.map((item) => {
+                  const isActive =
+                    item.href === "/analytical-methods"
+                      ? pathname === "/analytical-methods"
                       : pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return (
                     <Link

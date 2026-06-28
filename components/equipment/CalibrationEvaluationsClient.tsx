@@ -20,6 +20,9 @@ import {
 } from "@/lib/actions/equipment-calibration";
 import { EVALUATION_STATUS_LABELS } from "@/lib/equipment-fields";
 import { EQUIPMENT_COLUMN, EQUIPMENT_NAV, EQUIPMENT_SUBTITLE } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { CalibrationEvaluationListParams } from "@/lib/services/equipment-calibration";
 import { exportToXlsx } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 import type { CalibrationRecordView, PostCalibrationEvaluationView } from "@/types";
@@ -41,17 +44,18 @@ const initialForm = {
 };
 
 export function CalibrationEvaluationsClient({
-  items,
+  result,
   equipmentOptions,
   calibrationRecords,
+  listQuery,
 }: {
-  items: PostCalibrationEvaluationView[];
+  result: PaginatedResult<PostCalibrationEvaluationView>;
   equipmentOptions: EquipmentOption[];
   calibrationRecords: CalibrationRecordView[];
+  listQuery: CalibrationEvaluationListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | keyof typeof EVALUATION_STATUS_LABELS>("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<PostCalibrationEvaluationView | null>(null);
   const [form, setForm] = useState(initialForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -67,18 +71,7 @@ export function CalibrationEvaluationsClient({
     [calibrationRecords, form.equipmentId],
   );
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter((item) => {
-      const matchQuery =
-        !q ||
-        item.equipmentCode.toLowerCase().includes(q) ||
-        item.equipmentName.toLowerCase().includes(q) ||
-        item.certificateNo.toLowerCase().includes(q);
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
-      return matchQuery && matchStatus;
-    });
-  }, [items, query, statusFilter]);
+  const rows = result.items;
 
   const openCreate = () => {
     setIsEditing(false);
@@ -156,7 +149,7 @@ export function CalibrationEvaluationsClient({
   };
 
   const handleExport = () => {
-    exportToXlsx("danh-gia-sau-hc", filtered.map((r) => ({ ...r })), exportColumns);
+    exportToXlsx("danh-gia-sau-hc", rows.map((r) => ({ ...r })), exportColumns);
     addToast("Đã export Excel", "success");
   };
 
@@ -165,7 +158,7 @@ export function CalibrationEvaluationsClient({
       <EquipmentModuleShell
         title="Đánh giá sau hiệu chuẩn"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
         searchPlaceholder="Tìm theo mã TB, số chứng nhận..."
         onExport={handleExport}
@@ -178,20 +171,26 @@ export function CalibrationEvaluationsClient({
               value: s,
               label: s === "All" ? "Tất cả" : EVALUATION_STATUS_LABELS[s as keyof typeof EVALUATION_STATUS_LABELS],
             }))}
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+            value={listQuery.status === "All" ? "All" : listQuery.status}
+            onChange={(value) => setFilter("status", value === "All" ? null : value)}
           />
         }
       >
         <DataTable
           columns={[
-            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode },
-            { key: "calibrationDate", header: EQUIPMENT_COLUMN.calibrationDate, render: (v) => (v ? formatDate(String(v)) : "-") },
-            { key: "certificateNo", header: "Số chứng nhận" },
-            { key: "statusLabel", header: "Trạng thái" },
-            { key: "approvedBy", header: "Người duyệt" },
+            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode, sortable: true, sortKey: "equipmentCode" },
+            { key: "calibrationDate", header: EQUIPMENT_COLUMN.calibrationDate, sortable: true, sortKey: "calibrationDate", render: (v) => (v ? formatDate(String(v)) : "-") },
+            { key: "certificateNo", header: "Số chứng nhận", sortable: true, sortKey: "certificateNo" },
+            { key: "statusLabel", header: "Trạng thái", sortable: true, sortKey: "status" },
+            { key: "approvedBy", header: "Người duyệt", sortable: true, sortKey: "approvedBy" },
           ]}
-          rows={filtered}
+          rows={rows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
           rowActionsHeader="Hành động"

@@ -21,6 +21,9 @@ import {
   updateMaintenanceLog,
 } from "@/lib/actions/equipment-maintenance";
 import { EQUIPMENT_COLUMN, EQUIPMENT_NAV, EQUIPMENT_SUBTITLE, MAINTENANCE_LOG } from "@/lib/equipment-labels";
+import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import type { PaginatedResult } from "@/lib/list-query";
+import type { MaintenanceLogListParams } from "@/lib/services/equipment-maintenance";
 import { exportToXlsx } from "@/lib/excel";
 import { formatDate } from "@/lib/utils";
 import type { MaintenanceLogView } from "@/types";
@@ -54,15 +57,16 @@ function toTableRow(item: MaintenanceLogView): MaintenanceLogTableRow {
 }
 
 export function MaintenanceLogsClient({
-  items,
+  result,
   equipmentOptions,
+  listQuery,
 }: {
-  items: MaintenanceLogView[];
+  result: PaginatedResult<MaintenanceLogView>;
   equipmentOptions: EquipmentOption[];
+  listQuery: MaintenanceLogListParams;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [completedFilter, setCompletedFilter] = useState<"All" | "Open" | "Done">("All");
+  const { setQuery, setFilter, toggleSort } = useListQueryState();
   const [selected, setSelected] = useState<MaintenanceLogView | null>(null);
   const [form, setForm] = useState(initialForm);
   const [attachFiles, setAttachFiles] = useState<File[]>([]);
@@ -75,24 +79,11 @@ export function MaintenanceLogsClient({
   const { addToast } = useToast();
 
   const editingItem = useMemo(
-    () => (editingId ? items.find((item) => item.id === editingId) ?? null : null),
-    [items, editingId],
+    () => (editingId ? result.items.find((item) => item.id === editingId) ?? null : null),
+    [result.items, editingId],
   );
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return items.filter((item) => {
-      const matchQuery = !q || item.equipmentCode.toLowerCase().includes(q) || item.description.toLowerCase().includes(q);
-      const isDone = !!item.completedDate;
-      const matchCompleted =
-        completedFilter === "All" ||
-        (completedFilter === "Done" && isDone) ||
-        (completedFilter === "Open" && !isDone);
-      return matchQuery && matchCompleted;
-    });
-  }, [items, query, completedFilter]);
-
-  const tableRows = useMemo(() => filtered.map(toTableRow), [filtered]);
+  const tableRows = useMemo(() => result.items.map(toTableRow), [result.items]);
 
   const openEditForm = (item: MaintenanceLogView) => {
     setIsEditing(true);
@@ -164,7 +155,7 @@ export function MaintenanceLogsClient({
       <EquipmentModuleShell
         title="Nhật ký bảo trì / sửa chữa"
         subtitle={EQUIPMENT_SUBTITLE}
-        query={query}
+        query={listQuery.q}
         onQueryChange={setQuery}
         onExport={() => {
           exportToXlsx(
@@ -187,16 +178,16 @@ export function MaintenanceLogsClient({
               value: s,
               label: s === "All" ? "Tất cả" : s === "Open" ? MAINTENANCE_LOG.statusOpen : MAINTENANCE_LOG.statusDone,
             }))}
-            value={completedFilter}
-            onChange={setCompletedFilter}
+            value={listQuery.completed}
+            onChange={(v) => setFilter("completed", v === "All" ? null : v)}
           />
         }
       >
         <DataTable
           columns={[
-            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode },
-            { key: "issueDate", header: MAINTENANCE_LOG.issueDate, render: (v) => formatDate(String(v)) },
-            { key: "description", header: "Mô tả" },
+            { key: "equipmentCode", header: EQUIPMENT_COLUMN.equipmentCode, sortable: true, sortKey: "equipmentCode" },
+            { key: "issueDate", header: MAINTENANCE_LOG.issueDate, sortable: true, sortKey: "issueDate", render: (v) => formatDate(String(v)) },
+            { key: "description", header: "Mô tả", sortable: true, sortKey: "description" },
             {
               key: "statusLabel",
               header: MAINTENANCE_LOG.status,
@@ -226,10 +217,18 @@ export function MaintenanceLogsClient({
             {
               key: "completedDate",
               header: MAINTENANCE_LOG.completedDate,
+              sortable: true,
+              sortKey: "completedDate",
               render: (v) => (v ? formatDate(String(v)) : "-"),
             },
           ]}
           rows={tableRows}
+          sort={{
+            sortBy: listQuery.sortBy,
+            sortOrder: listQuery.sortOrder,
+            sortActive: listQuery.sortActive,
+            onSort: toggleSort,
+          }}
           getRowKey={(row) => row.id}
           onRowClick={setSelected}
         />

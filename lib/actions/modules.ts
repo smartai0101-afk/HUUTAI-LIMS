@@ -11,8 +11,12 @@ import {
 } from "@/lib/prepared-code-guard";
 import {
   assertValidParentCode,
+  previewPreparedBatchFromSequence,
+  resolvePreparedBatchFromSequence,
   resolvePreparedBatchIdentity,
 } from "@/lib/prepared-batch-code";
+import { prefixForPreparedStrain } from "@/lib/code-prefixes";
+import type { PreparedStrainLevel } from "@prisma/client";
 import { computeStandardStatus } from "@/lib/standard-status";
 import { db } from "@/lib/db";
 import {
@@ -117,24 +121,43 @@ export async function deleteMicrobialStrain(fd: FormData) {
 }
 
 export async function previewNextPreparedStrainBatchCode(fd: FormData) {
-  const parentCode = str(fd, "parentCode");
-  const parentError = assertValidParentCode(parentCode);
-  if (parentError) return { error: parentError };
-  const resolved = await resolvePreparedBatchIdentity(db, "PreparedStrain", parentCode);
+  const level = (str(fd, "level") || "RootPrepared") as PreparedStrainLevel;
+  const prefix = prefixForPreparedStrain(level);
+  const fixedParent = str(fd, "parentCode");
+
+  if (fixedParent) {
+    const parentError = assertValidParentCode(fixedParent);
+    if (parentError) return { error: parentError };
+    const resolved = await resolvePreparedBatchIdentity(db, "PreparedStrain", fixedParent);
+    if ("error" in resolved) return { error: resolved.error };
+    return { success: true, ...resolved, codePrefix: prefix, sequenceNumber: 0 };
+  }
+
+  const sequenceNumber = str(fd, "sequenceNumber");
+  if (!sequenceNumber) return { error: "Nhập số thứ tự để xem mã lô" };
+  const resolved = await previewPreparedBatchFromSequence(db, "PreparedStrain", prefix, sequenceNumber);
   if ("error" in resolved) return { error: resolved.error };
   return { success: true, ...resolved };
+}
+
+function parseStrainLevel(value: string): PreparedStrainLevel {
+  const allowed: PreparedStrainLevel[] = ["RootPrepared", "Intermediate1", "Intermediate2", "Intermediate3"];
+  return allowed.includes(value as PreparedStrainLevel) ? (value as PreparedStrainLevel) : "RootPrepared";
 }
 
 export async function createPreparedStrain(fd: FormData) {
   const user = str(fd, "user") || "System";
   const parentCode = str(fd, "parentCode");
+  const sequenceNumber = str(fd, "sequenceNumber");
+  const level = parseStrainLevel(str(fd, "level"));
+  const prefix = prefixForPreparedStrain(level);
   const name = str(fd, "name");
   const sourceStrainId = str(fd, "sourceStrainId");
   const sourceStockLotId = str(fd, "sourceStockLotId");
   const preparedDateStr = str(fd, "preparedDate");
   const expiryDateStr = str(fd, "expiryDate");
   const missing = collectMissing([
-    { label: "Mã nhóm", ok: !!parentCode },
+    { label: "Mã chủng pha", ok: !!parentCode || !!sequenceNumber },
     { label: "Tên", ok: !!name },
     { label: "Chủng gốc", ok: !!sourceStrainId },
     { label: "Lot chủng gốc", ok: !!sourceStockLotId },
@@ -142,14 +165,14 @@ export async function createPreparedStrain(fd: FormData) {
     { label: "Hạn dùng sau pha", ok: isValidFormDate(expiryDateStr) },
   ]);
   if (missing) return { error: missing };
-  const parentError = assertValidParentCode(parentCode);
-  if (parentError) return { error: parentError };
   const preparedDate = parseFormDate(preparedDateStr)!;
   const expiryDate = parseFormDate(expiryDateStr)!;
 
   try {
     const row = await db.$transaction(async (tx) => {
-      const batchIdentity = await resolvePreparedBatchIdentity(tx, "PreparedStrain", parentCode);
+      const batchIdentity = parentCode
+        ? await resolvePreparedBatchFromSequence(tx, "PreparedStrain", prefix, null, parentCode)
+        : await resolvePreparedBatchFromSequence(tx, "PreparedStrain", prefix, sequenceNumber);
       if ("error" in batchIdentity) throw new Error(batchIdentity.error);
 
       const sourceStrain = await tx.microbialStrain.findUnique({ where: { id: sourceStrainId } });
@@ -167,7 +190,10 @@ export async function createPreparedStrain(fd: FormData) {
       const row = await tx.preparedStrain.create({
         data: {
           parentCode: batchIdentity.parentCode,
+          codePrefix: batchIdentity.codePrefix,
+          sequenceNumber: batchIdentity.sequenceNumber,
           batchNumber: batchIdentity.batchNumber,
+          level,
           code: batchIdentity.code,
           name,
           sourceStrainId,
@@ -175,6 +201,7 @@ export async function createPreparedStrain(fd: FormData) {
           sourceLotNumberSnapshot: lotResolved.lotNumber,
           formula: str(fd, "formula"),
           concentration: str(fd, "concentration"),
+          finalConcentration: str(fd, "finalConcentration"),
           lot: str(fd, "lot"),
           preparedDate,
           preparedBy: str(fd, "preparedBy"),
@@ -292,6 +319,7 @@ export async function updatePreparedStrain(fd: FormData) {
           sourceLotNumberSnapshot: lotResolved.lotNumber,
           formula: str(fd, "formula"),
           concentration: str(fd, "concentration"),
+          finalConcentration: str(fd, "finalConcentration"),
           lot: str(fd, "lot"),
           preparedDate,
           preparedBy: str(fd, "preparedBy"),

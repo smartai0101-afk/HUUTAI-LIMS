@@ -81,6 +81,18 @@ export function expandCatalogToLotRows<T extends LotFieldSource & { id: string }
   return rows;
 }
 
+/** Recompute showMasterFields after server-side sort (consecutive rows with same master id). */
+export function applyShowMasterFieldsToCatalogRows<T extends CatalogLotRowMeta & { id: string }>(
+  rows: T[],
+): T[] {
+  let prevMasterId: string | null = null;
+  return rows.map((row) => {
+    const showMasterFields = row.id !== prevMasterId;
+    prevMasterId = row.id;
+    return { ...row, showMasterFields };
+  });
+}
+
 /** Render a cell value only on the first row of a multi-lot group. */
 export function groupedCell<T>(showMasterFields: boolean, value: T, render?: (v: T) => ReactNode): ReactNode {
   if (!showMasterFields) return "";
