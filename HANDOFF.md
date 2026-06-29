@@ -1,7 +1,7 @@
 # Lab Inventory LIMS — HANDOFF
 
-> **Cập nhật:** 2026-06-29 (buổi **21** · **`main`** · commit prod vẫn **`54f4ae3`**) · **COA form SGS đa trang** + **2 chữ ký** (Phụ trách KT + Công ty SCI-TECH) · buổi 17–20 samples/analysis/results-delivery — **local uncommitted** · Turso **`20260629`–`20260714` chưa apply prod**  
-> **Git branch:** `main` · HEAD **`54f4ae3`** · working tree: **`components/results-delivery/coa/*`** · **`lib/test-report/*`** · migrations **`20260712`–`20260714`** · buổi 17–21 uncommitted · `HANDOFF.md` **chưa commit**  
+> **Cập nhật:** 2026-06-29 (buổi **21** · deploy prod) · commit **`a682a5a`** · **đã push GitHub + Turso migrate + seed permissions** · Vercel auto-deploy từ `main`  
+> **Git branch:** `main` · HEAD **`a682a5a`** · prod URL https://huutai-lims-m929.vercel.app  
 > **Plan tham chiếu (buổi 18):** `.cursor/plans/analysis_module_plan_64f689d8.plan.md` (không sửa plan file)  
 > **Plan tham chiếu (buổi 17):** `.cursor/plans/sample_reception_module_69e773b5.plan.md` · **Seed demo:** `.cursor/plans/sample_demo_seed_11055977.plan.md`  
 > **Plan tham chiếu (buổi 16):** `.cursor/plans/analytical_methods_module_e451daa4.plan.md` · **Undo/Redo:** `.cursor/plans/flowchart_undo_redo_52b873eb.plan.md` · **Pan canvas:** `.cursor/plans/flowchart_pan_gesture_a6330fe5.plan.md`  
@@ -38,8 +38,8 @@
 | **Authentication & RBAC** | ✅ Login/logout · JWT session · middleware · **49 quyền sidebar** (+ 6 `samples_*` + 7 `analysis_*` + 4 `delivery_*` + 4 `chem_info_*` + 2 `methods_*`) · Admin UI |
 | **Session / Sidebar auth** | ✅ Fix sidebar trống (JWT↔DB lệch) · fix cookie crash layout · stale → `/login?reason=session` · **buổi 20:** desktop cuộn menu (`TouchVerticalScroll` `h-full min-h-0` · aside `h-screen overflow-hidden`) |
 | **Mobile UX (bảng + filter)** | ✅ `TouchHorizontalScroll` · `FilterChipBar` · **không sticky cột mobile** (`ede088c`) |
-| **Deploy Vercel** | ✅ **`main`** merge + push **`54f4ae3`** (2026-06-28) · prod https://huutai-lims-m929.vercel.app · menu **Phương pháp phân tích** live · **QA browser module PP pending** |
-| **Turso prod migrate** | ✅ **`20260701`–`20260709`** applied (2026-06-28) · chem-info seed 118 elements · backfill parentCode · **migration `20260710_element_applications` local only** (`prisma db push`) · **code standardization pipeline chưa chạy** |
+| **Deploy Vercel** | ✅ Push **`a682a5a`** (2026-06-29) · prod https://huutai-lims-m929.vercel.app · modules samples/analysis/results-delivery live · **QA browser pending** |
+| **Turso prod migrate** | ✅ **`20260629`–`20260714`** applied (2026-06-29) · permissions samples/analysis/delivery seeded · lab departments seeded |
 | **Notification system** | ✅ Commit `ed32b5b` — bell + badge · `/notifications` · API 4 route · **đã redeploy prod** · **Turso migrate + QA browser pending** |
 | **Danh mục TB — cột Thông số kỹ thuật** | ✅ Commit `ed32b5b` — cột sau Hãng SX · import/export Excel · seed 27 mã · **đã redeploy prod** · **QA browser + Turso backfill pending** |
 | **Danh mục TB — In tem nhãn** | ✅ Commit `d8adfa0` — checkbox · preview modal · in A4 grid · profile ladder · logo căn giữa · **QA browser prod pending** |
