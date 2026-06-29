@@ -7,6 +7,7 @@ import { seedExtendedStandards } from "./standards";
 import { seedExtendedStrains } from "./strains";
 
 export { seedAnalyticalMethods } from "./analytical-methods";
+export { seedSamples } from "./samples";
 
 export async function seedExtendedCatalog(prisma: PrismaClient) {
   console.log("Seeding extended catalog demo data...");

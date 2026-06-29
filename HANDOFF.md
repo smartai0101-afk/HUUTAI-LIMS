@@ -1,8 +1,10 @@
 # Lab Inventory LIMS — HANDOFF
 
-> **Cập nhật:** 2026-06-28 (buổi **16** — **Module Phương pháp phân tích** Phase 1–6 + **seed demo 2 PP** + **Flowchart Undo/Redo** · **uncommitted**) · buổi 10–**15** chem-info · **Bảng tuần hoàn detail v2** · Dilution v2 commit `108160b` · MW parser v2 · Compatibility v2 · **uncommitted**  
-> **Git branch:** `cursor/mobile-scroll-vercel-session` · HEAD **`108160b`** (Dilution v2 pushed) · working tree: **buổi 16 analytical-methods** (+ seed + workflow editor UX) + buổi 7–11 chem-info + buổi 14–15 **chưa commit**  
-> **Plan tham chiếu (buổi 16):** `.cursor/plans/analytical_methods_module_e451daa4.plan.md` · **Undo/Redo flowchart:** `.cursor/plans/flowchart_undo_redo_52b873eb.plan.md` (không sửa plan file)  
+> **Cập nhật:** 2026-06-29 (buổi **21** · **`main`** · commit prod vẫn **`54f4ae3`**) · **COA form SGS đa trang** + **2 chữ ký** (Phụ trách KT + Công ty SCI-TECH) · buổi 17–20 samples/analysis/results-delivery — **local uncommitted** · Turso **`20260629`–`20260714` chưa apply prod**  
+> **Git branch:** `main` · HEAD **`54f4ae3`** · working tree: **`components/results-delivery/coa/*`** · **`lib/test-report/*`** · migrations **`20260712`–`20260714`** · buổi 17–21 uncommitted · `HANDOFF.md` **chưa commit**  
+> **Plan tham chiếu (buổi 18):** `.cursor/plans/analysis_module_plan_64f689d8.plan.md` (không sửa plan file)  
+> **Plan tham chiếu (buổi 17):** `.cursor/plans/sample_reception_module_69e773b5.plan.md` · **Seed demo:** `.cursor/plans/sample_demo_seed_11055977.plan.md`  
+> **Plan tham chiếu (buổi 16):** `.cursor/plans/analytical_methods_module_e451daa4.plan.md` · **Undo/Redo:** `.cursor/plans/flowchart_undo_redo_52b873eb.plan.md` · **Pan canvas:** `.cursor/plans/flowchart_pan_gesture_a6330fe5.plan.md`  
 > **Mục đích:** Dùng file này để mở chat mới — **không scan toàn repo**. Chỉ đọc file liên quan trực tiếp.
 
 ---
@@ -30,13 +32,13 @@
 | **`/chemicals`, `/standards`, `/microbial-strains`** | ✅ CRUD · bảng theo lot (Excel) · Chuẩn có CAS · **fix filter nhóm động** (local uncommitted) · form/datalist nhóm tùy ý |
 | **Mã chuẩn pha theo cấp (PSTD/IST/WSTD)** | ✅ Core + migration local · **uncommitted** · Turso prod pending · seed demo đổi `IST1-*`, `WSTD-*` |
 | **Inventory deduction** | ✅ Trừ theo `stockLotId` khi chọn lot; FIFO chỉ khi `ALLOW_FIFO_WITHOUT_LOT=true` |
-| **TypeScript / Tests** | ✅ `tsc`, … **`test-method-approval.ts`**, **`test-method-workflow.ts`**, **`test-workflow-history.ts`**, **`verify-analytical-methods-seed.ts`** |
+| **TypeScript / Tests** | ✅ `tsc` · **`verify-results-delivery-seed.ts`** · **`verify-analysis-module-seed.ts`** · **`verify-samples-seed.ts`** · **`test-method-*`**, **`verify-analytical-methods-seed.ts`**, **`test-sample-code-gen.ts`**, **`verify-sample-workflow.ts`** |
 | **Module Thiết bị** (`/equipment/*`) | ✅ HC inline · BT/SC UX · Phụ kiện · upload đa file · subtitle EN · Dashboard gọn · **Lý lịch gallery** · **layout shell dùng chung** |
 | **Lý lịch thiết bị** (`/equipment/history`) | ✅ Chọn sự kiện timeline → gallery ảnh (nguồn gốc + upload) · carousel prev/next · PDF link riêng |
-| **Authentication & RBAC** | ✅ Login/logout · JWT session · middleware · **32 quyền sidebar** (+ 4 `chem_info_*` + 2 `methods_*`) · Admin UI |
-| **Session / Sidebar auth** | ✅ Fix sidebar trống (JWT↔DB lệch) · fix cookie crash layout · stale → `/login?reason=session` |
+| **Authentication & RBAC** | ✅ Login/logout · JWT session · middleware · **49 quyền sidebar** (+ 6 `samples_*` + 7 `analysis_*` + 4 `delivery_*` + 4 `chem_info_*` + 2 `methods_*`) · Admin UI |
+| **Session / Sidebar auth** | ✅ Fix sidebar trống (JWT↔DB lệch) · fix cookie crash layout · stale → `/login?reason=session` · **buổi 20:** desktop cuộn menu (`TouchVerticalScroll` `h-full min-h-0` · aside `h-screen overflow-hidden`) |
 | **Mobile UX (bảng + filter)** | ✅ `TouchHorizontalScroll` · `FilterChipBar` · **không sticky cột mobile** (`ede088c`) |
-| **Deploy Vercel** | ✅ Redeploy prod **`dpl_6riTusAGFeuxuRZ7qZAxCvweuDVG`** (2026-06-28) · commit **`108160b`** (Dilution v2 + calculator shell) · **chem-info đầy đủ (buổi 7–11) chưa commit/push** |
+| **Deploy Vercel** | ✅ **`main`** merge + push **`54f4ae3`** (2026-06-28) · prod https://huutai-lims-m929.vercel.app · menu **Phương pháp phân tích** live · **QA browser module PP pending** |
 | **Turso prod migrate** | ✅ **`20260701`–`20260709`** applied (2026-06-28) · chem-info seed 118 elements · backfill parentCode · **migration `20260710_element_applications` local only** (`prisma db push`) · **code standardization pipeline chưa chạy** |
 | **Notification system** | ✅ Commit `ed32b5b` — bell + badge · `/notifications` · API 4 route · **đã redeploy prod** · **Turso migrate + QA browser pending** |
 | **Danh mục TB — cột Thông số kỹ thuật** | ✅ Commit `ed32b5b` — cột sau Hãng SX · import/export Excel · seed 27 mã · **đã redeploy prod** · **QA browser + Turso backfill pending** |
@@ -60,10 +62,17 @@
 | **Legacy MVP routes** | ✅ Commit `d8adfa0` — `/solutions`→prepared-standards · `/transactions`→usage-logs · `/inventory`→containers · `/alerts`→`/` |
 | **List sorting & pagination** | ✅ Buổi 9 local — `lib/list-query` · sort server-side Prisma · URL state · **QA browser pending** · **chưa commit** |
 | **Fix `/prepared-standards` crash sorting** | ✅ Buổi 9+10 — `mapPreparedStandardRow()` dùng chung `getPreparedStandards` + `listPreparedStandards` · **uncommitted** |
-| **Module Thông tin hóa học** (`/chem-info/*`) | 🟡 Buổi 10–12 local uncommitted · **Dilution v2** commit `108160b` on prod · **buổi 14:** MW parser v2 + mobile search fix + PubChem display name · **buổi 15:** Bảng tuần hoàn detail v2 (nhóm A/B · ứng dụng · Bohr) · **QA prod pending** |
-| **Module Phương pháp phân tích** (`/analytical-methods/*`) | 🟡 Buổi **16** local uncommitted · Phase 1–6 code done · **seed demo 2 PP** (`PP-ICP-WAT-001`, `PP-LCMS-PST-001`) · **Flowchart Undo/Redo + phím tắt** · `prisma db push` local OK · **`tsc` pass** · **Turso migrate + QA browser pending** · AI extraction **stub only** |
+| **Module Thông tin hóa học** (`/chem-info/*`) | ✅ In commit **`54f4ae3`** on prod · periodic-table v2 · MW parser · compatibility v2 · Dilution v2 · **QA prod pending** |
+| **Module Phương pháp phân tích** (`/analytical-methods/*`) | ✅ Commit **`54f4ae3`** on prod · Turso **`20260711`** + seed 2 PP · Flowchart **Undo/Redo + pan chuột** (pan **uncommitted**) · **QA browser pending** · AI extraction **stub only** |
+| **Module Tiếp nhận mẫu** (`/samples/*`) | ✅ **Local uncommitted** · migration **`20260712`** · prefix **`PR-`/`SPL-`** · **seed demo 10 phiếu + 10 mẫu** · QA CLI pass · **QA browser partial** · **Turso prod pending** · **chưa commit/push/deploy** |
+| **Phân công phòng ban** (`/samples/assign`) | ✅ **Rewrite buổi 18** — Lab Manager gán nhóm chỉ tiêu → phòng/`AnalysisAssignment` · **không** dùng `SampleTest` cho bước này · **uncommitted** |
+| **Module Phân tích** (`/analysis/*`) | ✅ **Local uncommitted** · migrations **`20260629`** + **`20260701`** · 7 màn (inbox → review) · workflow sync `Sample` · seed demo + smoke CLI pass · **QA browser E2E pending** · **Turso prod pending** |
+| **Module Trả kết quả** (`/results-delivery/*`) | ✅ **Local uncommitted** · migrations **`20260713`** + **`20260714`** · workflow draft→LM→QA→issue · **COA SGS A4 đa trang** (cover → results → notes) · song ngữ EN/VI · logo SCI-TECH · **2 chữ ký** (LM trái / công ty phải) · `documentSnapshotJson` + `cover` snapshot · seed `RPT-SEED-0001` · **`tsc` + verify CLI pass** · **QA browser in/PDF pending** · email/Word/PDF server **defer** |
 
-**Menu Thông tin hóa học** (nhóm **trên** Hoá chất - Chuẩn - Chủng): Bảng tuần hoàn · Tra cứu hóa chất · Máy tính hóa học · Tương thích hóa chất. GHS/SDS trong tab chi tiết `/chem-info/chemicals/[id]`.  
+**Menu Tiếp nhận mẫu** (nhóm **trên cùng**): Phiếu yêu cầu · Danh sách mẫu · Tiếp nhận mẫu mới · **Phân công phân tích** (→ phòng ban) · Theo dõi trạng thái · Lưu mẫu / Hủy mẫu.  
+**Menu Phân tích** (ngay **dưới** Tiếp nhận mẫu): Mẫu chờ lab tiếp nhận · Phân công analyst · Worklist · Worksheet · Nhập kết quả · Kiểm tra QC · Kết quả chờ duyệt.  
+**Menu Trả kết quả** (ngay **dưới** Phân tích, **trước** Thông tin hóa học): Kết quả chờ phát hành · Phiếu kết quả · Lịch sử phát hành · Kết quả đã trả.  
+**Menu Thông tin hóa học** (nhóm **dưới** Trả kết quả): Bảng tuần hoàn · Tra cứu hóa chất · Máy tính hóa học · Tương thích hóa chất. GHS/SDS trong tab chi tiết `/chem-info/chemicals/[id]`.  
 **Menu vật tư** (nhóm **Hoá chất - Chuẩn - Chủng**): Dashboard · Nhập kho · Hoá chất/Chuẩn/Chủng gốc · pha chế · **Lịch sử pha chế** · **Nhật ký môi trường** · Thống kê · Nhật ký · **Sổ cái tồn** · Báo cáo.  
 **Menu Phương pháp phân tích** (nhóm **giữa Thiết bị và Quản trị**): Dashboard · Danh sách phương pháp. Chi tiết method có tabs: Tổng quan · Upload SOP · Flowchart · Checklist · QC · Hóa chất/vật tư · Thiết bị · Phiên bản & phê duyệt. Runtime: `/method-executions/[id]`.  
 **Menu Quản trị:** **Nhân sự** · Phân quyền · Giao việc.  
@@ -74,7 +83,7 @@
 | Môi trường | URL |
 |------------|-----|
 | **Local dev** | http://localhost:3000 |
-| **Vercel (prod)** | https://huutai-lims-m929.vercel.app — deploy **`dpl_6riTusAGFeuxuRZ7qZAxCvweuDVG`** (2026-06-28) · **`108160b`** (calculator shell + Dilution v2) · chem-info đầy đủ chưa trên prod |
+| **Vercel (prod)** | https://huutai-lims-m929.vercel.app — **`main`** · commit **`54f4ae3`** (analytical-methods + chem-info + list UX) · pan flowchart **chưa trên prod** |
 | **Vercel (alt)** | https://huutai-lims.vercel.app — project `huutai/huutai-lims` (có env riêng, không phải URL chính user dùng) |
 
 ### Trạng thái Next.js
@@ -116,7 +125,12 @@
   - `20260707_chem_info_module` ← **elements, chemical_references, GHS/SDS, compatibility_rules, pubchem_cache** (Turso applied · seed 118 elements)
   - `20260708_chemical_reference_sync` ← syncStatus, lastSyncedAt, extendedData (Turso applied)
   - `20260709_compatibility_rule_operands` ← ruleType, operandA/B (Turso applied)
-  - **`20260711_analytical_methods`** ← **15 bảng module Phương pháp phân tích** (**local `db push` only** · chưa commit migration SQL · Turso prod **pending**)
+  - **`20260711_analytical_methods`** ← **15 bảng module Phương pháp phân tích** (**Turso prod applied** 2026-06-28 · migration SQL committed)
+  - **`20260629_analysis_assignment`** ← **`LabDepartment`, `DepartmentManager`, `AnalysisAssignment`** (**local `db push` ✅** · **Turso prod pending**)
+  - **`20260701_analysis_module`** ← **8 bảng module Phân tích** (task/worklist/worksheet/results/QC) (**local `db push` ✅** · **Turso prod pending**)
+  - **`20260712_sample_reception`** ← **10 bảng module Tiếp nhận mẫu** (**local `db push` ✅** · **Turso prod pending**)
+  - **`20260713_results_delivery`** ← **`TestReport`, `ReportHistory`, enum `ResultIssued`** (**local `db push` ✅** · **Turso prod pending**)
+  - **`20260714_test_report_document`** ← **`TestReport.documentSnapshotJson`** (COA snapshot) (**local `db push` ✅** · **Turso prod pending**)
 - **Dev note:** `migrate deploy` có thể báo P3005 — dùng `db execute --schema prisma/schema.prisma --file …` · parent batch: thêm cột → backfill → unique index · **kill port 3000 trước `prisma generate`** nếu EPERM
 
 ### Trạng thái Database
@@ -125,7 +139,7 @@
 - **Dev routing (`lib/db.ts`):** Khi `NODE_ENV !== production` và `DATABASE_URL` bắt đầu `file:` → **luôn dùng SQLite local**, bỏ qua `TURSO_*` trong `.env` (tránh crash thiếu cột khi Turso chưa migrate)
 - **Production (Turso):** `libsql://huutai-lims-smartai0101-afk.aws-ap-northeast-1.turso.io` — migrations **`20260701`–`20260709`** applied 2026-06-28 · chem-info seed (118 elements · 31 rules · 33 refs)
 - **Turso migrate prod (2026-06-28):** `npx tsx scripts/apply-turso-migration.ts prisma/migrations/<name>/migration.sql` (loop 28 files) · fix gap ISO columns PreparedStandard · `npx tsx scripts/seed-chem-info-only.ts` · `npx tsx scripts/backfill-prepared-parent-codes.ts`
-- **Chưa chạy trên Turso prod:** pipeline **`20260706_code_standardization`** (`scripts/apply-code-standardization-turso.ps1`) — đổi mã master/prepared
+- **Chưa chạy trên Turso prod:** migrations **`20260629_analysis_assignment`**, **`20260701_analysis_module`**, **`20260712_sample_reception`**, **`20260713_results_delivery`**, **`20260714_test_report_document`** · pipeline **`20260706_code_standardization`** (`scripts/apply-code-standardization-turso.ps1`) — đổi mã master/prepared
 - **Seed local:** `npm run db:seed` hoặc `npx tsx prisma/seed.ts`
 - **Seed Turso prod** (DB đã có schema — **không** dùng `db:setup-remote` nếu báo table exists):
   ```powershell
@@ -152,7 +166,9 @@
 | **Tài khoản** | `/account` | Mọi user đã login — tên, avatar, mật khẩu; không cần permission RBAC |
 | **Thông báo** | `/notifications` | Mọi user đã login · nội dung lọc theo quyền module · bell Topbar polling 45s |
 | **Thông tin hóa học** | `/chem-info/periodic-table`, `/chem-info/chemicals`, `/chem-info/calculators`, `/chem-info/compatibility` | Reference DB tách catalog tồn kho · link CAS → `/chemicals` · PubChem enrich (LabManager+) |
-| **Phương pháp phân tích** | `/analytical-methods`, `/analytical-methods/list`, `/analytical-methods/[id]/*`, `/method-executions/[id]` | SOP upload · React Flow workflow **Undo/Redo · copy/paste · multi-select · auto-save 15s** · checklist · QC/ISO · reagent calc · equipment warnings · approval FSM · execution tick |
+| **Phương pháp phân tích** | `/analytical-methods`, `/analytical-methods/list`, `/analytical-methods/[id]/*`, `/method-executions/[id]` | SOP upload · React Flow **Undo/Redo · pan chuột trái · Shift+kéo chọn vùng** · copy/paste · multi-select · auto-save 15s · checklist · QC · execution |
+| **Tiếp nhận mẫu** | `/samples`, `/samples/receive`, `/samples/[id]`, `/samples/requests/*`, `/samples/assign`, `/samples/tracking`, `/samples/storage`, `/samples/reports` | ISO 17025 · mã `SPL-YYYYMMDD-0001` · FSM trạng thái · phiếu YC · phân công PP/TB/HC · audit + chain of custody · in tem QR |
+| **Trả kết quả** | `/results-delivery/pending`, `/results-delivery/reports`, `/results-delivery/reports/[id]`, `/results-delivery/reports/[id]/print`, `/results-delivery/history`, `/results-delivery/issued` | COA SGS A4 đa trang · snapshot `documentSnapshotJson` + `cover` · 2 chữ ký LM + công ty · workflow LM→QA→issue · `ResultIssued` gate |
 
 ### Các lỗi còn tồn tại
 
@@ -183,31 +199,373 @@
 | **Turso chưa migration Notification** | 🟡 | Prod cần `db execute` migration `20260626_notifications` |
 | **Turso/prod chưa backfill specs TB** | 🟡 | Chạy `backfill-equipment-specifications.ts` với `NODE_ENV=production` |
 | **Prod chưa deploy `d8adfa0`** | 🟡 | Push branch + `npx vercel --prod` · set `CRON_SECRET` + `BLOB_READ_WRITE_TOKEN` |
-| **Seed local — quyền mới** | 🟡 | Chạy `npm run db:seed` nếu thiếu permission `inventory_ledger`, `admin_people`, **`methods_dashboard`**, **`methods_list`** |
-| **Module Phương pháp phân tích — Turso prod** | 🟡 | Schema mới chưa trên prod · cần export SQL từ `prisma db push` diff hoặc viết migration thủ công · `apply-turso-migration.ts` |
-| **Module Phương pháp phân tích — AI extraction** | 🟡 | Stub only (`method-extraction.ts`) · nút “Đề xuất từ SOP” ghi log Failed · **chờ chọn LLM provider** |
-| **Module Phương pháp phân tích — UX P1** | 🟡 | Equipment/reagent picker bằng ID thủ công · chưa datalist/search catalog · chưa auto-layout flowchart · **Undo/Redo flowchart ✅ done** |
+| **Seed local — quyền mới** | 🟡 | Chạy `npm run db:seed` nếu thiếu permission `inventory_ledger`, `admin_people`, **`methods_*`**, **`samples_*`** (6 keys) |
+| **Module Phương pháp phân tích — Turso prod** | ✅ | **`20260711`** applied · `scripts/seed-methods-prod.ts` (permissions + 2 PP) · full `db:seed` prod **fail** (`stockLotId` drift — dùng seed riêng) |
+| **Module Phương pháp phân tích — AI extraction** | 🟡 | Stub only · **chờ chọn LLM provider** |
+| **Module Phương pháp phân tích — UX P1** | 🟡 | Picker catalog · auto-layout flowchart · **Undo/Redo ✅** · **pan canvas ✅ local** |
 | **Flowchart — edge `conditionJson` mất khi save** | 🟡 | Save luôn ghi `"{}"` — tech debt nếu cần nhánh Condition có metadata |
+| **Module Tiếp nhận mẫu — Turso prod** | 🟡 | Chưa apply **`20260712`** · chưa `seed-samples-prod.ts` · chưa redeploy |
+| **Module Tiếp nhận mẫu — QA browser E2E** | 🟡 | Smoke pass (requests/tracking/storage) · còn FSM · prefill · phân công · QR |
+| **Module Tiếp nhận mẫu — Prisma stale client** | 🟡 | Sau `schema` change: kill node → `prisma generate` → xóa `.next` → restart dev (tránh `db.sampleRequest undefined`) |
+| **Module Tiếp nhận mẫu — lock method version** | 🟡 | Chưa khóa `methodVersionId` khi chuyển `InAnalysis` (defer plan Phase 3) |
+| **Module Phân tích — Turso prod** | 🟡 | Chưa apply **`20260629_analysis_assignment`** + **`20260701_analysis_module`** · chưa seed prod |
+| **Module Phân tích — QA browser E2E** | 🟡 | Smoke CLI pass · happy path inbox→review chưa QA browser |
+| **Module Phân tích — Prisma stale client** | 🟢 | Lỗi `db.analysisWorklist undefined` — kill node → `prisma generate` → xóa `.next` → restart dev · `lib/db.ts` báo lỗi rõ nếu thiếu delegate |
+| **Module Trả kết quả — Turso prod** | 🟡 | Chưa apply **`20260713`** + **`20260714`** · chưa seed prod |
+| **Module Trả kết quả — QA browser E2E** | 🟡 | CLI verify pass · COA in/PDF A4 chưa QA browser · happy path pending→issue→storage chưa QA |
+| **Module Trả kết quả — COA SCI-TECH** | 🟡 | Form **SGS đa trang** ✅ local · 2 chữ ký ✅ · phiếu cũ thiếu `cover` → `resolveCoverSnapshot()` fallback · **QA browser in/PDF pending** |
+| **Module Trả kết quả — export email/Word/PDF** | 🟡 | In browser + CSV · email/Word/PDF server-side + Blob lưu PDF **defer** |
+| **SCI-TECH branding env** | 🟡 | Optional: `SCI_TECH_WEBSITE`, `SCI_TECH_EMAIL`, `SCI_TECH_ACCREDITATION_*` trong `.env` · chưa Admin UI |
+| **SampleRequest email/phone khách** | 🟡 | COA dùng placeholder config — chưa cột DB trên `SampleRequest` |
+| **Sidebar desktop scroll** | 🟢 | Fix buổi 20 — cuộn wheel trong vùng menu đen · **QA browser pending** |
+| **Full seed `npm run db:seed`** | 🟡 | Re-run có thể fail **`PreparedChemical` unique** (`links.ts` L109) — dùng `npx tsx scripts/seed-analysis-only.ts` nếu DB đã có catalog |
+| **Build prod sau buổi 17–18** | 🟡 | `npm run build` có thể EPERM nếu dev server đang giữ Prisma engine — kill port 3000 trước |
 
 ---
 
 ## 2. Completed Work
 
-### Phiên này (2026-06-28 — buổi 16) — Module Phương pháp phân tích ✅ (local · chưa commit)
+### Phiên này (2026-06-29 — buổi 21) — COA form SGS + 2 chữ ký ✅ (local · chưa commit)
+
+> **Plan SGS:** `.cursor/plans/sgs-style_coa_redesign_c2a486cf.plan.md` · **Plan 2 chữ ký:** `.cursor/plans/coa_2_chữ_ký_e46f6d84.plan.md`
+
+#### COA đa trang kiểu SGS (SCI-TECH branding)
+
+| Hạng mục | Trạng thái |
+|----------|------------|
+| Tách `components/results-delivery/coa/` — PageShell, Header, Footer, Cover, Results, Notes, pagination | ✅ |
+| Trang 1 **ANALYSIS REPORT** — khách hàng + SAMPLE INFORMATION song ngữ | ✅ |
+| Trang 2..N **TEST RESULT(S)** — bảng 8 cột · nhóm `parameterGroup` | ✅ |
+| Trang cuối — Note/Ghi chú · LOD/LOQ · methods · chữ ký | ✅ |
+| `sci-tech-lab-config.ts` — màu `#2D5A9E`/`#55C595` · disclaimer · technical notes bilingual | ✅ |
+| `build-document-snapshot.ts` — field `cover` · fix `customerAddress` từ TestReport | ✅ |
+| `resolveCoverSnapshot()` — fallback phiếu cũ thiếu `cover` | ✅ |
+| Không logo ilac/VILAS · không phụ lục ảnh (theo lựa chọn user) | ✅ |
+
+**File chính:** `components/results-delivery/TestReportDocument.tsx` · `test-report-coa.css` · `lib/test-report/build-document-snapshot.ts` · `lib/test-report/coa-format.ts`
+
+#### 2 chữ ký (chỉ UI COA — workflow 5 vai trò giữ nguyên trong DB)
+
+| Vị trí | Nội dung |
+|--------|----------|
+| **Trái** | Technical Manager / Phụ trách kỹ thuật — tên LM (`labManagerName`) · ngày action `approved` |
+| **Phải** | For SCI-TECH / Đại diện công ty — **chỉ tên công ty** · ngày `issued` / `issueDate` |
+
+**File:** `components/results-delivery/coa/CoaNotesPage.tsx` · CSS grid 2 cột trong `test-report-coa.css`
+
+#### Lệnh setup local (chat mới — COA SGS)
+
+```powershell
+Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+npx prisma generate
+npx prisma db push
+npx tsx scripts/seed-analysis-only.ts
+npx tsx scripts/verify-results-delivery-seed.ts
+npx tsc --noEmit
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+npm run dev
+```
+
+Xem COA: `/results-delivery/reports/[id]` (preview) · `/results-delivery/reports/[id]/print` (Ctrl+P → PDF)
+
+Env tùy chọn: `SCI_TECH_WEBSITE`, `SCI_TECH_EMAIL`, `SCI_TECH_ACCREDITATION_*`
+
+#### Công việc cần làm tiếp (ưu tiên)
+
+- [ ] **QA browser COA SGS** — cover + bảng kết quả nhiều trang + 2 chữ ký · watermark NHÁP khi draft · Ctrl+P A4
+- [ ] **QA sidebar** — 8 nhóm mở → cuộn wheel xuống menu dưới
+- [ ] **QA E2E Trả kết quả** — pending → LM → QA → issue → `/samples/storage`
+- [ ] **Re-seed / tạo phiếu mới** nếu snapshot cũ thiếu `cover` (hoặc dùng fallback runtime)
+- [ ] **`npm run build`** · **Commit + push** buổi 17–21 · **Turso prod** migrations `20260629`–`20260714`
+- [ ] Defer: email COA · PDF server-side · cột email/phone `SampleRequest` · Admin branding · phụ lục ảnh mẫu
+
+---
+
+### Phiên này (2026-06-29 — buổi 20) — COA SCI-TECH + sidebar scroll ✅ (local · chưa commit)
+
+> **Plan:** `.cursor/plans/sci-tech_coa_redesign_5056870f.plan.md` · sidebar: `.cursor/plans/sidebar_scroll_fix_250e074f.plan.md`
+
+#### COA SCI-TECH (ISO/IEC 17025)
+
+| Hạng mục | Trạng thái |
+|----------|------------|
+| `lib/test-report/sci-tech-lab-config.ts` — branding SCI-TECH, logo, ghi chú ISO, env accreditation | ✅ |
+| Migration **`20260714`** — `TestReport.documentSnapshotJson` | ✅ local |
+| `lib/test-report/build-document-snapshot.ts` — snapshot khách hàng/mẫu/PP/kết luận/chữ ký | ✅ |
+| `components/results-delivery/TestReportDocument.tsx` + `test-report-coa.css` — A4, 11 section | ✅ |
+| Detail preview COA + route `/print` (React, bỏ `buildReportPrintHtml`) | ✅ |
+| Watermark **NHÁP** khi chưa phát hành · footer `LIMS-TR-FM-001` | ✅ |
+| Seed `RPT-SEED-0001` backfill snapshot · verify script | ✅ pass |
+
+**File chính:** `lib/services/results-delivery/test-report.ts` · `lib/mappers/result-delivery.ts` · `types/result-delivery.ts` · `components/results-delivery/ReportDetailClient.tsx`
+
+**Env tùy chọn COA:**
+
+```env
+SCI_TECH_WEBSITE=https://...
+SCI_TECH_EMAIL=lab@...
+SCI_TECH_ACCREDITATION_ENABLED=true
+SCI_TECH_ACCREDITATION_NO=VILAS-...
+```
+
+#### Sidebar cuộn desktop
+
+| Hạng mục | Trạng thái |
+|----------|------------|
+| `TouchVerticalScroll` — `h-full min-h-0 overflow-hidden` trên vùng scroll | ✅ |
+| `Sidebar` aside — `h-screen overflow-hidden` | ✅ |
+| `lib/result-delivery-nav.ts` — tách nav khỏi Prisma (middleware an toàn) | ✅ |
+
+#### Lệnh setup local (sau buổi 20)
+
+```powershell
+Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+npx prisma generate
+npx prisma db push
+npx tsx scripts/seed-analysis-only.ts
+npx tsx scripts/verify-results-delivery-seed.ts
+npx tsc --noEmit
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+npm run dev
+```
+
+Xem COA: `/results-delivery/reports/[id]` → preview · **In / PDF** → `/results-delivery/reports/[id]/print`
+
+#### Công việc cần làm tiếp (ưu tiên)
+
+- [ ] **QA browser** — sidebar mở 8 nhóm → cuộn xuống Thiết bị/PP/Quản trị · COA in A4 (Ctrl+P → PDF)
+- [ ] **QA E2E Trả kết quả** — pending → tạo phiếu → LM → QA → phát hành → `/samples/storage`
+- [ ] **Commit + push** buổi 17–20 (migrations `20260712`–`20260714` + samples/analysis/results-delivery + sidebar)
+- [ ] **Turso prod** — apply `20260629`–`20260714` · seed permissions `delivery_*` · demo reports
+- [ ] **`npm run build`** sau kill dev server
+- [ ] Defer: email COA · PDF server-side (Puppeteer/Blob) · cột email/phone `SampleRequest` · Admin UI branding
+
+---
+
+### Phiên này (2026-06-29 — buổi 19) — Module Trả kết quả ✅ (local · chưa commit)
+
+> **Workflow mới:** Tiếp nhận → Phân tích → **Trả kết quả** → Lưu mẫu / Hủy mẫu  
+> **Gate ISO:** Chỉ `Sample.ResultIssued` mới cho phép lưu/hủy mẫu (không còn `Completed → Stored` trực tiếp)
+
+#### Phạm vi đã code
+
+| Hạng mục | Trạng thái |
+|----------|------------|
+| Prisma `TestReport`, `ReportHistory`, `SampleStatus.ResultIssued` · migration `20260713` | ✅ local |
+| Services + guards QC/approval · draft → LM approve → QA approve → issue/reissue | ✅ local |
+| RBAC 4 keys `delivery_*` · sidebar **Trả kết quả** sau Phân tích | ✅ local |
+| UI 4 màn: pending · reports (+ detail/print) · history · issued | ✅ local |
+| Demo seed `RPT-SEED-0001` (SPL-0001 → `ResultIssued`) | ✅ local |
+| `scripts/verify-results-delivery-seed.ts` · `npx tsc --noEmit` | ✅ pass |
+
+#### Lệnh setup local (chat mới — module Trả kết quả)
+
+```powershell
+Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+npx prisma generate
+npx prisma db push
+npx tsx scripts/seed-analysis-only.ts   # incl. demo analysis + reports
+npx tsx scripts/verify-results-delivery-seed.ts
+npx tsc --noEmit
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+npm run dev
+```
+
+Login LabManager/QA → sidebar **Trả kết quả**. Re-seed permissions nếu menu trống: `npm run db:seed` (hoặc chỉ auth seed).
+
+#### Routes
+
+| Màn | URL |
+|-----|-----|
+| Kết quả chờ phát hành | `/results-delivery/pending` |
+| Phiếu kết quả | `/results-delivery/reports` · `/results-delivery/reports/[id]` |
+| In COA | `/results-delivery/reports/[id]/print` |
+| Lịch sử phát hành | `/results-delivery/history` |
+| Kết quả đã trả | `/results-delivery/issued` |
+
+#### Chưa làm / đã chuyển buổi 20
+
+- [x] Module workflow + 4 màn + seed cơ bản (buổi 19)
+- [ ] **QA browser E2E** — xem checklist buổi 20
+- [ ] **Commit + push** — gom buổi 17–20
+- [ ] **Turso prod** — apply migrations + seed
+- [ ] Defer: gửi email · xuất Word/PDF server-side · Blob lưu PDF
+
+Chi tiết file/service: `lib/services/results-delivery/*` · `lib/actions/results-delivery.ts` · `components/results-delivery/*`
+
+### Phiên này (2026-06-29 — buổi 18) — Module Phân tích + rewrite `/samples/assign` ✅ (local · chưa commit)
+
+> **Plan:** `.cursor/plans/analysis_module_plan_64f689d8.plan.md`  
+> **Quyết định kiến trúc:** Tiếp nhận dừng ở phân công phòng (`AnalysisAssignment`) · Phân tích bắt đầu từ lab tiếp nhận → `AnalysisTask` (1:1 assignment) · **`SampleTest` không dùng** cho phân công lab/analyst (giữ pool chỉ tiêu lúc tiếp nhận + legacy demo)
+
+#### Tóm tắt Phase 0–8 (đã code)
+
+| Phase | Phạm vi | Trạng thái |
+|-------|---------|------------|
+| 0 | Prisma 8 model + enums · migrations · RBAC 7 keys · sidebar · shell · `analysis-workflow.ts` | ✅ local |
+| 1 | `/analysis/inbox` — tiếp nhận/từ chối assignment → task | ✅ local |
+| 2 | `/analysis/assign-analyst` · seed 14 analyst (2/phòng) | ✅ local |
+| 3 | Worklist CRUD + method/equipment | ✅ local (tạo inline trên list, không route `/new` riêng) |
+| 4 | Worksheet từ worklist · HC/chuẩn/CRM · start/complete | ✅ local |
+| 5 | Nhập kết quả per-parameter `TestResult` | ✅ local |
+| 6 | QC checks · block submit nếu fail | ✅ local |
+| 7 | Duyệt · submit/approve/reject · sync `Sample` | ✅ local |
+| 8 | Demo seed + verify script | ✅ local |
+
+#### Rewrite `/samples/assign` (buổi 18 cont)
+
+- Lab Manager gán **nhóm chỉ tiêu → phòng ban + quản lý phòng** qua `AnalysisAssignment`
+- UI: [`components/samples/SampleAssignClient.tsx`](components/samples/SampleAssignClient.tsx) · service: [`lib/services/samples/analysis-assignment.ts`](lib/services/samples/analysis-assignment.ts)
+- Seed phòng: [`prisma/seed-data/lab-departments.ts`](prisma/seed-data/lab-departments.ts) · gợi ý phòng: [`lib/parameter-department-hints.ts`](lib/parameter-department-hints.ts)
+- **Đã xóa** luồng cũ analyst/TB/HC trên assign (`sample-assign.ts`)
+
+#### Lệnh setup local (chat mới — module Phân tích)
+
+```powershell
+# Bắt buộc tắt dev server trước nếu EPERM
+Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+npx prisma generate
+npx prisma db push
+# Full seed có thể fail PreparedChemical duplicate — dùng seed riêng:
+npx tsx scripts/seed-analysis-only.ts
+npx tsx scripts/verify-analysis-module-seed.ts
+npx tsx scripts/smoke-analysis-pages.ts
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+npm run dev
+```
+
+Login Admin/LabManager → sidebar **Phân tích**.
+
+#### QA CLI (pass local 2026-06-29)
+
+```powershell
+npx tsc --noEmit
+npx tsx scripts/verify-analysis-module-seed.ts
+npx tsx scripts/smoke-analysis-pages.ts
+# Smoke OK mẫu: inbox:5 tasks:1 worklists:2 worksheets:1 results:7 qc:1 review:2
+```
+
+#### Demo seed trạng thái (`prisma/seed-data/analysis/demo-analysis.ts`)
+
+| Mẫu / trạng thái | Ghi chú |
+|------------------|---------|
+| SPL-0002, 0003 | Assignment `assigned` — inbox chờ lab tiếp nhận |
+| SPL-0005 | 1 task `lab_accepted` · 1 task `analyst_assigned` + worklist **draft** |
+| SPL-0006 | Task `in_analysis` + worklist **running** + worksheet **in_progress** · task vi sinh `result_entered` (QC pending) |
+| SPL-0007 | Task `submitted_for_review` |
+| SPL-0001 | Tasks `approved` (assignment completed) |
+
+**Chưa làm / phiên tiếp (buổi 18):**
+
+- [ ] **QA browser E2E** — happy path: assign SPL-0003 → inbox → analyst → worklist → worksheet → results → QC → review → `Sample.Completed`
+- [ ] **Commit + push** module analysis + assign rewrite + migrations (không commit `dev.db`, `.next/`, uploads lẻ)
+- [ ] **Turso prod** — apply `20260629` + `20260701` (+ `20260712` samples) · seed permissions
+- [ ] **`npm run build`** sau kill dev server
+- [ ] Fix **`npm run db:seed`** duplicate `PreparedChemical` nếu cần re-seed full local
+- [ ] Defer: link `MethodExecution` checklist · notification bell · PDF kết quả · admin CRUD analyst/phòng
+
+Chi tiết file/service: § **11. Module Phân tích** (cuối file).
+
+### Phiên này (2026-06-29 — buổi 17) — Module Tiếp nhận mẫu ✅ (local · chưa commit)
+
+> **Plan:** `.cursor/plans/sample_reception_module_69e773b5.plan.md`  
+> **Quyết định kiến trúc:** 6 nav permission keys · FSM `sample-workflow.ts` · mã `SPL-/PR-` qua `CodeSequence` · audit kép (`AuditLog` + `SampleAuditLog`)
+
+#### Tóm tắt Phase 1–3 (đã code)
+
+| Phase | Phạm vi | Trạng thái |
+|-------|---------|------------|
+| 1 | Sidebar · RBAC · danh sách mẫu · form tiếp nhận · sinh mã · FSM · liên kết PP | ✅ local |
+| 2 | Phiếu yêu cầu · phân công · cảnh báo quá hạn · tracking · chem-info link | ✅ local |
+| 3 | `SampleAuditLog` · chain of custody · lưu/hủy mẫu · in tem QR · báo cáo CSV | ✅ local |
+
+#### Lệnh setup local (chat mới)
+
+```powershell
+taskkill /F /IM node.exe 2>$null   # nếu EPERM prisma generate
+npx prisma generate
+npx prisma db push                 # hoặc migrate SQL 20260712
+npm run db:seed                    # full seed incl. 10 PR/10 SPL demo
+# hoặc chỉ demo mẫu (sau catalog + PP đã có):
+# npx tsx prisma/seed-data/samples/run-seed.ts
+npx tsx scripts/verify-samples-seed.ts
+npm run dev
+```
+
+Mở http://localhost:3000/samples — login Admin/LabManager.
+
+#### QA CLI (pass local)
+
+```powershell
+npx tsc --noEmit
+npx tsx scripts/test-sample-code-gen.ts
+npx tsx scripts/verify-sample-workflow.ts
+npx tsx scripts/verify-samples-seed.ts
+```
+
+#### Seed demo thực phẩm / thức ăn chăn nuôi ✅ (local)
+
+> **Plan:** `.cursor/plans/sample_demo_seed_11055977.plan.md`
+
+| Hạng mục | Chi tiết |
+|----------|----------|
+| **Dữ liệu** | 10 phiếu `PR-20260629-0001`…`0010` · 10 mẫu `SPL-20260629-0001`…`0010` |
+| **Nguồn mẫu** | Thực phẩm · nguyên liệu TP · thức ăn CN · nguyên liệu TACN · phụ gia TACN |
+| **Phân bổ trạng thái** | WA×2 · Assigned×1 · InAnalysis×2 · Stored×4 · Disposed×1 |
+| **Liên kết** | `PP-ICP-WAT-001` · `PP-LCMS-PST-001` · TB `EQ-ICP-001`/`EQ-LC-MS-001`/… · HC/Chuẩn theo code |
+| **Analyst demo** | `Analyst 01`…`05` (string `assignedTo`) |
+| **Lưu/hủy** | 4 mẫu Stored (0001, 0004, 0008, 0009) · 0010 Disposed · `storedBy`/`disposedBy`: **Hữu Tài** |
+
+**Chạy seed (idempotent — chỉ wipe prefix demo):**
+
+```powershell
+# Nhanh: chỉ module mẫu (cần catalog + PP đã seed trước)
+npx tsx prisma/seed-data/samples/run-seed.ts
+
+# Hoặc full (wipe inventory + seed lại tất cả)
+npm run db:seed
+npx tsx scripts/verify-samples-seed.ts
+```
+
+**Code bổ sung (buổi 17 cont):**
+
+- Prefix phiếu YC: **`PR-`** (thay `REQ-`) trong `lib/sample-code.ts`
+- Tracking: `listSamplesForTracking()` giữ `Completed` trên Kanban (chỉ loại Stored/Disposed/Rejected)
+- Prefill tiếp nhận: `sampleName` từ `purpose` · `preservationCondition` từ dòng `Bảo quản:` trong `note`
+
+**QA browser smoke (2026-06-29):** `/samples/requests` 10/10 · `/samples/tracking` Kanban có mẫu · `/samples/storage` chọn 4 Stored · **E2E FSM/prefill/QR pending**
+
+```powershell
+npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260712_sample_reception/migration.sql
+$env:NODE_ENV="production"; npx tsx scripts/seed-samples-prod.ts
+# Commit + push + redeploy Vercel
+```
+
+**Chưa làm / tiếp theo (buổi 17):**
+
+- [ ] **Commit + push** module samples (~40 file) — **không** commit `prisma/dev.db`, `.next/`, `public/uploads/`
+- [ ] **Turso prod** — migrate `20260712` + seed permissions (`seed-samples-prod.ts`)
+- [ ] **QA browser** — checklist § Module Tiếp nhận mẫu (cuối file)
+- [ ] **`npm run build`** sau kill dev server
+- [ ] Defer: khóa `methodVersionId` khi `InAnalysis` · link execution PP ↔ sample · sidebar báo cáo samples
+
+Chi tiết file/service: § **Module Tiếp nhận mẫu** (cuối file).
+
+### Phiên trước (2026-06-28/29 — buổi 16) — Module Phương pháp phân tích ✅ (pushed prod)
 
 > **Plan:** `.cursor/plans/analytical_methods_module_e451daa4.plan.md`  
-> **Quyết định kiến trúc:** Version-centric (`MethodVersion` gom SOP/workflow/QC/reagents) · nested layout giống Thiết bị/chem-info · Server Actions primary · AI hoãn Phase 3 (flowchart thủ công trước)
+> **Quyết định kiến trúc:** Version-centric · nested layout · Server Actions · AI stub Phase 3
 
 #### Tóm tắt Phase 1–6
 
 | Phase | Phạm vi | Trạng thái |
 |-------|---------|------------|
-| 1 | Prisma 15 model · sidebar nhóm mới · RBAC `methods_dashboard`/`methods_list` · CRUD method · upload SOP PDF/DOCX | ✅ local |
-| 2 | `@xyflow/react` flowchart editor · save/load nodes+edges · fork version từ Approved | ✅ local |
-| 3 | `MethodAIExtractionLog` + zod schema + stub API · banner cảnh báo AI | ✅ stub (chưa LLM) |
-| 4 | Checklist từ workflow · reagents/equipment links · calculator theo số mẫu · stock/calibration warnings | ✅ local |
-| 5 | QC requirements · acceptance criteria · chem-info safety/compatibility check · approval FSM Draft→Review→Approved | ✅ local |
-| 6 | `MethodExecution` runtime · tick steps · audit log · export CSV | ✅ local |
+| 1 | Prisma 15 model · sidebar · RBAC · CRUD · upload SOP | ✅ **`54f4ae3`** |
+| 2 | `@xyflow/react` flowchart · save/load · fork version | ✅ prod |
+| 3 | AI stub API + banner | ✅ stub |
+| 4 | Checklist · reagents/equipment · warnings | ✅ prod |
+| 5 | QC · approval FSM | ✅ prod |
+| 6 | MethodExecution runtime · CSV export | ✅ prod |
 
 **Kiểm tra:**
 
@@ -222,16 +580,25 @@ npm run db:seed                                     # permission keys mới
 
 **Dependencies mới:** `@xyflow/react`, `zod`
 
-**Chưa làm (buổi 16):**
+**Deploy prod (2026-06-28):**
 
-- [ ] **Commit** buổi 16 (tách PR riêng khuyến nghị — greenfield ~55+ files)
-- [ ] **Turso prod** — migrate 15 bảng analytical methods + `npm run db:seed` (permission + demo methods nếu cần)
-- [ ] **QA browser** — flow end-to-end + **checklist Undo/Redo flowchart** (§8)
-- [ ] **Vercel** — redeploy + QA upload SOP (`BLOB_READ_WRITE_TOKEN`)
-- [ ] **AI Phase 3+** — chọn provider (OpenAI/Anthropic/Azure) · implement `extractSop` thật trong `lib/services/analytical-methods/method-extraction.ts`
-- [ ] **UX P2** — picker hóa chất/thiết bị (search catalog) thay vì nhập ID · auto-layout flowchart (dagre)
+- Merge `cursor/mobile-scroll-vercel-session` → **`main`** · push **`54f4ae3`**
+- Turso: `20260710_element_applications` + `20260711_analytical_methods` via `apply-turso-migration.ts`
+- Seed prod: `npx tsx scripts/seed-methods-prod.ts` (permissions + 2 PP; link equipment/chemical warnings nếu thiếu mã trên prod)
 
-#### Buổi 16 (tiếp) — Seed demo + Flowchart Undo/Redo ✅ (local · chưa commit)
+**Chưa làm / tiếp theo (buổi 16):**
+
+- [ ] **Commit + push** pan flowchart (`WorkflowCanvas.tsx`, shortcuts modal) — **local uncommitted**
+- [x] **Commit + push** buổi 16 core — **`54f4ae3`** on `main`
+- [x] **Turso prod** — migrate 15 bảng + seed methods permissions + 2 PP
+- [x] **Vercel prod** — deploy từ `main` (menu PP hiện trên prod)
+- [ ] **QA browser** — checklist §8 (Undo/Redo + **pan** + module E2E)
+- [ ] **Vercel** — QA upload SOP (`BLOB_READ_WRITE_TOKEN`)
+- [ ] **AI Phase 3+** — LLM provider · `extractSop` thật
+- [ ] **UX P2** — picker catalog · auto-layout flowchart (dagre)
+- [ ] **Tab Tổng quan** — field scope/principle/sample prep
+
+#### Buổi 16 (tiếp) — Seed + Undo/Redo ✅ (in `54f4ae3`)
 
 > **Plan seed:** `.cursor/plans/seed_analytical_methods_81d819d2.plan.md`  
 > **Plan Undo/Redo:** `.cursor/plans/flowchart_undo_redo_52b873eb.plan.md`
@@ -251,8 +618,24 @@ npm run db:seed                                     # permission keys mới
 
 - History stack `past/present/future` (cap 100) · Undo/Redo toolbar + `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`
 - Phím tắt: Save, Delete, Copy/Paste/Duplicate, Select all, Esc, zoom · modal **? Phím tắt**
-- Multi-select (Shift/Ctrl+click, kéo vùng) · clipboard nội bộ · bảo vệ `start`/`end`
-- Dirty badge + `beforeunload` · auto-save 15s · lưu/khôi phục `layoutJson` viewport
+- Multi-select (Shift/Ctrl+click) · clipboard · bảo vệ `start`/`end`
+- Dirty badge + auto-save 15s · viewport trong `layoutJson`
+
+#### Buổi 16 (tiếp 2) — Pan canvas flowchart ✅ (local · chưa commit)
+
+> **Plan:** `.cursor/plans/flowchart_pan_gesture_a6330fe5.plan.md`
+
+**File:** [`WorkflowCanvas.tsx`](components/analytical-methods/workflow/WorkflowCanvas.tsx) · [`WorkflowShortcutsModal.tsx`](components/analytical-methods/workflow/WorkflowShortcutsModal.tsx)
+
+| Thao tác | Hành vi |
+|----------|---------|
+| Kéo chuột trái (vùng trống) | Pan canvas (`panOnDrag={true}`) |
+| **Shift** + kéo | Marquee chọn nhiều bước (`selectionOnDrag`) |
+| Chuột giữa / phải + kéo | Pan (luôn) |
+| Read-only (Approved) | Chỉ pan, không marquee |
+
+- Track `shiftHeld` qua `keydown`/`keyup`/`blur` · cursor `grab` / `crosshair`
+- Viewport pan vẫn lưu qua `onMoveEnd` → `layoutJson` (có thể kích hoạt dirty/auto-save)
 
 **Scripts:**
 
@@ -1129,8 +1512,8 @@ Pin cột trái/phải gây chồng chéo nội dung → đã bỏ, chỉ giữ 
 
 #### Sidebar mobile — vuốt cuộn menu chính ✅
 
-- ✅ [`components/TouchVerticalScroll.tsx`](components/TouchVerticalScroll.tsx) — scroll dọc + fade trên/dưới (`fadeClassName="from-slate-950"`)
-- ✅ [`components/Sidebar.tsx`](components/Sidebar.tsx) — shell `flex h-full min-h-0 flex-col` · nav trong `TouchVerticalScroll` · desktop `flex` · mobile drawer scroll · lock `body overflow` khi menu mở
+- ✅ [`components/TouchVerticalScroll.tsx`](components/TouchVerticalScroll.tsx) — scroll dọc + fade trên/dưới (`fadeClassName="from-slate-950"`) · **buổi 20:** `h-full min-h-0` — desktop wheel scroll
+- ✅ [`components/Sidebar.tsx`](components/Sidebar.tsx) — shell `flex h-full min-h-0 flex-col` · nav trong `TouchVerticalScroll` · aside `h-screen overflow-hidden` · mobile drawer scroll · lock `body overflow` khi menu mở
 
 #### Phát hiện — Upload file trên Vercel 🔴 (chưa fix)
 
@@ -1635,12 +2018,127 @@ npx prisma generate
 | Chưa UI InventoryTransaction / Staff | 🟢 | `/inventory-ledger` + `/admin/people` |
 | Container vs catalog tồn kho | 🟡 | Legacy; luồng mới dùng StockLot · deprecate Container chưa làm |
 | Chưa commit sticky header + viewport | 🟢 | Commit `d8adfa0` |
-| Prisma stale client (Turbopack) | 🟢 | Fix `lib/db.ts` Proxy — restart dev nếu tái phát |
+| Prisma stale client (Turbopack) | 🟢 | Fix `lib/db.ts` Proxy + delegate guard — **restart dev** sau `prisma generate` · lỗi điển hình analysis: `db.analysisWorklist.findMany` undefined |
+| Full seed re-run duplicate PreparedChemical | 🟡 | `links.ts` L109 unique `parentCode,batchNumber` — dùng `seed-analysis-only.ts` cho module Phân tích |
 | DetailDrawer che ModalShell | 🟢 | `z-[70]` / `z-[80]` / `z-[90]` |
 
 ---
 
 ## 8. Pending Tasks
+
+### Ưu tiên 0 — Module Trả kết quả + COA SGS (buổi 19–21 · uncommitted) 🟡
+
+> **Plan SGS:** `.cursor/plans/sgs-style_coa_redesign_c2a486cf.plan.md` · **Plan 2 chữ ký:** `.cursor/plans/coa_2_chữ_ký_e46f6d84.plan.md` · **Sidebar:** `.cursor/plans/sidebar_scroll_fix_250e074f.plan.md`  
+> **Migrations:** `20260713_results_delivery` · `20260714_test_report_document` · **Turso prod pending**
+
+**Local (đã xong · chưa commit):**
+
+- [x] Prisma `TestReport`, `ReportHistory`, `SampleStatus.ResultIssued` · `documentSnapshotJson`
+- [x] Workflow draft → LM approve → QA approve → issue/reissue · gate `ResultIssued` trước lưu/hủy mẫu
+- [x] RBAC 4 keys `delivery_*` · sidebar **Trả kết quả** (4 màn) sau Phân tích
+- [x] COA **form SGS** đa trang A4 · song ngữ EN/VI · `components/results-delivery/coa/*`
+- [x] Snapshot `cover` + fix địa chỉ khách · `resolveCoverSnapshot()` fallback
+- [x] **2 chữ ký COA:** LM (Phụ trách kỹ thuật) trái · tên công ty SCI-TECH phải
+- [x] Sidebar desktop scroll · `lib/result-delivery-nav.ts`
+- [x] Seed `RPT-SEED-0001` · `verify-results-delivery-seed.ts` · `npx tsc --noEmit` pass
+
+**Phiên tiếp (bắt buộc):**
+
+- [ ] **QA browser COA SGS** — 3+ trang · 2 chữ ký · in PDF A4
+- [ ] **QA sidebar** — cuộn wheel 8 nhóm menu
+- [ ] **QA E2E** — pending → issue → storage
+- [ ] **`npm run build`** — kill dev port 3000 trước
+- [ ] **Commit + push** buổi 17–21 — **không** commit `prisma/dev.db`, `.next/`, `public/uploads/coa/` lẻ
+- [ ] **Turso prod** — apply migrations + seed:
+  ```powershell
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260629_analysis_assignment/migration.sql
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260701_analysis_module/migration.sql
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260712_sample_reception/migration.sql
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260713_results_delivery/migration.sql
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260714_test_report_document/migration.sql
+  $env:NODE_ENV="production"; npm run db:seed   # hoặc seed permissions delivery_* riêng
+  ```
+- [ ] **Redeploy Vercel**
+
+**Defer / follow-up:**
+
+- [ ] Email COA · PDF server-side (Puppeteer/Blob)
+- [ ] Cột email/phone `SampleRequest` · Admin UI branding `SCI_TECH_*`
+- [ ] Phụ lục ảnh mẫu (chờ upload ảnh trên Sample)
+- [ ] Logo ilac/VILAS (user chọn không dùng hiện tại)
+
+### Ưu tiên 0 — Module Phân tích (buổi 18 · uncommitted) 🟡
+
+> **Plan:** `.cursor/plans/analysis_module_plan_64f689d8.plan.md`  
+> **Migrations:** `20260629_analysis_assignment` · `20260701_analysis_module` · **Turso prod pending**
+
+**Local (đã xong · chưa commit):**
+
+- [x] Prisma: `LabDepartment`, `DepartmentManager`, `AnalysisAssignment`, `DepartmentAnalyst`, `AnalysisTask`, `AnalysisWorklist`, `AnalysisWorksheet`, `TestResult`, `QcCheck` + enums
+- [x] Rewrite `/samples/assign` → phân công phòng ban (`AnalysisAssignment`)
+- [x] Sidebar nhóm **Phân tích** (7 submenu) · 7 permission keys · role defaults
+- [x] Routes `/analysis/*` (inbox, assign-analyst, worklists, worksheets, results, qc, review)
+- [x] Workflow `syncSampleStatusFromTasks` · code gen `WL-*`/`WS-*` (`lib/analysis-code.ts`)
+- [x] Seed 14 analyst + demo assignments/tasks/worklists · verify + smoke scripts pass
+- [x] Fix lỗi runtime Prisma stale — regenerate + restart dev
+
+**Phiên tiếp (bắt buộc):**
+
+- [ ] **QA browser E2E** — checklist §11 (happy path + RBAC Analyst/QAQC/Viewer)
+- [ ] **`npm run build`** — kill dev server trước
+- [ ] **Commit + push** (~80+ file analysis + assign + migrations) — **không** commit `prisma/dev.db`, `.next/`, `public/uploads/coa/` lẻ
+- [ ] **Turso prod:**
+  ```powershell
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260629_analysis_assignment/migration.sql
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260701_analysis_module/migration.sql
+  # + 20260712 samples nếu chưa apply
+  $env:NODE_ENV="production"; npm run db:seed   # hoặc seed permissions riêng khi có script
+  ```
+- [ ] **Redeploy Vercel** · QA prod sidebar **Phân tích**
+
+**Defer / follow-up:**
+
+- [ ] Route `/analysis/worklists/new` (hiện tạo inline trên list)
+- [ ] Link `MethodExecution` ↔ worksheet checklist SOP
+- [ ] Notification khi assignment mới / QC fail
+- [ ] Báo cáo PDF kết quả
+- [ ] Admin CRUD phòng ban/analyst (phase 1 dùng seed static)
+
+### Ưu tiên 0 — Module Tiếp nhận mẫu (buổi 17 · uncommitted) 🟡
+
+> **Plan:** `.cursor/plans/sample_reception_module_69e773b5.plan.md`  
+> **Migration:** `20260712_sample_reception` · **Turso prod pending**
+
+**Local (đã xong · chưa commit):**
+
+- [x] Prisma 10 model + 4 enum · migration SQL · `db push` local
+- [x] Sidebar nhóm **Tiếp nhận mẫu** (6 submenu) · 6 permission keys · role defaults
+- [x] Routes: `/samples`, `/receive`, `/[id]`, `/requests/*`, `/assign`, `/tracking`, `/storage`, `/reports`
+- [x] FSM trạng thái · sinh mã `SPL-/PR-` · validation Zod · audit (`AuditLog` + `SampleAuditLog`)
+- [x] Liên kết: PP · TB · HC/Chuẩn · chem-info · chain of custody · in tem QR
+- [x] **Seed demo** 10 PR + 10 SPL · `prisma/seed-data/samples/` · `verify-samples-seed.ts` pass
+- [x] Prefix **`PR-`** · tracking Kanban fix · prefill receive (tên mẫu + bảo quản)
+- [x] `npx tsc --noEmit` pass · `test-sample-code-gen.ts` · `verify-sample-workflow.ts` pass
+
+**Phiên tiếp (bắt buộc):**
+
+- [ ] **QA browser E2E** — checklist §9 (FSM · prefill · phân công · QR · RBAC Viewer)
+- [ ] **`npm run build`** — kill dev server trước nếu EPERM `prisma generate`
+- [ ] **Commit + push** (~55 file) — **không** commit `prisma/dev.db`, `.next/`, `public/uploads/coa/` lẻ, `prisma/prisma/`
+- [ ] **Turso prod:**
+  ```powershell
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260712_sample_reception/migration.sql
+  $env:NODE_ENV="production"; npx tsx scripts/seed-samples-prod.ts
+  ```
+- [ ] **Redeploy Vercel** · QA prod sidebar hiện **Tiếp nhận mẫu**
+
+**Defer / follow-up:**
+
+- [ ] Khóa `methodVersionId` khi chuyển `InAnalysis`
+- [ ] Link `MethodExecution` ↔ `Sample` / `SampleTest`
+- [ ] Thêm mục sidebar **Báo cáo tiếp nhận** hoặc gộp vào `/reports`
+- [ ] Export Excel danh sách mẫu (hiện chỉ CSV `/samples/reports`)
+- [ ] Turso prod: seed demo mẫu trên prod (chỉ permissions qua `seed-samples-prod.ts` — **không** full demo PR/SPL trên prod trừ khi chạy migration + seed riêng)
 
 ### Ưu tiên 0 — Module Thông tin hóa học (buổi 10–14 · uncommitted) 🟡
 
@@ -2321,10 +2819,10 @@ npm run dev
 ## 10. Recommended Next Prompt
 
 ```
-Đọc HANDOFF.md (§ **Thông tin hóa học — handoff ngắn** + §5b–5c + §8 Pending).
-QA: tab Khối lượng mol (H2SO4.H2O, h2so4) · tra cứu mobile acetamiprid · PubChem không DTXSID · Pha loãng v2 · compatibility GROUP.
-Commit buổi 7–11 + buổi 14 → push → redeploy.
-Turso migrate done · chưa chạy code standardization pipeline.
+Đọc HANDOFF.md (§ **11. Module Phân tích** + §8 Pending buổi 18).
+QA browser E2E: /samples/assign → /analysis/inbox → assign-analyst → worklist → worksheet → results → QC → review → Sample Completed.
+Commit buổi 17 (samples) + buổi 18 (analysis + assign rewrite) → Turso 20260629/20260701/20260712 → build → redeploy.
+Trước prisma generate: kill process port 3000. Nếu db:seed fail PreparedChemical → seed-analysis-only.ts.
 Chỉ đọc file liên quan — không scan toàn repo.
 ```
 
@@ -2368,6 +2866,8 @@ npm run db:setup-remote
 
 | Nhóm | localStorage | Sub-items |
 |------|--------------|-----------|
+| **Tiếp nhận mẫu** | `samples-nav-open` | 6 — Phiếu YC · Danh sách · Tiếp nhận · Phân công phòng · Tracking · Lưu/Hủy |
+| **Phân tích** | `analysis-nav-open` | 7 — Inbox · Analyst · Worklist · Worksheet · Kết quả · QC · Duyệt |
 | **Thông tin hóa học** | `chem-info-nav-open` | 4 — Bảng tuần hoàn · Tra cứu HC · Máy tính · Tương thích |
 | **Hoá chất - Chuẩn - Chủng** | `materials-nav-open` | 14 — xem §1 |
 | **Thiết bị** | `equipment-nav-open` | 9 — xem § Module Thiết bị |
@@ -3528,7 +4028,7 @@ npx tsx prisma/seed-data/chem-info/run-seed.ts
 ### Kiến trúc
 
 - **Identity:** `AnalyticalMethod` (methodCode unique) · **artifact theo version:** `MethodVersion` + documents/workflow/QC/reagents/equipment/executions
-- **Workflow:** `MethodWorkflow` 1:1 `MethodVersion` · `WorkflowNode`/`WorkflowEdge` · React Flow client (`WorkflowEditor.tsx` + `workflow/*`) · **Undo/Redo · phím tắt · copy/paste · multi-select · auto-save**
+- **Workflow:** `MethodWorkflow` 1:1 `MethodVersion` · React Flow (`WorkflowEditor.tsx` + `workflow/*`) · **Undo/Redo · pan chuột · Shift+marquee · phím tắt · copy/paste · auto-save**
 - **Approval FSM:** Draft → Review → Approved → Obsolete · template từ `preparation-workflow` · separation of duties trong `method-approval.ts`
 - **Execution:** chỉ `MethodVersion.status = Approved` (trừ Admin override flag — chưa implement) · snapshot checklist → `MethodExecutionStep`
 - **Upload SOP:** `lib/sop-upload.ts` → `public/uploads/sop/` hoặc Vercel Blob · không lưu binary DB
@@ -3597,22 +4097,25 @@ Sau `npm run db:seed` (hoặc `npx tsx scripts/seed-analytical-methods.ts`):
 - Idempotent: skip nếu `methodCode` đã tồn tại
 - SOP metadata (scope/principle/sample prep) lưu trong `MethodVersion.changeLog` (markdown) — **chưa có field UI riêng trên tab Tổng quan**
 
-### Flowchart editor — Undo/Redo & phím tắt
+### Flowchart editor — phím tắt & pan
 
-| Phím | Hành động |
-|------|-----------|
+| Phím / chuột | Hành động |
+|--------------|-----------|
+| **Kéo trái (vùng trống)** | Di chuyển canvas (pan) |
+| **Shift + kéo vùng** | Chọn nhiều bước (marquee) |
+| **Chuột giữa / phải + kéo** | Di chuyển canvas (luôn) |
 | `Ctrl+Z` | Undo |
 | `Ctrl+Shift+Z` / `Ctrl+Y` | Redo |
 | `Ctrl+S` | Lưu workflow |
 | `Ctrl+C/V/D` | Copy / Paste / Duplicate |
-| `Delete` / `Backspace` | Xóa selection (không xóa `start`/`end`) |
+| `Delete` / `Backspace` | Xóa selection |
 | `Ctrl+A` | Chọn tất cả node |
 | `Ctrl+0/+/-` | Zoom |
 | `Esc` | Bỏ chọn |
+| `Shift/Ctrl + Click` | Multi-select từng bước |
 
-- History: commit khi add/delete/connect/drag-stop/property-blur · **không** flood khi kéo liên tục
-- Auto-save: 15s sau thao tác cuối nếu dirty · cảnh báo `beforeunload`
-- Toolbar: Hoàn tác · Làm lại · Lưu (badge đỏ nếu chưa lưu) · **? Phím tắt**
+- History cap 100 · auto-save 15s · toolbar **? Phím tắt**
+- **Prod:** pan chưa deploy — cần commit + push sau buổi này
 
 ### Luồng nghiệp vụ
 
@@ -3641,11 +4144,12 @@ npm run dev
 
 Mở http://localhost:3000/analytical-methods — login Admin/LabManager.
 
-### Turso prod (pending)
+### Turso prod
 
-1. Tạo `prisma/migrations/20260711_analytical_methods/migration.sql` (15 CREATE TABLE + indexes) — `prisma migrate diff` có thể fail P3006 shadow DB; có thể dùng SQL export từ local schema hoặc `prisma db pull` diff
-2. `npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260711_analytical_methods/migration.sql`
-3. `$env:NODE_ENV="production"; npx tsx prisma/seed.ts` (permission keys)
+- [x] **`20260711_analytical_methods`** — applied 2026-06-28 (`prisma/migrations/20260711_analytical_methods/migration.sql`)
+- [x] **`20260710_element_applications`** — applied
+- [x] Seed: `npx tsx scripts/seed-methods-prod.ts` (an toàn hơn full `db:seed` trên prod)
+- [ ] Full `npm run db:seed` prod — **blocked** schema drift `PreparedStandardComponent.stockLotId`
 
 ### QA browser checklist (pending)
 
@@ -3664,6 +4168,14 @@ Mở http://localhost:3000/analytical-methods — login Admin/LabManager.
 - [ ] Fork version từ Approved → edit workflow trên Draft mới
 - [ ] Nút AI extract → message stub (không crash)
 
+**Flowchart UX (buổi 16 tiếp + pan):**
+
+- [ ] **Pan:** kéo trái trên nền grid → canvas di chuyển · minimap cập nhật
+- [ ] **Shift+kéo** → khung chọn nhiều node
+- [ ] **Undo/Redo:** thêm/xóa/sửa/kéo node · Ctrl+Z/Y · copy/paste
+- [ ] Reload → viewport đã pan được khôi phục
+- [ ] Read-only version → pan OK · không marquee
+
 **Flowchart Undo/Redo (buổi 16 tiếp):**
 
 - [ ] Thêm node → `Ctrl+Z` → node mất → `Ctrl+Y` → quay lại
@@ -3679,14 +4191,296 @@ Mở http://localhost:3000/analytical-methods — login Admin/LabManager.
 
 ### Việc tiếp theo (global)
 
-- [ ] **Commit + push** buổi **16 (analytical-methods + seed + flowchart UX)** — PR riêng khuyến nghị
-- [ ] **Turso prod** — migrate **`20260711_analytical_methods`** + seed permission `methods_*` (+ demo methods tùy chọn)
-- [ ] **QA browser** module Phương pháp phân tích (checklist § trên, gồm Undo/Redo)
-- [ ] **Tab Tổng quan** — field SOP summary (scope/principle/sample prep) thay vì chỉ `changeLog` markdown
-- [ ] **Commit + push** buổi 7–11 chem-info + buổi 14 (MW/search/display-name) + **buổi 15 (periodic-table detail v2)** — cân nhắc tách PR
-- [ ] **Redeploy** prod sau commit chem-info đầy đủ
-- [ ] QA browser `/chem-info/periodic-table` (nhóm A/B · ứng dụng · Bohr) + `/chem-info/calculators` (tab Khối lượng mol · Pha loãng v2 · Quy đổi đơn vị) + `/chem-info/chemicals` (mobile search) + `/chem-info/compatibility`
-- [ ] Turso: migrate **`20260710_element_applications`** trên prod · re-seed chem-info sau deploy
-- [ ] Turso: **✅ migrate `20260707`–`20260709` done** · chưa chạy **code standardization** pipeline
-- [ ] UI copy compatibility (message khi không có rule)
-- [ ] Defer: link drawer kho · compatibility stock-in · RDKit 2D · align SolutionPrep unit codes với units module · mở rộng ứng dụng cho toàn bộ 118 nguyên tố
+- [ ] **Commit + push** module Tiếp nhận mẫu + seed demo (buổi 17) → Turso `20260712` → redeploy prod
+- [ ] **Commit + push** pan flowchart (`WorkflowCanvas.tsx`, `WorkflowShortcutsModal.tsx`) → redeploy prod
+- [ ] **QA browser E2E** module Tiếp nhận mẫu (§9 — FSM · prefill · QR · RBAC)
+- [ ] **QA browser** module Phương pháp phân tích (§8 checklist — pan + Undo/Redo + E2E)
+- [ ] **Tab Tổng quan** — field SOP summary (scope/principle/sample prep)
+- [ ] **AI extraction** — LLM provider · `extractSop` thật
+- [ ] **UX P2** — picker catalog · auto-layout flowchart (dagre)
+- [ ] **Fix** edge `conditionJson` mất khi save workflow
+- [ ] Turso prod: fix schema drift `stockLotId` → full re-seed nếu cần
+- [ ] QA chem-info prod (periodic-table v2 · calculators · compatibility · mobile search)
+- [ ] Turso: **code standardization** pipeline (`20260706_code_standardization`) chưa chạy prod
+- [ ] Vercel env: `BLOB_READ_WRITE_TOKEN` · `CRON_SECRET` · QA upload SOP prod
+- [ ] Defer: link drawer kho · compatibility stock-in · RDKit 2D · align SolutionPrep units · mở rộng ứng dụng 118 nguyên tố
+
+---
+
+## 9. Module Tiếp nhận mẫu — handoff chi tiết (buổi 17)
+
+### Kiến trúc
+
+- **Identity:** `Sample.sampleCode` unique · sinh `SPL-YYYYMMDD-0001` qua `CodeSequence` prefix theo ngày (`lib/sample-code.ts`)
+- **Phiếu YC:** `SampleRequest` + `SampleRequestTest` + `SampleRequestMethod` · mã `PR-YYYYMMDD-0001`
+- **Phép thử:** `SampleTest` + junction `SampleTestChemical` / `SampleTestStandard`
+- **FSM:** `lib/services/samples/sample-workflow.ts` — `SAMPLE_TRANSITIONS` · validate hoàn thành cần PP + assignee
+- **Audit:** `SampleAuditLog` (entity-scoped) + `writeAuditLog()` global trên mutations
+- **Chain of custody:** `SampleCustodyEvent` — Received / Transferred / Stored / Disposed
+- **Cảnh báo:** `sample-warnings.ts` — TB quá hạn HC · HC/Chuẩn hết hạn/tồn thấp
+
+### Routes
+
+| Route | Permission key | Mô tả |
+|-------|----------------|--------|
+| `/samples` | `samples_list` | Danh sách + filter + overdue |
+| `/samples/receive` | `samples_receive` | Form tiếp nhận 5 nhóm |
+| `/samples/[id]` | `samples_list` | Chi tiết · FSM · audit · custody · QR |
+| `/samples/requests` | `samples_requests` | Danh sách phiếu YC |
+| `/samples/requests/new`, `/samples/requests/[id]` | `samples_requests` | Form phiếu YC |
+| `/samples/assign` | `samples_assign` | **Phân công phòng ban** — nhóm chỉ tiêu → `AnalysisAssignment` (Lab Manager) |
+| `/samples/tracking` | `samples_tracking` | Kanban trạng thái |
+| `/samples/storage` | `samples_storage` | Lưu mẫu / hủy mẫu (QA approve) |
+| `/samples/reports` | `samples_list` | Export CSV (chưa sidebar) |
+
+### RBAC (6 keys)
+
+| Key | Role defaults (tóm tắt) |
+|-----|-------------------------|
+| `samples_*` (all 6) | Admin · LabManager: **write** |
+| `samples_list`, `samples_receive`, `samples_tracking` | Analyst: **write** |
+| `samples_requests`, `samples_assign`, `samples_storage` | Analyst: **read** |
+| all | QAQC: **read** · `samples_tracking` + `samples_storage`: **write** |
+| all | Viewer: **read** |
+
+Guard hành vi (`lib/actions/samples.ts`): phân công → `requireSessionCanManage` · hủy mẫu → `requireSessionCanApprove` · sửa mã mẫu → `requireSessionCanApprove`
+
+### Prisma models (mới)
+
+`SampleRequest`, `SampleRequestTest`, `SampleRequestMethod`, `Sample`, `SampleTest`, `SampleTestChemical`, `SampleTestStandard`, `SampleAuditLog`, `SampleStorageRecord`, `SampleCustodyEvent`
+
+FK cross-module: `Sample`/`SampleTest` → `AnalyticalMethod`/`MethodVersion` · `SampleTest` → `Equipment` · junction → `Chemical`/`Standard` · `Sample` → `ChemicalReference`
+
+### File chính
+
+| Layer | Path |
+|-------|------|
+| Schema | `prisma/schema.prisma` (block Sample Reception) |
+| Migration | `prisma/migrations/20260712_sample_reception/migration.sql` |
+| Labels | `lib/sample-labels.ts` |
+| Code gen | `lib/sample-code.ts` |
+| Types | `types/samples.ts` |
+| Mappers | `lib/mappers/samples.ts` |
+| Validators | `lib/validators/samples.ts` |
+| Services | `lib/services/samples/*.ts` (10 files) |
+| Actions | `lib/actions/samples.ts` |
+| Nav/RBAC | `lib/auth/nav-permissions.ts`, `lib/auth/permissions.ts`, `components/Sidebar.tsx` |
+| Layout | `app/samples/layout.tsx`, `components/samples/SampleAppShell.tsx` |
+| Pages | `app/samples/**` (11 routes) |
+| Components | `components/samples/*.tsx` (12 files) |
+| Tests | `scripts/test-sample-code-gen.ts`, `scripts/verify-sample-workflow.ts`, `scripts/verify-samples-seed.ts` |
+| Demo seed | `prisma/seed-data/samples/sample-definitions.ts`, `seed-samples.ts`, `resolvers.ts`, `run-seed.ts` |
+| Prod seed | `scripts/seed-samples-prod.ts` (permissions only) |
+
+### Luồng nghiệp vụ
+
+```
+[Tùy chọn] Tạo phiếu YC (Draft → Submitted)
+  → Tiếp nhận mẫu (sinh SPL-*) — liên kết PP / chem-info
+  → Received → WaitingAssignment
+  → Lab Manager: /samples/assign → AnalysisAssignment (phòng ban)
+  → /analysis/inbox: lab tiếp nhận → AnalysisTask
+  → /analysis/*: analyst → worklist → worksheet → results → QC → review
+  → Sample: InAnalysis → WaitingReview → Completed (sync từ tasks)
+  → Stored / Disposed (QA)
+Từ chối: Received → Rejected (bắt buộc conditionNote)
+```
+
+### Setup local (chat mới)
+
+```powershell
+taskkill /F /IM node.exe 2>$null   # nếu EPERM prisma generate
+npx prisma generate
+npx prisma db push                 # hoặc migrate SQL 20260712
+npm run db:seed                    # full seed incl. 10 PR/10 SPL demo
+# hoặc: npx tsx prisma/seed-data/samples/run-seed.ts
+npx tsx scripts/verify-samples-seed.ts
+npm run dev
+```
+
+Mở http://localhost:3000/samples — login Admin/LabManager.
+
+### Seed demo (`PR-20260629-*` / `SPL-20260629-*`)
+
+| SPL | Tên | Trạng thái | Ghi chú |
+|-----|-----|------------|---------|
+| 0001 | Gạo trắng | Stored | Lưu mẫu · Aflatoxin + kim loại |
+| 0002 | Bột mì | WaitingAssignment | Kanban · quá hạn |
+| 0003 | Dầu ăn | WaitingAssignment | Phiếu Submitted |
+| 0004 | Cá đông lạnh | Stored | -20°C |
+| 0005 | Rau cải xanh | Assigned | NeedConfirmation |
+| 0006 | Thịt gà tươi | InAnalysis | LC-MS + vi sinh |
+| 0007 | TA viên heo | InAnalysis | Dinh dưỡng + độc tố |
+| 0008 | Bột cá | Stored | Lưu mẫu |
+| 0009 | Premix khoáng | Stored | Phiếu Completed · ICP |
+| 0010 | Bắp hạt | Disposed | Hủy — ẩm mốc |
+
+**Kanban:** 5 mẫu active (0002, 0003, 0005, 0006, 0007). **Storage picker:** 4 Stored (0001, 0004, 0008, 0009).
+
+### Turso prod
+
+- [ ] **`20260712_sample_reception`** — pending
+  ```powershell
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260712_sample_reception/migration.sql
+  $env:NODE_ENV="production"; npx tsx scripts/seed-samples-prod.ts
+  ```
+
+### QA browser checklist (smoke ✅ · E2E pending)
+
+**Tiếp nhận cơ bản:**
+
+- [x] Sidebar hiện nhóm **Tiếp nhận mẫu** (Admin/LabManager/Analyst)
+- [ ] Tạo mẫu mới → mã `SPL-YYYYMMDD-0001` tăng tuần tự (test ngoài demo prefix)
+- [ ] Từ chối/Không đạt không có lý do → validation error
+- [x] Danh sách hiển thị 10 mẫu demo + liên kết PP
+
+**Phiếu YC & phân công:**
+
+- [x] `/samples/requests` — 10 phiếu PR-20260629-*
+- [ ] Prefill từ phiếu (`/samples/receive?requestId=`) — tên mẫu + bảo quản
+- [x] `/samples/assign` — chọn mẫu WA/Assigned
+- [ ] Cảnh báo TB/HC quá hạn trên phân công
+- [ ] Filter **Mẫu quá hạn** trên danh sách
+
+**FSM & ISO:**
+
+- [ ] Chuyển trạng thái sai FSM → bị chặn
+- [ ] Hoàn thành khi thiếu PP/assignee → bị chặn
+- [ ] Audit trail + chain of custody trên detail
+- [x] `/samples/storage` — 4 mẫu Stored selectable
+- [ ] In tem QR
+
+**Kanban & RBAC:**
+
+- [x] `/samples/tracking` — cột WA/Assigned/InAnalysis có mẫu (không toàn 0)
+- [ ] Viewer: read-only · Analyst/LabManager workflow đầy đủ
+
+---
+
+## 11. Module Phân tích — handoff chi tiết (buổi 18)
+
+### Kiến trúc
+
+- **Tiếp nhận:** Lab Manager phân công phòng → `AnalysisAssignment` (status `assigned`)
+- **Phân tích:** Lab tiếp nhận → `AnalysisTask` (1:1 assignment) · chuỗi worklist → worksheet → `TestResult` → `QcCheck` → review
+- **`SampleTest`:** pool chỉ tiêu lúc tiếp nhận + legacy demo — **không** dùng phân công analyst/TB/HC ở `/samples/assign`
+- **Sync Sample:** `lib/services/analysis/analysis-workflow.ts` — `syncSampleStatusFromTasks()` (InAnalysis / WaitingReview / Completed)
+- **Code gen:** `lib/analysis-code.ts` — `WL-YYYYMMDD-0001`, `WS-YYYYMMDD-0001`
+
+### Luồng trạng thái (tóm tắt)
+
+| Sự kiện | Assignment | Task | Sample |
+|---------|------------|------|--------|
+| Lab tiếp nhận | `department_received` | `lab_accepted` | `InAnalysis` |
+| Phân analyst | — | `analyst_assigned` | giữ |
+| Vào worklist | — | `in_worklist` | giữ |
+| Worksheet start | `department_processing` | `in_analysis` | giữ |
+| Nhập kết quả | — | `result_entered` | giữ |
+| QC đạt | — | `qc_checked` | giữ |
+| Gửi duyệt | — | `submitted_for_review` | `WaitingReview` |
+| Duyệt (all tasks) | — | `approved` | `Completed` |
+
+### Routes
+
+| Route | Permission key | Mô tả |
+|-------|----------------|--------|
+| `/analysis/inbox` | `analysis_inbox` | Assignment `assigned` — tiếp nhận / từ chối |
+| `/analysis/assign-analyst` | `analysis_assign_analyst` | Task `lab_accepted` → gán analyst |
+| `/analysis/worklists` | `analysis_worklist` | List + tạo worklist (inline form) |
+| `/analysis/worklists/[id]` | `analysis_worklist` | Chi tiết worklist |
+| `/analysis/worksheets` | `analysis_worksheet` | List worksheet |
+| `/analysis/worksheets/[id]` | `analysis_worksheet` | Start/complete · HC/chuẩn/CRM |
+| `/analysis/results` | `analysis_results` | Nhập kết quả theo chỉ tiêu |
+| `/analysis/qc` | `analysis_qc` | QC checks |
+| `/analysis/review` | `analysis_review` | Submit / duyệt / trả về |
+
+### RBAC (7 keys)
+
+| Role | Quyền gợi ý |
+|------|-------------|
+| Admin / LabManager | all `analysis_*` **write** |
+| Analyst | inbox + assign-analyst **read** · worklist/worksheet/results **write** |
+| QAQC | qc + review **write** · còn lại **read** |
+| Viewer | all **read** |
+
+### Prisma models (mới)
+
+`LabDepartment`, `DepartmentManager`, `AnalysisAssignment`, `DepartmentAnalyst`, `AnalysisTask`, `AnalysisWorklist`, `AnalysisWorklistTask`, `AnalysisWorksheet`, `WorksheetChemical`, `WorksheetStandard`, `WorksheetCrm`, `TestResult`, `QcCheck`
+
+Migrations:
+
+- `prisma/migrations/20260629_analysis_assignment/migration.sql`
+- `prisma/migrations/20260701_analysis_module/migration.sql`
+
+### File chính
+
+| Layer | Path |
+|-------|------|
+| Schema | `prisma/schema.prisma` (block Analysis) |
+| Labels | `lib/analysis-labels.ts` |
+| Code gen | `lib/analysis-code.ts` |
+| Types | `types/analysis.ts` |
+| Mappers | `lib/mappers/analysis.ts` |
+| Validators | `lib/validators/analysis.ts` |
+| Services | `lib/services/analysis/*.ts` (8 files) |
+| Assign (samples) | `lib/services/samples/analysis-assignment.ts` |
+| Actions | `lib/actions/analysis.ts` |
+| Nav/RBAC | `lib/auth/nav-permissions.ts`, `lib/auth/permissions.ts`, `components/Sidebar.tsx` |
+| Layout | `app/analysis/layout.tsx`, `components/analysis/AnalysisAppShell.tsx` |
+| Pages | `app/analysis/**` (10 routes) |
+| Components | `components/analysis/*.tsx` |
+| Seed | `prisma/seed-data/lab-departments.ts`, `analysis-analysts.ts`, `analysis/demo-analysis.ts` |
+| Scripts | `scripts/seed-analysis-only.ts`, `verify-analysis-module-seed.ts`, `smoke-analysis-pages.ts` |
+
+### Setup local (chat mới)
+
+```powershell
+Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+npx prisma generate
+npx prisma db push
+npx tsx scripts/seed-analysis-only.ts
+npx tsx scripts/smoke-analysis-pages.ts
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+npm run dev
+```
+
+### QA browser checklist (CLI smoke ✅ · E2E pending)
+
+**Phân công & tiếp nhận:**
+
+- [ ] `/samples/assign` — Lab Manager gán nhóm chỉ tiêu SPL-0003 → phòng ban
+- [ ] `/analysis/inbox` — quản lý phòng tiếp nhận → task `lab_accepted`
+- [ ] Từ chối inbox — bắt buộc lý do · không tạo task
+
+**Chuỗi phân tích:**
+
+- [ ] Phân analyst → tạo worklist (method `PP-ICP-WAT-001` + TB `EQ-ICP-001`)
+- [ ] Worksheet start → nhập HC/chuẩn → complete
+- [ ] Nhập kết quả → QC pass → gửi duyệt → duyệt
+- [ ] `/samples/[id]` — status `Completed` · section phân công + tracking cập nhật
+
+**RBAC & lỗi thường gặp:**
+
+- [ ] Viewer: read-only trên `/analysis/*`
+- [ ] QAQC: write trên QC + review
+- [ ] Nếu `analysisWorklist undefined` → kill node · `prisma generate` · xóa `.next` · restart
+
+### Turso prod
+
+- [ ] **`20260629_analysis_assignment`** + **`20260701_analysis_module`** — pending
+  ```powershell
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260629_analysis_assignment/migration.sql
+  npx tsx scripts/apply-turso-migration.ts prisma/migrations/20260701_analysis_module/migration.sql
+  ```
+- [ ] Seed permissions + demo (chưa có `seed-analysis-prod.ts` riêng — cần tạo hoặc mở rộng seed prod)
+
+---
+
+## 12. Recommended Next Prompt (archive chem-info)
+
+```
+Đọc HANDOFF.md (§ **Thông tin hóa học — handoff ngắn** + §5b–5c + §8 Pending).
+QA: tab Khối lượng mol · tra cứu mobile · Pha loãng v2 · compatibility GROUP.
+Commit buổi 7–11 + buổi 14 → push → redeploy.
+Chỉ đọc file liên quan — không scan toàn repo.
+```

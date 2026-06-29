@@ -1,8 +1,70 @@
+import { ANALYSIS_NAV } from "@/lib/analysis-labels";
+import { RESULTS_DELIVERY_NAV } from "@/lib/result-delivery-nav";
 import { EQUIPMENT_NAV } from "@/lib/equipment-labels";
 import { CHEM_INFO_NAV } from "@/lib/chem-info-labels";
 import { METHODS_NAV } from "@/lib/analytical-methods-labels";
+import { SAMPLES_NAV } from "@/lib/sample-labels";
 
 export const NAV_PERMISSION_GROUPS = [
+  {
+    id: "samples" as const,
+    label: SAMPLES_NAV.group,
+    items: [
+      { key: "samples_requests" as const, label: SAMPLES_NAV.requests, href: "/samples/requests" },
+      { key: "samples_list" as const, label: SAMPLES_NAV.list, href: "/samples" },
+      { key: "samples_receive" as const, label: SAMPLES_NAV.receive, href: "/samples/receive" },
+      { key: "samples_assign" as const, label: SAMPLES_NAV.assign, href: "/samples/assign" },
+      { key: "samples_tracking" as const, label: SAMPLES_NAV.tracking, href: "/samples/tracking" },
+      { key: "samples_storage" as const, label: SAMPLES_NAV.storage, href: "/samples/storage" },
+    ],
+  },
+  {
+    id: "analysis" as const,
+    label: ANALYSIS_NAV.group,
+    items: [
+      { key: "analysis_inbox" as const, label: ANALYSIS_NAV.inbox, href: "/analysis/inbox" },
+      {
+        key: "analysis_assign_analyst" as const,
+        label: ANALYSIS_NAV.assignAnalyst,
+        href: "/analysis/assign-analyst",
+      },
+      { key: "analysis_worklist" as const, label: ANALYSIS_NAV.worklist, href: "/analysis/worklists" },
+      {
+        key: "analysis_worksheet" as const,
+        label: ANALYSIS_NAV.worksheet,
+        href: "/analysis/worksheets",
+      },
+      { key: "analysis_results" as const, label: ANALYSIS_NAV.results, href: "/analysis/results" },
+      { key: "analysis_qc" as const, label: ANALYSIS_NAV.qc, href: "/analysis/qc" },
+      { key: "analysis_review" as const, label: ANALYSIS_NAV.review, href: "/analysis/review" },
+    ],
+  },
+  {
+    id: "results_delivery" as const,
+    label: RESULTS_DELIVERY_NAV.group,
+    items: [
+      {
+        key: "delivery_pending" as const,
+        label: RESULTS_DELIVERY_NAV.pending,
+        href: "/results-delivery/pending",
+      },
+      {
+        key: "delivery_reports" as const,
+        label: RESULTS_DELIVERY_NAV.reports,
+        href: "/results-delivery/reports",
+      },
+      {
+        key: "delivery_history" as const,
+        label: RESULTS_DELIVERY_NAV.history,
+        href: "/results-delivery/history",
+      },
+      {
+        key: "delivery_issued" as const,
+        label: RESULTS_DELIVERY_NAV.issued,
+        href: "/results-delivery/issued",
+      },
+    ],
+  },
   {
     id: "chem_info" as const,
     label: "Thông tin hóa học",
@@ -134,6 +196,17 @@ export function routePermission(pathname: string): PermissionKey | null {
     if (pathname.startsWith("/method-executions/")) {
       return "methods_list";
     }
+    if (item.href === "/samples") {
+      if (pathname === "/samples") return "samples_list";
+      if (pathname.startsWith("/samples/reports")) return "samples_list";
+      if (pathname.startsWith("/samples/") && !pathname.startsWith("/samples/requests") &&
+        !pathname.startsWith("/samples/receive") && !pathname.startsWith("/samples/assign") &&
+        !pathname.startsWith("/samples/tracking") && !pathname.startsWith("/samples/storage") &&
+        !pathname.startsWith("/samples/reports")) {
+        return "samples_list";
+      }
+      continue;
+    }
     if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
       return item.key;
     }
@@ -144,6 +217,18 @@ export function routePermission(pathname: string): PermissionKey | null {
 
 export function permissionGroupsForAdmin() {
   return NAV_PERMISSION_GROUPS;
+}
+
+export function getSamplesNavItems() {
+  return NAV_PERMISSION_GROUPS.find((g) => g.id === "samples")!.items;
+}
+
+export function getAnalysisNavItems() {
+  return NAV_PERMISSION_GROUPS.find((g) => g.id === "analysis")!.items;
+}
+
+export function getResultsDeliveryNavItems() {
+  return NAV_PERMISSION_GROUPS.find((g) => g.id === "results_delivery")!.items;
 }
 
 export function getChemInfoNavItems() {

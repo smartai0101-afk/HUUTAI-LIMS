@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -18,6 +18,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { workflowNodeTypes } from "@/components/analytical-methods/WorkflowNodeTypes";
+import { cn } from "@/lib/utils";
 import { isMacPlatform } from "./useWorkflowShortcuts";
 import type { WorkflowSnapshot, WorkflowViewport } from "./types";
 
@@ -55,6 +56,30 @@ export function WorkflowCanvas({
   onViewportChange,
   restoreViewport,
 }: Props) {
+  const [shiftHeld, setShiftHeld] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setShiftHeld(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setShiftHeld(false);
+    };
+    const onBlur = () => setShiftHeld(false);
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
+  const panOnDrag = !editable ? true : shiftHeld ? [1, 2] : true;
+  const selectionOnDrag = editable && shiftHeld;
+
   const handleMoveEnd = useCallback(
     (_: unknown, viewport: Viewport) => {
       onViewportChange({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
@@ -64,6 +89,11 @@ export function WorkflowCanvas({
 
   return (
     <ReactFlow
+      className={cn(
+        editable && shiftHeld && "cursor-crosshair",
+        (!editable || !shiftHeld) &&
+          "cursor-grab [&_.react-flow__pane:active]:cursor-grabbing",
+      )}
       nodes={snapshot.nodes}
       edges={snapshot.edges}
       onNodesChange={editable ? onNodesChange : undefined}
@@ -77,9 +107,9 @@ export function WorkflowCanvas({
       elementsSelectable={editable}
       multiSelectionKeyCode="Shift"
       selectionKeyCode={isMacPlatform() ? "Meta" : "Control"}
-      selectionOnDrag={editable}
+      selectionOnDrag={selectionOnDrag}
       deleteKeyCode={null}
-      panOnDrag={[1, 2]}
+      panOnDrag={panOnDrag}
       fitView={false}
     >
       <ViewportInitializer viewport={restoreViewport} />

@@ -59,13 +59,7 @@ const TEMPLATE_CONFIG = {
 
 type TemplateConfig = (typeof TEMPLATE_CONFIG)[LabelTemplate];
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { escapeHtml } from "@/lib/html-escape";
 
 function displayValue(value: string): string {
   const trimmed = value.trim();

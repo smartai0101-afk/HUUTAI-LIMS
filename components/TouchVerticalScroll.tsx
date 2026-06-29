@@ -47,11 +47,11 @@ export function TouchVerticalScroll({
   }, [updateFade]);
 
   return (
-    <div className={cn("relative min-h-0", className)}>
+    <div className={cn("relative flex h-full min-h-0 flex-col overflow-hidden", className)}>
       <div
         ref={scrollRef}
         className={cn(
-          "touch-scroll-y scrollbar-hide overflow-y-auto overflow-x-hidden overscroll-y-contain",
+          "touch-scroll-y scrollbar-hide h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
           contentClassName,
         )}
       >

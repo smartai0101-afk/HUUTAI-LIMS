@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import {
   Atom,
   ChevronDown,
+  FileText,
   FlaskConical,
+  Inbox,
   Menu,
   ScanLine,
   Settings,
@@ -16,10 +18,13 @@ import {
 import { useSession } from "@/components/SessionProvider";
 import {
   getAdminNavItems,
+  getAnalysisNavItems,
+  getResultsDeliveryNavItems,
   getAnalyticalMethodsNavItems,
   getChemInfoNavItems,
   getEquipmentNavItems,
   getMaterialsNavItems,
+  getSamplesNavItems,
 } from "@/lib/auth/nav-permissions";
 import { TouchVerticalScroll } from "@/components/TouchVerticalScroll";
 import { cn } from "@/lib/utils";
@@ -32,12 +37,27 @@ export function Sidebar() {
   const pathname = usePathname();
   const { hasPermission } = useSession();
   const [open, setOpen] = useState(false);
+  const [samplesOpen, setSamplesOpen] = useState(true);
+  const [analysisOpen, setAnalysisOpen] = useState(true);
+  const [deliveryOpen, setDeliveryOpen] = useState(true);
   const [chemInfoOpen, setChemInfoOpen] = useState(true);
   const [materialsOpen, setMaterialsOpen] = useState(true);
   const [equipmentOpen, setEquipmentOpen] = useState(true);
   const [methodsOpen, setMethodsOpen] = useState(true);
   const [adminOpen, setAdminOpen] = useState(true);
 
+  const visibleSamples = useMemo(
+    () => getSamplesNavItems().filter((item) => hasPermission(item.key, "read")),
+    [hasPermission],
+  );
+  const visibleAnalysis = useMemo(
+    () => getAnalysisNavItems().filter((item) => hasPermission(item.key, "read")),
+    [hasPermission],
+  );
+  const visibleDelivery = useMemo(
+    () => getResultsDeliveryNavItems().filter((item) => hasPermission(item.key, "read")),
+    [hasPermission],
+  );
   const visibleChemInfo = useMemo(
     () => getChemInfoNavItems().filter((item) => hasPermission(item.key, "read")),
     [hasPermission],
@@ -69,6 +89,12 @@ export function Sidebar() {
   }, [open]);
 
   useEffect(() => {
+    const savedSamples = localStorage.getItem("samples-nav-open");
+    if (savedSamples !== null) setSamplesOpen(savedSamples === "true");
+    const savedAnalysis = localStorage.getItem("analysis-nav-open");
+    if (savedAnalysis !== null) setAnalysisOpen(savedAnalysis === "true");
+    const savedDelivery = localStorage.getItem("delivery-nav-open");
+    if (savedDelivery !== null) setDeliveryOpen(savedDelivery === "true");
     const savedChemInfo = localStorage.getItem("chem-info-nav-open");
     if (savedChemInfo !== null) setChemInfoOpen(savedChemInfo === "true");
     const savedMaterials = localStorage.getItem("materials-nav-open");
@@ -81,12 +107,39 @@ export function Sidebar() {
     if (savedAdmin !== null) setAdminOpen(savedAdmin === "true");
   }, []);
 
+  const isSamplesActive = pathname.startsWith("/samples");
+  const isAnalysisActive = pathname.startsWith("/analysis");
+  const isDeliveryActive = pathname.startsWith("/results-delivery");
   const isChemInfoActive = pathname.startsWith("/chem-info");
   const isMaterialsActive = visibleMaterials.some((item) => isMaterialsRoute(pathname, item.href));
   const isEquipmentActive = pathname.startsWith("/equipment");
   const isMethodsActive =
     pathname.startsWith("/analytical-methods") || pathname.startsWith("/method-executions");
   const isAdminActive = pathname.startsWith("/admin");
+
+  const toggleSamples = () => {
+    setSamplesOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem("samples-nav-open", String(next));
+      return next;
+    });
+  };
+
+  const toggleAnalysis = () => {
+    setAnalysisOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem("analysis-nav-open", String(next));
+      return next;
+    });
+  };
+
+  const toggleDelivery = () => {
+    setDeliveryOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem("delivery-nav-open", String(next));
+      return next;
+    });
+  };
 
   const toggleChemInfo = () => {
     setChemInfoOpen((prev) => {
@@ -146,6 +199,156 @@ export function Sidebar() {
       </div>
       <TouchVerticalScroll className="min-h-0 flex-1" fadeClassName="from-slate-950">
         <nav className="space-y-1 px-3 py-5">
+        {visibleSamples.length > 0 ? (
+          <div>
+            <button
+              type="button"
+              onClick={toggleSamples}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                isSamplesActive
+                  ? "bg-cyan-500/10 text-cyan-300"
+                  : "text-slate-300 hover:bg-slate-900 hover:text-white",
+              )}
+            >
+              <Inbox className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Tiếp nhận mẫu</span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-transform",
+                  samplesOpen ? "rotate-180" : "",
+                )}
+              />
+            </button>
+            {samplesOpen ? (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+                {visibleSamples.map((item) => {
+                  const isActive =
+                    item.href === "/samples"
+                      ? pathname === "/samples" ||
+                        (pathname.startsWith("/samples/") &&
+                          !pathname.startsWith("/samples/requests") &&
+                          !pathname.startsWith("/samples/receive") &&
+                          !pathname.startsWith("/samples/assign") &&
+                          !pathname.startsWith("/samples/tracking") &&
+                          !pathname.startsWith("/samples/storage") &&
+                          !pathname.startsWith("/samples/reports"))
+                      : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "block rounded-lg px-3 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-cyan-500/10 text-cyan-300"
+                          : "text-slate-400 hover:bg-slate-900 hover:text-white",
+                      )}
+                      onClick={() => setOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {visibleAnalysis.length > 0 ? (
+          <div>
+            <button
+              type="button"
+              onClick={toggleAnalysis}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                isAnalysisActive
+                  ? "bg-cyan-500/10 text-cyan-300"
+                  : "text-slate-300 hover:bg-slate-900 hover:text-white",
+              )}
+            >
+              <FlaskConical className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Phân tích</span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-transform",
+                  analysisOpen ? "rotate-180" : "",
+                )}
+              />
+            </button>
+            {analysisOpen ? (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+                {visibleAnalysis.map((item) => {
+                  const isActive =
+                    pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "block rounded-lg px-3 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-cyan-500/10 text-cyan-300"
+                          : "text-slate-400 hover:bg-slate-900 hover:text-white",
+                      )}
+                      onClick={() => setOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {visibleDelivery.length > 0 ? (
+          <div>
+            <button
+              type="button"
+              onClick={toggleDelivery}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                isDeliveryActive
+                  ? "bg-cyan-500/10 text-cyan-300"
+                  : "text-slate-300 hover:bg-slate-900 hover:text-white",
+              )}
+            >
+              <FileText className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Trả kết quả</span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-transform",
+                  deliveryOpen ? "rotate-180" : "",
+                )}
+              />
+            </button>
+            {deliveryOpen ? (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+                {visibleDelivery.map((item) => {
+                  const isActive =
+                    pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "block rounded-lg px-3 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-cyan-500/10 text-cyan-300"
+                          : "text-slate-400 hover:bg-slate-900 hover:text-white",
+                      )}
+                      onClick={() => setOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {visibleChemInfo.length > 0 ? (
           <div>
             <button
@@ -405,7 +608,7 @@ export function Sidebar() {
       >
         <Menu className="h-5 w-5" />
       </button>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden h-full w-72 flex-col border-r border-slate-200 bg-slate-950 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden h-screen w-72 flex-col overflow-hidden border-r border-slate-200 bg-slate-950 lg:flex">
         {content}
       </aside>
       {open ? (

@@ -47,6 +47,38 @@ const EQUIPMENT_KEYS: PermissionKey[] = [
 
 const METHODS_KEYS: PermissionKey[] = ["methods_dashboard", "methods_list"];
 
+const SAMPLES_KEYS: PermissionKey[] = [
+  "samples_requests",
+  "samples_list",
+  "samples_receive",
+  "samples_assign",
+  "samples_tracking",
+  "samples_storage",
+];
+
+const ANALYSIS_KEYS: PermissionKey[] = [
+  "analysis_inbox",
+  "analysis_assign_analyst",
+  "analysis_worklist",
+  "analysis_worksheet",
+  "analysis_results",
+  "analysis_qc",
+  "analysis_review",
+];
+
+const DELIVERY_KEYS: PermissionKey[] = [
+  "delivery_pending",
+  "delivery_reports",
+  "delivery_history",
+  "delivery_issued",
+];
+
+function writeSome(keys: PermissionKey[]): Partial<Record<PermissionKey, AccessLevel>> {
+  return Object.fromEntries(keys.map((k) => [k, "write"])) as Partial<
+    Record<PermissionKey, AccessLevel>
+  >;
+}
+
 function writeAll(keys: PermissionKey[]): Partial<Record<PermissionKey, AccessLevel>> {
   return Object.fromEntries(keys.map((k) => [k, "write"])) as Partial<
     Record<PermissionKey, AccessLevel>
@@ -66,6 +98,9 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     ...writeAll(MATERIALS_KEYS),
     ...writeAll(EQUIPMENT_KEYS),
     ...writeAll(METHODS_KEYS),
+    ...writeAll(SAMPLES_KEYS),
+    ...writeAll(ANALYSIS_KEYS),
+    ...writeAll(DELIVERY_KEYS),
     admin_tasks: "write",
     admin_people: "write",
   },
@@ -74,6 +109,16 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     ...writeAll(MATERIALS_KEYS),
     ...writeAll(EQUIPMENT_KEYS),
     ...writeAll(METHODS_KEYS),
+    ...writeSome(["samples_list", "samples_receive", "samples_tracking"]),
+    samples_requests: "read",
+    samples_assign: "read",
+    samples_storage: "read",
+    analysis_inbox: "read",
+    analysis_assign_analyst: "read",
+    ...writeSome(["analysis_worklist", "analysis_worksheet", "analysis_results"]),
+    analysis_qc: "read",
+    analysis_review: "read",
+    ...readAll(DELIVERY_KEYS),
     admin_tasks: "write",
   },
   QAQC: {
@@ -84,6 +129,17 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     ...readAll(MATERIALS_KEYS.filter((k) => k !== "dashboard" && k !== "reports")),
     ...readAll(EQUIPMENT_KEYS),
     ...readAll(METHODS_KEYS),
+    ...readAll(SAMPLES_KEYS),
+    samples_tracking: "write",
+    samples_storage: "write",
+    ...readAll(ANALYSIS_KEYS),
+    analysis_qc: "write",
+    analysis_review: "write",
+    ...readAll(DELIVERY_KEYS),
+    delivery_pending: "write",
+    delivery_reports: "write",
+    delivery_history: "write",
+    delivery_issued: "write",
   },
   Viewer: {
     dashboard: "write",
@@ -93,6 +149,9 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     ...readAll(EQUIPMENT_KEYS),
     methods_dashboard: "read",
     methods_list: "read",
+    ...readAll(SAMPLES_KEYS),
+    ...readAll(ANALYSIS_KEYS),
+    ...readAll(DELIVERY_KEYS),
   },
 };
 

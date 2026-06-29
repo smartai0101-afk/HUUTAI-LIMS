@@ -21,7 +21,9 @@ const SHORTCUTS = [
   { keys: "Esc", description: "Bỏ chọn" },
   { keys: "Shift + Click", description: "Thêm vào vùng chọn" },
   { keys: `${mod} + Click`, description: "Bật/tắt chọn bước" },
-  { keys: "Kéo vùng", description: "Chọn nhiều bước" },
+  { keys: "Kéo chuột trái (vùng trống)", description: "Di chuyển canvas" },
+  { keys: "Shift + kéo vùng", description: "Chọn nhiều bước" },
+  { keys: "Chuột giữa / phải + kéo", description: "Di chuyển canvas (luôn)" },
 ];
 
 type Props = {

@@ -15,6 +15,11 @@ import { computeStandardStatus } from "../lib/standard-status";
 import { db as prisma } from "../lib/db";
 import { seedExtendedCatalog, seedExtendedEquipmentAll, seedExtendedPostStockLots } from "./seed-data";
 import { seedAnalyticalMethods } from "./seed-data/analytical-methods";
+import { seedLabDepartments } from "./seed-data/lab-departments";
+import { seedAnalysisAnalysts } from "./seed-data/analysis-analysts";
+import { seedDemoAnalysis } from "./seed-data/analysis/demo-analysis";
+import { seedDemoReports } from "./seed-data/results-delivery/demo-reports";
+import { seedSamples } from "./seed-data/samples";
 import { seedChemInfoModule } from "./seed-data/chem-info";
 import { equipmentSpecificationsForCode } from "./seed-data/equipment-specifications";
 
@@ -994,6 +999,11 @@ async function main() {
   await seedExtendedPostStockLots(prisma);
   await seedChemInfoModule(prisma);
   await seedAnalyticalMethods(prisma);
+  await seedLabDepartments(prisma);
+  await seedSamples(prisma);
+  await seedAnalysisAnalysts(prisma);
+  await seedDemoAnalysis(prisma);
+  await seedDemoReports(prisma);
   await seedAuth();
 
   const { ensureAllOpeningBalances } = await import("../lib/services/inventory-opening-balance");
