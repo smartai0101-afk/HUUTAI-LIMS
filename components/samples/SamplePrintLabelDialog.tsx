@@ -8,9 +8,18 @@ type Props = {
   onClose: () => void;
   sampleCode: string;
   sampleName: string;
+  barcodePayload?: string;
+  sampleId?: string;
 };
 
-export function SamplePrintLabelDialog({ open, onClose, sampleCode, sampleName }: Props) {
+export function SamplePrintLabelDialog({
+  open,
+  onClose,
+  sampleCode,
+  sampleName,
+  barcodePayload,
+  sampleId,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -32,14 +41,19 @@ export function SamplePrintLabelDialog({ open, onClose, sampleCode, sampleName }
     ctx.font="12px sans-serif";
     ctx.fillText(sampleName.slice(0, 28), 16, 56);
 
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(sampleCode)}`;
+    const qrData =
+      barcodePayload ||
+      (typeof window !== "undefined" && sampleId
+        ? `${window.location.origin}/samples/${sampleId}`
+        : sampleCode);
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(qrData)}`;
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       ctx.drawImage(img, canvas.width - 96, 24, 80, 80);
     };
     img.src = qrUrl;
-  }, [open, sampleCode, sampleName]);
+  }, [open, sampleCode, sampleName, barcodePayload, sampleId]);
 
   function handlePrint() {
     const canvas = canvasRef.current;

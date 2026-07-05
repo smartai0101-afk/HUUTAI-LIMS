@@ -6,11 +6,30 @@ import type {
   WorkflowSourceType,
 } from "@prisma/client";
 
+export type MethodMatrixSummary = {
+  id: string;
+  code: string;
+  name: string;
+  groupName: string;
+};
+
+export type MethodTestMethodSummary = {
+  id: string;
+  code: string;
+  name: string;
+  categoryName: string;
+};
+
 export type AnalyticalMethodListItem = {
   id: string;
   methodCode: string;
   methodName: string;
-  matrix: string;
+  matrixIds: string[];
+  matrices: MethodMatrixSummary[];
+  matrixName: string | null;
+  testMethodIds: string[];
+  testMethods: MethodTestMethodSummary[];
+  analyteName: string | null;
   analyte: string;
   technique: string;
   standardRef: string;
@@ -38,7 +57,12 @@ export type AnalyticalMethodDetail = {
   id: string;
   methodCode: string;
   methodName: string;
-  matrix: string;
+  matrixIds: string[];
+  matrices: MethodMatrixSummary[];
+  matrixName: string | null;
+  testMethodIds: string[];
+  testMethods: MethodTestMethodSummary[];
+  analyteName: string | null;
   analyte: string;
   technique: string;
   standardRef: string;

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { DataTable } from "@/components/DataTable";
+import { MethodAnalyteListCell } from "@/components/analytical-methods/MethodAnalyteListCell";
+import { MethodMatrixListCell } from "@/components/analytical-methods/MethodMatrixListCell";
 import { METHOD_VERSION_STATUS_LABELS } from "@/lib/analytical-methods-labels";
 import type { AnalyticalMethodListItem } from "@/types/analytical-methods";
 import type { PaginatedResult } from "@/lib/list-query";
@@ -44,7 +46,7 @@ export function MethodListClient({ listResult }: Props) {
         <input
           name="q"
           defaultValue={q}
-          placeholder="Tìm mã, tên, matrix, analyte..."
+          placeholder="Tìm mã, tên, nền mẫu, chất phân tích..."
           className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
         />
         <button type="submit" className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white">
@@ -64,8 +66,20 @@ export function MethodListClient({ listResult }: Props) {
             ),
           },
           { key: "methodName", header: "Tên phương pháp" },
-          { key: "matrix", header: "Matrix" },
-          { key: "analyte", header: "Analyte" },
+          {
+            key: "matrixName",
+            header: "Nền mẫu",
+            minWidth: 200,
+            cellClassName: "whitespace-normal",
+            render: (_, row) => <MethodMatrixListCell matrices={row.matrices} />,
+          },
+          {
+            key: "analyte",
+            header: "Chất phân tích",
+            minWidth: 200,
+            cellClassName: "whitespace-normal",
+            render: (_, row) => <MethodAnalyteListCell testMethods={row.testMethods} />,
+          },
           { key: "technique", header: "Kỹ thuật" },
           { key: "standardRef", header: "Chuẩn tham chiếu" },
           {

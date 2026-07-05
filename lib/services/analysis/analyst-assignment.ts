@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { mapAnalysisTaskView } from "@/lib/mappers/analysis";
+import { notifyAnalystAssigned } from "@/lib/services/lims-notification-hooks";
 import type { AssignAnalystInput } from "@/lib/validators/analysis";
 import type { AnalysisTaskView, DepartmentAnalystView } from "@/types/analysis";
 
@@ -58,6 +59,13 @@ export async function assignAnalystToTask(input: AssignAnalystInput, changedBy: 
       note: input.note?.trim() ?? task.note,
     },
   });
+
+  await notifyAnalystAssigned(
+    updated.id,
+    updated.sampleCode,
+    analyst.name,
+    changedBy,
+  );
 
   return mapAnalysisTaskView(updated);
 }

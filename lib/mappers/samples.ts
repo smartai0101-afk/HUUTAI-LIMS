@@ -180,6 +180,7 @@ export function mapSampleRequestDetail(row: RequestWithRelations): SampleRequest
     status: row.status,
     dueDate: iso(row.dueDate),
     note: row.note,
+    priority: row.priority,
     requestedTests: row.requestedTests?.map((t) => t.parameterName) ?? [],
     methods:
       row.methods?.map((m) => ({

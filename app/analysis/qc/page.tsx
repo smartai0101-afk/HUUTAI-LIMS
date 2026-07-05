@@ -1,5 +1,6 @@
 import { QcClient } from "@/components/analysis/QcClient";
 import { listTasksForQc } from "@/lib/services/analysis/qc-check";
+import { mapQcCheckView } from "@/lib/mappers/analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function QcPage() {
         parameterGroup: t.parameterGroup,
         departmentName: t.departmentName,
         status: t.status,
+        qcHistory: t.qcChecks.map(mapQcCheckView),
       }))}
     />
   );

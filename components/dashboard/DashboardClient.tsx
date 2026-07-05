@@ -38,6 +38,7 @@ export function DashboardClient({
   recentLogs,
   criticalRows,
   equipmentStats,
+  limsKpis,
 }: {
   stats: DashboardStats;
   alerts: AlertItem[];
@@ -45,6 +46,14 @@ export function DashboardClient({
   recentLogs: UsageLogView[];
   criticalRows: CriticalRow[];
   equipmentStats: EquipmentDashboardStats;
+  limsKpis?: {
+    waitingAssignment: number;
+    inAnalysis: number;
+    waitingReview: number;
+    pendingIssue: number;
+    openDeviations: number;
+    overdueSamples: number;
+  };
 }) {
   const [alerts] = useState(initialAlerts);
 
@@ -84,6 +93,31 @@ export function DashboardClient({
           <StatCard title="BT quá hạn" value={`${equipmentStats.overdueMaintenanceCount}`} icon={AlertTriangle} tone="danger" />
           <StatCard title="Phụ kiện thấp" value={`${equipmentStats.lowSparePartCount}`} icon={AlertTriangle} tone="warning" />
         </div>
+
+        {limsKpis ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <StatCard title="Chờ phân công" value={`${limsKpis.waitingAssignment}`} change="LIMS" icon={Package} />
+            <StatCard title="Đang phân tích" value={`${limsKpis.inAnalysis}`} change="LIMS" icon={Beaker} />
+            <StatCard title="Chờ duyệt KQ" value={`${limsKpis.waitingReview}`} change="LIMS" icon={ShieldCheck} tone="warning" />
+            <StatCard title="Chờ phát hành" value={`${limsKpis.pendingIssue}`} change="LIMS" icon={ChartColumn} />
+            <StatCard title="Sai lệch mở" value={`${limsKpis.openDeviations}`} change="CAPA" icon={AlertTriangle} tone="danger" />
+            <StatCard title="Mẫu quá hạn" value={`${limsKpis.overdueSamples}`} change="ISO" icon={AlertTriangle} tone="warning" />
+          </div>
+        ) : null}
+
+        {limsKpis ? (
+          <div className="flex flex-wrap gap-2">
+            <a href="/api/lims/export?type=reception" className="rounded-lg bg-cyan-50 px-3 py-1.5 text-sm text-cyan-800 hover:bg-cyan-100">
+              Xuất tiếp nhận (CSV)
+            </a>
+            <a href="/api/lims/export?type=analysis" className="rounded-lg bg-cyan-50 px-3 py-1.5 text-sm text-cyan-800 hover:bg-cyan-100">
+              Xuất phân tích (CSV)
+            </a>
+            <a href="/api/lims/export?type=delivery" className="rounded-lg bg-cyan-50 px-3 py-1.5 text-sm text-cyan-800 hover:bg-cyan-100">
+              Xuất phát hành (CSV)
+            </a>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           <Link href="/stock-in" className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200">Nhập kho</Link>

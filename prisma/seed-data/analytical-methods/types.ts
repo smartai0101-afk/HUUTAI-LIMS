@@ -55,7 +55,8 @@ export type MethodSeedSafetyNote = {
 export type MethodSeedDefinition = {
   methodCode: string;
   methodName: string;
-  matrix: string;
+  matrixCodes: string[];
+  testMethodCodes: string[];
   analyte: string;
   technique: string;
   standardRef: string;

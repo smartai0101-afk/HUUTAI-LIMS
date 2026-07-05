@@ -4,7 +4,12 @@ import { generateSampleCode } from "@/lib/sample-code";
 import { nextStatusAfterReceive } from "@/lib/services/samples/sample-workflow";
 import { appendSampleAuditLog } from "@/lib/services/samples/sample-audit";
 import { appendSampleCustodyEvent } from "@/lib/services/samples/sample-custody";
+import { appendWorkflowEvent } from "@/lib/services/workflow-orchestrator";
 import type { SampleReceiveInput } from "@/lib/validators/samples";
+
+function buildBarcodePayload(sampleId: string, sampleCode: string): string {
+  return `/samples/${sampleId}|${sampleCode}`;
+}
 
 function parseDateTime(value: string): Date {
   if (value.includes("T")) return new Date(value);
@@ -68,6 +73,12 @@ export async function createSample(input: SampleReceiveInput, createdBy: string)
       },
     });
 
+    const barcodePayload = buildBarcodePayload(sample.id, sample.sampleCode);
+    const sampleWithBarcode = await tx.sample.update({
+      where: { id: sample.id },
+      data: { barcodePayload },
+    });
+
     const parameters = (input.parameterNames ?? []).filter((p) => p.trim());
     if (parameters.length > 0) {
       await tx.sampleTest.createMany({
@@ -104,18 +115,42 @@ export async function createSample(input: SampleReceiveInput, createdBy: string)
       entityId: sample.id,
       action: "Created",
       before: null,
-      after: sample,
+      after: sampleWithBarcode,
       changedBy: createdBy,
     });
 
+    await appendWorkflowEvent(tx, {
+      sampleId: sample.id,
+      entityType: "sample",
+      entityId: sample.id,
+      fromStatus: "",
+      toStatus: status,
+      action: "Received",
+      performedBy: createdBy,
+      after: sampleWithBarcode,
+      reason: input.conditionNote?.trim() ?? "",
+    });
+
     if (input.requestId) {
+      const request = await tx.sampleRequest.findUnique({ where: { id: input.requestId } });
       await tx.sampleRequest.update({
         where: { id: input.requestId },
-        data: { status: "Received" },
+        data: { status: "Processing" },
       });
+      if (request) {
+        await appendWorkflowEvent(tx, {
+          sampleId: sample.id,
+          entityType: "sample_request",
+          entityId: input.requestId,
+          fromStatus: request.status,
+          toStatus: "Processing",
+          action: "LinkedToSample",
+          performedBy: createdBy,
+        });
+      }
     }
 
-    return sample;
+    return sampleWithBarcode;
   });
 }
 
@@ -126,6 +161,9 @@ export async function updateSample(
 ) {
   const existing = await db.sample.findUnique({ where: { id } });
   if (!existing) throw new Error("Không tìm thấy mẫu");
+  if (["ResultIssued", "Stored", "Disposed"].includes(existing.status)) {
+    throw new Error("Không thể sửa mẫu đã phát hành kết quả hoặc đã lưu trữ");
+  }
 
   const methodInfo = input.primaryMethodId
     ? await resolveMethodVersion(input.primaryMethodId, input.primaryMethodVersionId)
@@ -176,6 +214,17 @@ export async function updateSample(
       after: updated,
       changedBy: updatedBy,
     });
+    await appendWorkflowEvent(tx, {
+      sampleId: id,
+      entityType: "sample",
+      entityId: id,
+      fromStatus: existing.status,
+      toStatus: updated.status,
+      action: "Updated",
+      performedBy: updatedBy,
+      before: existing,
+      after: updated,
+    });
     return updated;
   });
 }
@@ -201,4 +250,143 @@ export async function updateSampleCode(id: string, newCode: string, changedBy: s
     });
     return updated;
   });
+}
+
+export async function receiveSampleLine(
+  lineId: string,
+  input: {
+    receivedBy: string;
+    receivedAt: string;
+    conditionOnReceipt: SampleConditionOnReceipt;
+    conditionNote?: string;
+    deliveredBy?: string;
+    containerType?: string;
+    preservationCondition?: string;
+    storageLocation?: string;
+  },
+  createdBy: string,
+) {
+  const line = await db.requestSampleLine.findUnique({
+    where: { id: lineId },
+    include: {
+      tests: {
+        include: {
+          testMethod: true,
+          method: { select: { currentVersionId: true } },
+        },
+      },
+      request: true,
+    },
+  });
+  if (!line) throw new Error("Không tìm thấy dòng mẫu");
+  if (line.status !== "draft") throw new Error("Dòng mẫu đã được tiếp nhận");
+  if (line.tests.length === 0) throw new Error("Dòng mẫu chưa có chỉ tiêu");
+
+  const receivedCount = await db.requestSampleLine.count({
+    where: { requestId: line.requestId, status: "received" },
+  });
+  if (receivedCount >= line.request.sampleCount) {
+    throw new Error(`Đã tiếp nhận đủ ${line.request.sampleCount} mẫu theo phiếu`);
+  }
+
+  const status = nextStatusAfterReceive(input.conditionOnReceipt);
+  const receivedAt = parseDateTime(input.receivedAt);
+
+  return db.$transaction(async (tx) => {
+    const sampleCode = await generateSampleCode(tx, receivedAt);
+    const sample = await tx.sample.create({
+      data: {
+        sampleCode,
+        requestId: line.requestId,
+        matrixId: line.matrixId,
+        sampleName: line.sampleName,
+        sampleType: line.sampleType || line.request.sampleType,
+        receivedAt,
+        deliveredBy: input.deliveredBy?.trim() ?? "",
+        receivedBy: input.receivedBy.trim(),
+        conditionOnReceipt: input.conditionOnReceipt,
+        conditionNote: input.conditionNote?.trim() ?? line.conditionNote,
+        quantity: line.quantity,
+        unit: line.unit,
+        containerType: input.containerType?.trim() ?? "",
+        preservationCondition: input.preservationCondition?.trim() ?? "",
+        storageLocation: input.storageLocation?.trim() ?? "",
+        status,
+        dueDate: line.request.dueDate,
+        createdBy,
+      },
+    });
+
+    const barcodePayload = buildBarcodePayload(sample.id, sample.sampleCode);
+    await tx.sample.update({ where: { id: sample.id }, data: { barcodePayload } });
+
+    for (const lt of line.tests) {
+      await tx.sampleTest.create({
+        data: {
+          sampleId: sample.id,
+          testMethodId: lt.testMethodId,
+          parameterName: lt.testMethod.name,
+          methodId: lt.methodId ?? lt.testMethod.defaultMethodId,
+          methodVersionId: lt.methodVersionId ?? lt.method?.currentVersionId,
+          status: "Pending",
+        },
+      });
+    }
+
+    await tx.requestSampleLine.update({
+      where: { id: lineId },
+      data: { status: "received", sampleId: sample.id },
+    });
+
+    await appendSampleCustodyEvent(tx, {
+      sampleId: sample.id,
+      action: "Received",
+      fromPerson: input.deliveredBy?.trim() ?? "",
+      toPerson: input.receivedBy.trim(),
+      location: input.storageLocation?.trim() ?? "",
+      performedBy: createdBy,
+    });
+
+    await appendWorkflowEvent(tx, {
+      sampleId: sample.id,
+      entityType: "request_sample_line",
+      entityId: lineId,
+      fromStatus: "draft",
+      toStatus: "received",
+      action: "Received",
+      performedBy: createdBy,
+    });
+
+    const newReceivedCount = receivedCount + 1;
+    const requestStatus =
+      newReceivedCount >= line.request.sampleCount ? "Processing" : "Received";
+    await tx.sampleRequest.update({
+      where: { id: line.requestId },
+      data: { status: requestStatus },
+    });
+
+    return sample;
+  });
+}
+
+export async function batchReceiveSampleLines(
+  lineIds: string[],
+  input: {
+    receivedBy: string;
+    receivedAt: string;
+    conditionOnReceipt: SampleConditionOnReceipt;
+    conditionNote?: string;
+  },
+  createdBy: string,
+) {
+  const results: { lineId: string; sampleId?: string; error?: string }[] = [];
+  for (const lineId of lineIds) {
+    try {
+      const sample = await receiveSampleLine(lineId, input, createdBy);
+      results.push({ lineId, sampleId: sample.id });
+    } catch (e) {
+      results.push({ lineId, error: e instanceof Error ? e.message : "Lỗi tiếp nhận" });
+    }
+  }
+  return results;
 }

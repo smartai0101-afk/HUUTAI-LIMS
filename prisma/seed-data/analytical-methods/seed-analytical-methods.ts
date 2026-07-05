@@ -98,6 +98,26 @@ async function resolveChemicalReferenceId(
   return row?.id ?? null;
 }
 
+async function resolveMatrixIds(prisma: PrismaClient, codes: string[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const code of codes) {
+    if (!code) continue;
+    const row = await prisma.sampleMatrix.findUnique({ where: { code }, select: { id: true } });
+    if (row) ids.push(row.id);
+  }
+  return [...new Set(ids)];
+}
+
+async function resolveTestMethodIds(prisma: PrismaClient, codes: string[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const code of codes) {
+    if (!code) continue;
+    const row = await prisma.testMethod.findUnique({ where: { code }, select: { id: true } });
+    if (row) ids.push(row.id);
+  }
+  return [...new Set(ids)];
+}
+
 async function seedOneMethod(prisma: PrismaClient, def: MethodSeedDefinition): Promise<"created" | "skipped"> {
   const existing = await prisma.analyticalMethod.findUnique({
     where: { methodCode: def.methodCode },
@@ -108,11 +128,21 @@ async function seedOneMethod(prisma: PrismaClient, def: MethodSeedDefinition): P
     return "skipped";
   }
 
+  const matrixIds = await resolveMatrixIds(prisma, def.matrixCodes);
+  if (def.matrixCodes.length > 0 && matrixIds.length === 0) {
+    console.warn(`  Warning: no sample matrices found for ${def.methodCode}`);
+  }
+
+  const testMethodIds = await resolveTestMethodIds(prisma, def.testMethodCodes);
+  if (def.testMethodCodes.length > 0 && testMethodIds.length === 0) {
+    console.warn(`  Warning: no test methods found for ${def.methodCode}`);
+  }
+
   const method = await createAnalyticalMethodWithVersion({
     methodCode: def.methodCode,
     methodName: def.methodName,
-    matrix: def.matrix,
-    analyte: def.analyte,
+    matrixIds,
+    testMethodIds,
     technique: def.technique,
     standardRef: def.standardRef,
     createdBy: "Seed",

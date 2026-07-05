@@ -122,6 +122,10 @@ export type QcCheckView = {
   taskId: string | null;
   checkType: QcCheckType;
   status: QcCheckStatus;
+  expectedValue: string;
+  measuredValue: string;
+  recoveryPercent: string;
+  overrideReason: string;
   note: string;
   checkedBy: string;
   checkedAt: string;

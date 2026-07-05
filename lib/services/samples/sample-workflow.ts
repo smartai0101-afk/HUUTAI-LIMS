@@ -24,8 +24,9 @@ export function initialSampleStatus(condition: string): SampleStatus {
 
 export function nextStatusAfterReceive(condition: string): SampleStatus {
   if (condition === "Rejected") return "Rejected";
+  if (condition === "NeedConfirmation") return "Received";
   if (condition === "Fail") return "WaitingAssignment";
-  return "Received";
+  return "WaitingAssignment";
 }
 
 export const TERMINAL_SAMPLE_STATUSES: SampleStatus[] = [

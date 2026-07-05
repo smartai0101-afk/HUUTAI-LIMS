@@ -101,6 +101,31 @@ const ENTITY_ROUTES: Record<string, EntityRouteInfo> = {
     href: "/equipment/history",
   },
   Task: { moduleKey: "admin_tasks", moduleLabel: PERMISSION_LABELS.admin_tasks, href: "/admin/tasks" },
+  sample_request: {
+    moduleKey: "samples_requests",
+    moduleLabel: PERMISSION_LABELS.samples_requests,
+    href: "/samples/requests",
+  },
+  sample: {
+    moduleKey: "samples_list",
+    moduleLabel: PERMISSION_LABELS.samples_list,
+    href: "/samples",
+  },
+  analysis_task: {
+    moduleKey: "analysis_inbox",
+    moduleLabel: PERMISSION_LABELS.analysis_inbox,
+    href: "/analysis/inbox",
+  },
+  test_report: {
+    moduleKey: "delivery_reports",
+    moduleLabel: PERMISSION_LABELS.delivery_reports,
+    href: "/results-delivery/reports",
+  },
+  qc_check: {
+    moduleKey: "analysis_qc",
+    moduleLabel: PERMISSION_LABELS.analysis_qc,
+    href: "/analysis/qc",
+  },
 };
 
 const DEFAULT_ROUTE: EntityRouteInfo = {
@@ -128,6 +153,10 @@ export const ACTION_LABELS: Record<string, string> = {
   Unlinked: "đã gỡ liên kết",
   Used: "đã ghi xuất",
   Converted: "đã chuyển đổi",
+  LimsRequestSubmitted: "đã gửi yêu cầu mẫu",
+  LimsAnalystAssigned: "đã phân công analyst",
+  LimsQcFailed: "QC không đạt",
+  LimsPendingIssue: "chờ phát hành kết quả",
 };
 
 export function actionLabel(action: string): string {

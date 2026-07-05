@@ -10,6 +10,7 @@ export interface DataTableColumn<T extends object> {
   header: string;
   render?: (value: T[keyof T], row: T) => ReactNode;
   minWidth?: number;
+  cellClassName?: string;
   sortable?: boolean;
   sortKey?: string;
 }
@@ -176,7 +177,10 @@ export function DataTable<T extends object>({
                     {columns.map((column) => (
                       <td
                         key={String(column.key)}
-                        className="whitespace-nowrap px-4 py-3 align-top text-slate-700"
+                        className={cn(
+                          "px-4 py-3 align-top text-slate-700",
+                          column.cellClassName ?? "whitespace-nowrap",
+                        )}
                         style={column.minWidth ? { minWidth: column.minWidth } : undefined}
                       >
                         {column.render ? column.render(row[column.key], row) : String(row[column.key] ?? "")}

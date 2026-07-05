@@ -1,16 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { saveTestResultAction, submitForReviewAction } from "@/lib/actions/analysis";
+import { useRouter } from "next/navigation";
+import { useRef, useState, useTransition } from "react";
+import {
+  saveTestResultAction,
+  submitForReviewAction,
+  submitResultsForQcAction,
+  uploadRawDataAction,
+} from "@/lib/actions/analysis";
 import { TEST_RESULT_STATUS_LABELS } from "@/lib/analysis-labels";
 import type { TestResultView } from "@/types/analysis";
 
 const inputClass = "w-full rounded-xl border border-slate-200 px-3 py-2 text-sm";
 
 export function ResultsClient({ results }: { results: TestResultView[] }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [drafts, setDrafts] = useState<Record<string, Partial<TestResultView>>>({});
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   function saveResult(result: TestResultView) {
     const d = drafts[result.id] ?? {};
@@ -27,13 +35,42 @@ export function ResultsClient({ results }: { results: TestResultView[] }) {
     startTransition(async () => {
       const r = await saveTestResultAction(fd);
       if (r.error) setError(r.error);
+      else router.refresh();
+    });
+  }
+
+  function submitQc(taskId: string) {
+    setError("");
+    startTransition(async () => {
+      const r = await submitResultsForQcAction(taskId);
+      if (r.error) setError(r.error);
+      else router.refresh();
     });
   }
 
   function submitReview(taskId: string) {
+    setError("");
     startTransition(async () => {
       const r = await submitForReviewAction(taskId);
       if (r.error) setError(r.error);
+      else router.refresh();
+    });
+  }
+
+  function uploadRawData(resultId: string) {
+    const input = fileRefs.current[resultId];
+    const file = input?.files?.[0];
+    if (!file) {
+      setError("Vui lòng chọn file raw data");
+      return;
+    }
+    setError("");
+    const fd = new FormData();
+    fd.set("file", file);
+    startTransition(async () => {
+      const r = await uploadRawDataAction(resultId, fd);
+      if (r.error) setError(r.error);
+      else router.refresh();
     });
   }
 
@@ -53,19 +90,29 @@ export function ResultsClient({ results }: { results: TestResultView[] }) {
       ) : null}
       {Object.entries(byTask).map(([taskId, rows]) => (
         <section key={taskId} className="rounded-2xl border bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-medium">{rows[0]?.sampleCode} — {rows[0]?.parameterGroup}</p>
               <p className="text-xs text-slate-500">{rows[0]?.departmentName}</p>
             </div>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => submitReview(taskId)}
-              className="rounded-lg border px-3 py-1.5 text-xs"
-            >
-              Gửi duyệt
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => submitQc(taskId)}
+                className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs text-cyan-800"
+              >
+                Gửi QC
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => submitReview(taskId)}
+                className="rounded-lg border px-3 py-1.5 text-xs"
+              >
+                Gửi duyệt
+              </button>
+            </div>
           </div>
           <div className="space-y-3">
             {rows.map((r) => {
@@ -81,6 +128,23 @@ export function ResultsClient({ results }: { results: TestResultView[] }) {
                   <button type="button" disabled={pending} onClick={() => saveResult(r)} className="rounded-lg bg-cyan-600 px-3 py-2 text-xs text-white">
                     Lưu
                   </button>
+                  <div className="md:col-span-6 flex flex-wrap items-center gap-2">
+                    <input
+                      ref={(el) => {
+                        fileRefs.current[r.id] = el;
+                      }}
+                      type="file"
+                      className="text-xs"
+                    />
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => uploadRawData(r.id)}
+                      className="rounded-lg border px-3 py-1.5 text-xs"
+                    >
+                      Upload raw data
+                    </button>
+                  </div>
                   <div className="md:col-span-6 text-xs text-slate-500">
                     {TEST_RESULT_STATUS_LABELS[r.status]}
                   </div>

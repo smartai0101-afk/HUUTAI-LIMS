@@ -10,6 +10,7 @@ import {
 } from "@/lib/actions/samples";
 import { SampleAuditTrail } from "@/components/samples/SampleAuditTrail";
 import { SamplePrintLabelDialog } from "@/components/samples/SamplePrintLabelDialog";
+import { WorkflowTimeline } from "@/components/samples/WorkflowTimeline";
 import { SampleStatusBadge } from "@/components/samples/SampleStatusBadge";
 import { useSession } from "@/components/SessionProvider";
 import {
@@ -24,9 +25,19 @@ type Props = {
   sample: SampleDetailView;
   auditLogs: SampleAuditEntry[];
   custodyEvents: SampleCustodyEntry[];
+  isoTimeline: Array<{
+    id: string;
+    source: "workflow" | "audit" | "report" | "custody";
+    action: string;
+    performedBy: string;
+    performedAt: Date | string;
+    reason: string;
+    fromStatus?: string;
+    toStatus?: string;
+  }>;
 };
 
-export function SampleDetailClient({ sample, auditLogs, custodyEvents }: Props) {
+export function SampleDetailClient({ sample, auditLogs, custodyEvents, isoTimeline }: Props) {
   const { canApprove } = useSession();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
@@ -106,6 +117,12 @@ export function SampleDetailClient({ sample, auditLogs, custodyEvents }: Props) 
               Sửa mã mẫu
             </button>
           ) : null}
+          <Link
+            href={`/samples/${sample.id}/edit`}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          >
+            Sửa mẫu
+          </Link>
           <Link
             href={`/samples/assign?sampleId=${sample.id}`}
             className="rounded-xl bg-cyan-600 px-3 py-2 text-sm font-medium text-white"
@@ -278,6 +295,11 @@ export function SampleDetailClient({ sample, auditLogs, custodyEvents }: Props) 
         </div>
       </section>
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Nhật ký ISO (thống nhất)</h2>
+        <WorkflowTimeline entries={isoTimeline} />
+      </section>
+
       <SampleAuditTrail logs={auditLogs} />
 
       <SamplePrintLabelDialog
@@ -285,6 +307,7 @@ export function SampleDetailClient({ sample, auditLogs, custodyEvents }: Props) 
         onClose={() => setPrintOpen(false)}
         sampleCode={sample.sampleCode}
         sampleName={sample.sampleName}
+        sampleId={sample.id}
       />
     </div>
   );

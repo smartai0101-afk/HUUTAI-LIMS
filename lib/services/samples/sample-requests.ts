@@ -11,6 +11,8 @@ import {
 } from "@/lib/list-query";
 import { mapSampleRequestDetail, mapSampleRequestListItem } from "@/lib/mappers/samples";
 import { appendSampleAuditLog } from "@/lib/services/samples/sample-audit";
+import { appendWorkflowEvent } from "@/lib/services/workflow-orchestrator";
+import { notifySampleRequestSubmitted } from "@/lib/services/lims-notification-hooks";
 import type { SampleRequestDetailView, SampleRequestListItem } from "@/types/samples";
 import type { SampleRequestInput } from "@/lib/validators/samples";
 
@@ -142,6 +144,7 @@ export async function createSampleRequest(input: SampleRequestInput, createdBy: 
         purpose: input.purpose?.trim() ?? "",
         sampleType: input.sampleType.trim(),
         sampleCount: input.sampleCount,
+        priority: (input.priority as import("@prisma/client").RequestPriority) ?? "normal",
         dueDate: parseOptionalDate(input.dueDate),
         note: input.note?.trim() ?? "",
         createdBy,
@@ -169,6 +172,9 @@ export async function updateSampleRequest(
 ) {
   const existing = await db.sampleRequest.findUnique({ where: { id } });
   if (!existing) throw new Error("Không tìm thấy phiếu yêu cầu");
+  if (existing.status !== "Draft") {
+    throw new Error("Không thể sửa phiếu đã gửi — chỉ phiếu nháp mới được chỉnh sửa");
+  }
 
   return db.$transaction(async (tx) => {
     const updated = await tx.sampleRequest.update({
@@ -181,6 +187,7 @@ export async function updateSampleRequest(
         purpose: input.purpose?.trim() ?? "",
         sampleType: input.sampleType.trim(),
         sampleCount: input.sampleCount,
+        priority: (input.priority as import("@prisma/client").RequestPriority) ?? "normal",
         dueDate: parseOptionalDate(input.dueDate),
         note: input.note?.trim() ?? "",
       },
@@ -205,10 +212,18 @@ export async function submitSampleRequest(id: string, changedBy: string) {
   if (!existing) throw new Error("Không tìm thấy phiếu yêu cầu");
   if (existing.status !== "Draft") throw new Error("Chỉ phiếu nháp mới được gửi");
 
+  const { validateRequestForSubmit } = await import("@/lib/services/samples/request-sample-lines");
+  const validationError = await validateRequestForSubmit(id);
+  if (validationError) throw new Error(validationError);
+
   return db.$transaction(async (tx) => {
     const updated = await tx.sampleRequest.update({
       where: { id },
-      data: { status: "Submitted" },
+      data: {
+        status: "Submitted",
+        submittedAt: new Date(),
+        submittedBy: changedBy,
+      },
     });
     await appendSampleAuditLog(tx, {
       entityType: "sample_request",
@@ -218,8 +233,134 @@ export async function submitSampleRequest(id: string, changedBy: string) {
       after: { status: "Submitted" },
       changedBy,
     });
+    await appendWorkflowEvent(tx, {
+      entityType: "sample_request",
+      entityId: id,
+      fromStatus: existing.status,
+      toStatus: "Submitted",
+      action: "Submitted",
+      performedBy: changedBy,
+    });
+    return updated;
+  }).then(async (updated) => {
+    await notifySampleRequestSubmitted(id, existing.requestCode, changedBy);
     return updated;
   });
+}
+
+export async function reviewSampleRequest(id: string, reviewedBy: string) {
+  const existing = await db.sampleRequest.findUnique({ where: { id } });
+  if (!existing) throw new Error("Không tìm thấy phiếu yêu cầu");
+  if (existing.status !== "Submitted") {
+    throw new Error("Chỉ phiếu đã gửi mới được kiểm tra");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.sampleRequest.update({
+      where: { id },
+      data: {
+        status: "Received",
+        reviewedAt: new Date(),
+        reviewedBy,
+      },
+    });
+    await appendSampleAuditLog(tx, {
+      entityType: "sample_request",
+      entityId: id,
+      action: "Reviewed",
+      before: { status: existing.status, reviewedAt: existing.reviewedAt },
+      after: { status: "Received", reviewedAt: updated.reviewedAt, reviewedBy },
+      changedBy: reviewedBy,
+    });
+    await appendWorkflowEvent(tx, {
+      entityType: "sample_request",
+      entityId: id,
+      fromStatus: existing.status,
+      toStatus: "Received",
+      action: "Reviewed",
+      performedBy: reviewedBy,
+    });
+    return updated;
+  });
+}
+
+export async function cancelSampleRequest(id: string, reason: string, cancelledBy: string) {
+  const existing = await db.sampleRequest.findUnique({ where: { id } });
+  if (!existing) throw new Error("Không tìm thấy phiếu yêu cầu");
+  if (existing.status === "Cancelled" || existing.status === "Completed") {
+    throw new Error("Không thể hủy phiếu ở trạng thái này");
+  }
+  if (!reason.trim()) throw new Error("Cần lý do hủy phiếu");
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.sampleRequest.update({
+      where: { id },
+      data: {
+        status: "Cancelled",
+        cancelledAt: new Date(),
+        cancelReason: reason.trim(),
+      },
+    });
+    await appendSampleAuditLog(tx, {
+      entityType: "sample_request",
+      entityId: id,
+      action: "Cancelled",
+      before: { status: existing.status },
+      after: { status: "Cancelled", cancelReason: reason.trim() },
+      changedBy: cancelledBy,
+    });
+    await appendWorkflowEvent(tx, {
+      entityType: "sample_request",
+      entityId: id,
+      fromStatus: existing.status,
+      toStatus: "Cancelled",
+      action: "Cancelled",
+      performedBy: cancelledBy,
+      reason: reason.trim(),
+    });
+    return updated;
+  });
+}
+
+export async function completeSampleRequest(id: string, completedBy: string) {
+  const existing = await db.sampleRequest.findUnique({
+    where: { id },
+    include: { samples: true },
+  });
+  if (!existing) throw new Error("Không tìm thấy phiếu yêu cầu");
+
+  const allSamplesDone = existing.samples.every((s) =>
+    ["Completed", "ResultIssued", "Stored", "Disposed"].includes(s.status),
+  );
+  if (existing.samples.length === 0 || !allSamplesDone) {
+    throw new Error("Tất cả mẫu liên quan phải hoàn thành phân tích trước khi đóng phiếu");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.sampleRequest.update({
+      where: { id },
+      data: { status: "Completed" },
+    });
+    await appendWorkflowEvent(tx, {
+      entityType: "sample_request",
+      entityId: id,
+      fromStatus: existing.status,
+      toStatus: "Completed",
+      action: "Completed",
+      performedBy: completedBy,
+    });
+    return updated;
+  });
+}
+
+export async function listSubmittedRequestsForReview() {
+  const rows = await db.sampleRequest.findMany({
+    where: { status: "Submitted" },
+    include: requestInclude,
+    orderBy: { requestDate: "desc" },
+    take: 100,
+  });
+  return rows.map(mapSampleRequestListItem);
 }
 
 export async function getSampleRequestPrefill(id: string) {

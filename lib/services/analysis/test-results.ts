@@ -17,6 +17,15 @@ export async function listTestResults(taskId?: string): Promise<TestResultView[]
   return rows.map(mapTestResultView);
 }
 
+export async function listResultsBySample(sampleId: string): Promise<TestResultView[]> {
+  const rows = await db.testResult.findMany({
+    where: { sampleId },
+    include: { task: true },
+    orderBy: { parameterName: "asc" },
+  });
+  return rows.map(mapTestResultView);
+}
+
 export async function saveTestResult(input: SaveTestResultInput, changedBy: string) {
   const existing = await db.testResult.findUnique({
     where: { id: input.resultId },
@@ -27,19 +36,29 @@ export async function saveTestResult(input: SaveTestResultInput, changedBy: stri
     throw new Error("Task không ở trạng thái cho phép nhập kết quả");
   }
 
+  const isRevision = existing.status !== "not_entered" && existing.resultValue.trim();
+  if (isRevision && !input.modifiedReason?.trim()) {
+    throw new Error("Bắt buộc nhập lý do khi sửa kết quả đã lưu");
+  }
+
   const updated = await db.testResult.update({
     where: { id: input.resultId },
     data: {
+      rawValue: input.rawValue?.trim() ?? input.resultValue.trim(),
+      dilution: input.dilution?.trim() ?? "",
       resultValue: input.resultValue.trim(),
       unit: input.unit?.trim() ?? "",
       lod: input.lod?.trim() ?? "",
       loq: input.loq?.trim() ?? "",
       limitValue: input.limitValue?.trim() ?? "",
+      uncertainty: input.uncertainty?.trim() ?? "",
       evaluation: input.evaluation ?? null,
       note: input.note?.trim() ?? "",
       analystName: changedBy,
       enteredAt: new Date(),
       status: "entered",
+      revisionNo: isRevision ? existing.revisionNo + 1 : existing.revisionNo,
+      modifiedReason: input.modifiedReason?.trim() ?? "",
     },
     include: { task: true },
   });

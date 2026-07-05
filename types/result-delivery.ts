@@ -119,7 +119,9 @@ export type PendingReleaseRow = {
 export type TestReportView = {
   id: string;
   reportCode: string;
-  sampleId: string;
+  sampleId: string | null;
+  requestId?: string | null;
+  isPartial?: boolean;
   sampleCode: string;
   sampleName: string;
   reportVersion: number;

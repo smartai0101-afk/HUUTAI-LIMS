@@ -13,8 +13,11 @@ export const ANALYSIS_NAV = {
   assignAnalyst: "Phân công analyst",
   worklist: "Worklist",
   worksheet: "Worksheet",
+  samplePrep: "Chuẩn bị mẫu",
   results: "Nhập kết quả",
+  resultsBySample: "Nhập kết quả theo mẫu",
   qc: "Kiểm tra QC",
+  deviation: "Sai lệch / CAPA",
   review: "Kết quả chờ duyệt",
 } as const;
 

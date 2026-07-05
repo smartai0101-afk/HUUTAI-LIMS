@@ -1,6 +1,7 @@
 import type { AnalysisTaskStatus, SampleStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { canTransitionSampleStatus } from "@/lib/services/samples/sample-workflow";
+import { appendWorkflowEvent } from "@/lib/services/workflow-orchestrator";
 
 const ACTIVE_ANALYSIS: AnalysisTaskStatus[] = [
   "in_analysis",
@@ -48,9 +49,22 @@ export async function syncSampleStatusFromTasks(sampleId: string) {
 
   if (!allowed) return sample;
 
-  return db.sample.update({
-    where: { id: sampleId },
-    data: { status: nextStatus },
+  return db.$transaction(async (tx) => {
+    const updated = await tx.sample.update({
+      where: { id: sampleId },
+      data: { status: nextStatus },
+    });
+    await appendWorkflowEvent(tx, {
+      sampleId,
+      entityType: "sample",
+      entityId: sampleId,
+      fromStatus: sample.status,
+      toStatus: nextStatus,
+      action: "AutoSyncFromTasks",
+      performedBy: "system",
+      reason: "Đồng bộ từ trạng thái phân tích",
+    });
+    return updated;
   });
 }
 

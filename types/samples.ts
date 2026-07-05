@@ -147,6 +147,7 @@ export type SampleRequestDetailView = {
   status: SampleRequestStatus;
   dueDate: string | null;
   note: string;
+  priority?: string;
   requestedTests: string[];
   methods: { methodId: string; methodCode: string; methodName: string; version: number | null }[];
   createdBy: string;

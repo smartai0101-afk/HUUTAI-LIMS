@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import {
   approveReportAction,
+  cancelReportAction,
+  deliverReportAction,
   issueReportAction,
   qaApproveReportAction,
   reissueReportAction,
@@ -48,6 +50,8 @@ export function ReportDetailClient({ report }: { report: TestReportView }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [reissueReason, setReissueReason] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [emailRecipient, setEmailRecipient] = useState("");
 
   function run(fn: () => Promise<{ error?: string }>) {
     setError("");
@@ -114,6 +118,42 @@ export function ReportDetailClient({ report }: { report: TestReportView }) {
           >
             Phát hành
           </button>
+        ) : null}
+        {["draft", "approved"].includes(report.status) ? (
+          <>
+            <input
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Lý do hủy phiếu"
+              className="min-w-[200px] rounded border px-2 py-1.5 text-sm"
+            />
+            <button
+              type="button"
+              disabled={pending || !cancelReason.trim()}
+              onClick={() => run(() => cancelReportAction(report.id, cancelReason))}
+              className="rounded bg-red-600 px-3 py-1.5 text-sm text-white"
+            >
+              Hủy phiếu
+            </button>
+          </>
+        ) : null}
+        {["issued", "reissued"].includes(report.status) ? (
+          <>
+            <input
+              value={emailRecipient}
+              onChange={(e) => setEmailRecipient(e.target.value)}
+              placeholder="Email khách hàng"
+              className="min-w-[200px] rounded border px-2 py-1.5 text-sm"
+            />
+            <button
+              type="button"
+              disabled={pending || !emailRecipient.trim()}
+              onClick={() => run(() => deliverReportAction(report.id, emailRecipient))}
+              className="rounded bg-slate-700 px-3 py-1.5 text-sm text-white"
+            >
+              Gửi email
+            </button>
+          </>
         ) : null}
         {["issued", "reissued"].includes(report.status) ? (
           <>

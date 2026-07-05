@@ -3,7 +3,8 @@ import type { MethodSeedDefinition } from "./types";
 export const METHOD_LCMS_PESTICIDE: MethodSeedDefinition = {
   methodCode: "PP-LCMS-PST-001",
   methodName: "Xác định dư lượng Acetamiprid trong rau ăn lá bằng QuEChERS và LC-MS/MS",
-  matrix: "Vegetables (Rau ăn lá: cải, rau muống)",
+  matrixCodes: ["FOOD-VEG"],
+  testMethodCodes: ["PEST-LCMS"],
   analyte: "Acetamiprid",
   technique: "LC-MS/MS",
   standardRef: "Tham chiếu EN 15662, AOAC 2007.01 (QuEChERS), SANTE 11312/2021",

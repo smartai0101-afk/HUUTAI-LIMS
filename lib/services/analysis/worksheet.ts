@@ -122,6 +122,12 @@ export async function startWorksheet(id: string, changedBy: string) {
           data: { status: "department_processing" },
         });
         await ensureTestResultsForTask(link.taskId);
+        if (task.sampleTestId) {
+          await tx.sampleTest.update({
+            where: { id: task.sampleTestId },
+            data: { status: "Analyzing", worksheetId: id },
+          });
+        }
       }
     }
 

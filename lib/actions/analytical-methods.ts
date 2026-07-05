@@ -50,6 +50,14 @@ export async function fetchAnalyticalMethodDetail(id: string) {
   return getAnalyticalMethodDetail(id);
 }
 
+function matrixIdsFromForm(fd: FormData): string[] {
+  return [...new Set(fd.getAll("matrixIds").map((v) => String(v).trim()).filter(Boolean))];
+}
+
+function testMethodIdsFromForm(fd: FormData): string[] {
+  return [...new Set(fd.getAll("testMethodIds").map((v) => String(v).trim()).filter(Boolean))];
+}
+
 export async function createAnalyticalMethodAction(fd: FormData) {
   const auth = await requireSessionCanEdit();
   if ("error" in auth) return { error: auth.error };
@@ -63,8 +71,8 @@ export async function createAnalyticalMethodAction(fd: FormData) {
     const method = await createAnalyticalMethodWithVersion({
       methodCode,
       methodName,
-      matrix: str(fd, "matrix"),
-      analyte: str(fd, "analyte"),
+      matrixIds: matrixIdsFromForm(fd),
+      testMethodIds: testMethodIdsFromForm(fd),
       technique: str(fd, "technique"),
       standardRef: str(fd, "standardRef"),
       createdBy: actorName(auth),
@@ -88,8 +96,8 @@ export async function updateAnalyticalMethodAction(id: string, fd: FormData) {
     await updateAnalyticalMethodMetadata(id, {
       methodCode,
       methodName,
-      matrix: str(fd, "matrix"),
-      analyte: str(fd, "analyte"),
+      matrixIds: matrixIdsFromForm(fd),
+      testMethodIds: testMethodIdsFromForm(fd),
       technique: str(fd, "technique"),
       standardRef: str(fd, "standardRef"),
     });

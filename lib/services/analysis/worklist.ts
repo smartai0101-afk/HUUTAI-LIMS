@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { generateWorklistCode } from "@/lib/analysis-code";
 import { mapWorklistView } from "@/lib/mappers/analysis";
+import { appendWorkflowEvent } from "@/lib/services/workflow-orchestrator";
 import type { CreateWorklistInput } from "@/lib/validators/analysis";
 import type { WorklistView } from "@/types/analysis";
 
@@ -85,6 +86,15 @@ export async function createWorklist(input: CreateWorklistInput, createdBy: stri
       });
     }
 
+    await appendWorkflowEvent(tx, {
+      entityType: "worklist",
+      entityId: worklist.id,
+      fromStatus: "",
+      toStatus: "created",
+      action: "WorklistCreated",
+      performedBy: createdBy,
+    });
+
     const full = await tx.analysisWorklist.findUnique({
       where: { id: worklist.id },
       include: { taskLinks: { include: { task: true } } },
@@ -93,7 +103,7 @@ export async function createWorklist(input: CreateWorklistInput, createdBy: stri
   });
 }
 
-export async function startWorklist(id: string) {
+export async function startWorklist(id: string, startedBy = "system") {
   const wl = await db.analysisWorklist.findUnique({ where: { id } });
   if (!wl) throw new Error("Không tìm thấy worklist");
   if (!wl.methodId || !wl.equipmentId) {
@@ -103,12 +113,49 @@ export async function startWorklist(id: string) {
     throw new Error("Worklist không thể chuyển sang đang chạy");
   }
 
-  const updated = await db.analysisWorklist.update({
-    where: { id },
-    data: { status: "running" },
-    include: { taskLinks: { include: { task: true } } },
+  return db.$transaction(async (tx) => {
+    const updated = await tx.analysisWorklist.update({
+      where: { id },
+      data: { status: "running" },
+      include: { taskLinks: { include: { task: true } } },
+    });
+    await appendWorkflowEvent(tx, {
+      entityType: "worklist",
+      entityId: id,
+      fromStatus: wl.status,
+      toStatus: "running",
+      action: "WorklistStarted",
+      performedBy: startedBy,
+    });
+    return mapWorklistView(updated);
   });
-  return mapWorklistView(updated);
+}
+
+export async function completeWorklist(id: string, completedBy: string) {
+  const wl = await db.analysisWorklist.findUnique({ where: { id } });
+  if (!wl) throw new Error("Không tìm thấy worklist");
+  if (wl.status !== "running") throw new Error("Chỉ hoàn thành worklist đang chạy");
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.analysisWorklist.update({
+      where: { id },
+      data: {
+        status: "completed",
+        completedAt: new Date(),
+        completedBy,
+      },
+      include: { taskLinks: { include: { task: true } } },
+    });
+    await appendWorkflowEvent(tx, {
+      entityType: "worklist",
+      entityId: id,
+      fromStatus: wl.status,
+      toStatus: "completed",
+      action: "WorklistCompleted",
+      performedBy: completedBy,
+    });
+    return mapWorklistView(updated);
+  });
 }
 
 export async function listMethodOptions() {

@@ -2,7 +2,6 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
 import { useToast } from "@/components/ToastProvider";
 import {
   saveUserPermissions,
@@ -29,8 +28,7 @@ export function AdminPermissionsClient({ assignments }: { assignments: Permissio
   };
 
   return (
-    <AppShell>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div>
           <p className="text-sm text-slate-500">Administration</p>
           <h1 className="text-2xl font-semibold text-slate-900">Gán chức năng</h1>
@@ -93,7 +91,6 @@ export function AdminPermissionsClient({ assignments }: { assignments: Permissio
             </form>
           ))}
         </div>
-      </div>
-    </AppShell>
+    </div>
   );
 }

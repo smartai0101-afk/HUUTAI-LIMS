@@ -21,6 +21,7 @@ import { seedDemoAnalysis } from "./seed-data/analysis/demo-analysis";
 import { seedDemoReports } from "./seed-data/results-delivery/demo-reports";
 import { seedSamples } from "./seed-data/samples";
 import { seedChemInfoModule } from "./seed-data/chem-info";
+import { seedLimsCatalog } from "./seed-data/catalog";
 import { equipmentSpecificationsForCode } from "./seed-data/equipment-specifications";
 
 function parseDate(value: string): Date {
@@ -1000,6 +1001,7 @@ async function main() {
   await seedChemInfoModule(prisma);
   await seedAnalyticalMethods(prisma);
   await seedLabDepartments(prisma);
+  await seedLimsCatalog(prisma);
   await seedSamples(prisma);
   await seedAnalysisAnalysts(prisma);
   await seedDemoAnalysis(prisma);

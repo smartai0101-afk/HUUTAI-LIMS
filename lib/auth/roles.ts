@@ -1,6 +1,6 @@
 import type { UserRole } from "@prisma/client";
 
-export const roles = ["Admin", "Lab Manager", "Analyst", "QA/QC", "Viewer"] as const;
+export const roles = ["Admin", "Lab Manager", "Analyst", "QA/QC", "Viewer", "Customer Viewer"] as const;
 export type Role = (typeof roles)[number];
 
 const ROLE_TO_LABEL: Record<UserRole, Role> = {
@@ -9,6 +9,7 @@ const ROLE_TO_LABEL: Record<UserRole, Role> = {
   Analyst: "Analyst",
   QAQC: "QA/QC",
   Viewer: "Viewer",
+  CustomerViewer: "Customer Viewer",
 };
 
 const LABEL_TO_ROLE: Record<Role, UserRole> = {
@@ -17,6 +18,7 @@ const LABEL_TO_ROLE: Record<Role, UserRole> = {
   Analyst: "Analyst",
   "QA/QC": "QAQC",
   Viewer: "Viewer",
+  "Customer Viewer": "CustomerViewer",
 };
 
 export function roleToLabel(role: UserRole): Role {
@@ -40,7 +42,7 @@ export function roleCapabilities(role: UserRole | Role): RoleCapabilities {
     ? (role as Role)
     : roleToLabel(role as UserRole);
   const canManage = label === "Admin" || label === "Lab Manager";
-  const isViewer = label === "Viewer";
+  const isViewer = label === "Viewer" || label === "Customer Viewer";
   const canEdit = canManage || label === "Analyst";
   const canApprove = canManage || label === "QA/QC";
   const canViewAuditReports = canManage || label === "QA/QC" || label === "Analyst";

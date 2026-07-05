@@ -1080,6 +1080,7 @@ enum UserRole {
   Analyst
   QAQC
   Viewer
+  CustomerViewer
 }
 
 enum UserStatus {
@@ -1415,7 +1416,6 @@ model AnalyticalMethod {
   id               String          @id @default(cuid())
   methodCode       String          @unique
   methodName       String
-  matrix           String          @default("")
   analyte          String          @default("")
   technique        String          @default("")
   standardRef      String          @default("")
@@ -1425,14 +1425,49 @@ model AnalyticalMethod {
   updatedAt        DateTime        @updatedAt
   currentVersion   MethodVersion?  @relation("CurrentMethodVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
   versions         MethodVersion[] @relation("MethodVersions")
-  sampleRequests   SampleRequestMethod[]
+  sampleRequestMethods SampleRequestMethod[]
   sampleTests      SampleTest[]
   primarySamples   Sample[]        @relation("SamplePrimaryMethod")
   analysisWorklists AnalysisWorklist[]
   analysisWorksheets AnalysisWorksheet[]
+  testMethodDefaults TestMethod[] @relation("TestMethodDefaultMethod")
+  requestSampleLineTests RequestSampleLineTest[]
+  methodMatrices   AnalyticalMethodMatrix[]
+  methodTestMethods AnalyticalMethodTestMethod[]
 
   @@index([methodCode])
   @@map("analytical_methods")
+}
+
+model AnalyticalMethodTestMethod {
+  id           String           @id @default(cuid())
+  methodId     String
+  testMethodId String
+  unit         String           @default("")
+  lod          String           @default("")
+  loq          String           @default("")
+  sortOrder    Int              @default(0)
+  isPrimary    Boolean          @default(false)
+  method       AnalyticalMethod @relation(fields: [methodId], references: [id], onDelete: Cascade)
+  testMethod   TestMethod       @relation(fields: [testMethodId], references: [id], onDelete: Cascade)
+
+  @@unique([methodId, testMethodId])
+  @@index([methodId])
+  @@index([testMethodId])
+  @@map("analytical_method_test_methods")
+}
+
+model AnalyticalMethodMatrix {
+  id       String           @id @default(cuid())
+  methodId String
+  matrixId String
+  method   AnalyticalMethod @relation(fields: [methodId], references: [id], onDelete: Cascade)
+  matrix   SampleMatrix     @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  @@unique([methodId, matrixId])
+  @@index([methodId])
+  @@index([matrixId])
+  @@map("analytical_method_matrices")
 }
 
 model MethodVersion {
@@ -1467,6 +1502,7 @@ model MethodVersion {
   primarySamples           Sample[]                @relation("SamplePrimaryMethodVersion")
   analysisWorklists        AnalysisWorklist[]
   analysisWorksheets       AnalysisWorksheet[]
+  requestSampleLineTests   RequestSampleLineTest[]
 
   @@unique([methodId, version])
   @@index([methodId])
@@ -1675,6 +1711,156 @@ model MethodExecutionStep {
   @@map("method_execution_steps")
 }
 
+// --- LIMS Catalog (matrix / test methods) ---
+
+enum TestResultType {
+  numeric
+  text
+  detected
+  pass_fail
+}
+
+enum RequestSampleLineStatus {
+  draft
+  received
+  cancelled
+}
+
+enum RequestPriority {
+  normal
+  high
+  urgent
+}
+
+model SampleMatrixGroup {
+  id        String         @id @default(cuid())
+  code      String         @unique
+  name      String
+  sortOrder Int            @default(0)
+  active    Boolean        @default(true)
+  deletedAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  matrices  SampleMatrix[]
+
+  @@index([active, sortOrder])
+  @@map("sample_matrix_groups")
+}
+
+model SampleMatrix {
+  id        String             @id @default(cuid())
+  code      String             @unique
+  name      String
+  groupId   String?
+  groupName String             @default("")
+  sortOrder Int                @default(0)
+  active    Boolean            @default(true)
+  deletedAt DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  group     SampleMatrixGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  mappings  MatrixTestMapping[]
+  packages  TestPackage[]
+  requestLines RequestSampleLine[]
+  samples   Sample[]
+  methodLinks AnalyticalMethodMatrix[]
+
+  @@index([groupId, active])
+  @@index([groupName, active])
+  @@map("sample_matrices")
+}
+
+model TestCategory {
+  id         String       @id @default(cuid())
+  code       String       @unique
+  name       String
+  sortOrder  Int          @default(0)
+  active     Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  testMethods TestMethod[]
+
+  @@map("test_categories")
+}
+
+model TestMethod {
+  id                   String              @id @default(cuid())
+  code                 String              @unique
+  name                 String
+  categoryId           String
+  defaultUnit          String              @default("")
+  resultType           TestResultType      @default(numeric)
+  lod                  String              @default("")
+  loq                  String              @default("")
+  estimatedMinutes     Int?
+  price                Float?
+  responsibleDeptId    String?
+  defaultMethodId      String?
+  active               Boolean             @default(true)
+  deletedAt            DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  category             TestCategory        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  defaultMethod        AnalyticalMethod?   @relation("TestMethodDefaultMethod", fields: [defaultMethodId], references: [id], onDelete: SetNull)
+  responsibleDept      LabDepartment?      @relation(fields: [responsibleDeptId], references: [id], onDelete: SetNull)
+  mappings             MatrixTestMapping[]
+  packageItems         TestPackageItem[]
+  requestLineTests     RequestSampleLineTest[]
+  sampleTests          SampleTest[]
+  reportItems          ReportItem[]
+  methodLinks          AnalyticalMethodTestMethod[]
+
+  @@index([categoryId])
+  @@index([defaultMethodId])
+  @@map("test_methods")
+}
+
+model MatrixTestMapping {
+  id            String       @id @default(cuid())
+  matrixId      String
+  testMethodId  String
+  isRecommended Boolean      @default(false)
+  packageId     String?
+  matrix        SampleMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  testMethod    TestMethod   @relation(fields: [testMethodId], references: [id], onDelete: Cascade)
+  package       TestPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  @@unique([matrixId, testMethodId])
+  @@index([matrixId])
+  @@index([testMethodId])
+  @@map("matrix_test_mappings")
+}
+
+model TestPackage {
+  id        String            @id @default(cuid())
+  code      String            @unique
+  name      String
+  matrixId  String?
+  active    Boolean           @default(true)
+  deletedAt DateTime?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  matrix    SampleMatrix?     @relation(fields: [matrixId], references: [id], onDelete: SetNull)
+  items     TestPackageItem[]
+  mappings  MatrixTestMapping[]
+
+  @@index([matrixId])
+  @@map("test_packages")
+}
+
+model TestPackageItem {
+  id           String      @id @default(cuid())
+  packageId    String
+  testMethodId String
+  sortOrder    Int         @default(0)
+  package      TestPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  testMethod   TestMethod  @relation(fields: [testMethodId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, testMethodId])
+  @@index([packageId])
+  @@map("test_package_items")
+}
+
 // --- Sample Reception (ISO/IEC 17025) ---
 
 enum SampleRequestStatus {
@@ -1682,8 +1868,12 @@ enum SampleRequestStatus {
   Submitted
   Received
   Processing
+  PartiallyCompleted
   Completed
+  PartiallyIssued
+  Issued
   Cancelled
+  Archived
 }
 
 enum SampleConditionOnReceipt {
@@ -1710,8 +1900,20 @@ enum SampleTestStatus {
   Pending
   Assigned
   InProgress
+  InWorklist
+  InWorksheet
+  Analyzing
+  ResultEntered
+  QcPending
+  QcFailed
+  QcPassed
+  TechReviewPending
+  TechApproved
+  ReportPending
+  Reported
   Done
   Reviewed
+  Cancelled
 }
 
 enum SampleAuditEntityType {
@@ -1820,6 +2022,55 @@ enum ReportHistoryAction {
   email_sent
 }
 
+enum WorkflowEntityType {
+  sample_request
+  request_sample_line
+  sample
+  sample_test
+  analysis_assignment
+  analysis_task
+  worklist
+  worksheet
+  test_result
+  qc_check
+  test_report
+  deviation
+  capa_action
+  technical_review
+}
+
+enum DeviationStatus {
+  open
+  investigating
+  closed
+}
+
+enum CapaActionStatus {
+  pending
+  in_progress
+  completed
+  verified
+}
+
+enum TechnicalReviewDecision {
+  approved
+  rejected
+  rerun
+}
+
+enum ReportDeliveryChannel {
+  email
+  portal
+  print
+  manual
+}
+
+enum ReportDeliveryStatus {
+  pending
+  sent
+  failed
+}
+
 model SampleRequest {
   id             String              @id @default(cuid())
   requestCode    String              @unique
@@ -1830,15 +2081,26 @@ model SampleRequest {
   purpose        String              @default("")
   sampleType     String
   sampleCount    Int                 @default(1)
+  priority       RequestPriority     @default(normal)
+  contactEmail   String              @default("")
+  contactPhone   String              @default("")
   dueDate        DateTime?
   status         SampleRequestStatus @default(Draft)
   note           String              @default("")
+  submittedAt    DateTime?
+  submittedBy    String              @default("")
+  reviewedAt     DateTime?
+  reviewedBy     String              @default("")
+  cancelledAt    DateTime?
+  cancelReason   String              @default("")
   createdBy      String              @default("")
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   requestedTests SampleRequestTest[]
   methods        SampleRequestMethod[]
+  sampleLines    RequestSampleLine[]
   samples        Sample[]
+  testReports    TestReport[]
 
   @@index([requestDate])
   @@index([status])
@@ -1869,11 +2131,57 @@ model SampleRequestMethod {
   @@map("sample_request_methods")
 }
 
+model RequestSampleLine {
+  id            String                  @id @default(cuid())
+  requestId     String
+  lineNo        Int
+  tempCode      String                  @default("")
+  sampleName    String
+  matrixId      String?
+  sampleType    String                  @default("")
+  quantity      Float?
+  unit          String                  @default("")
+  conditionNote String                  @default("")
+  status        RequestSampleLineStatus @default(draft)
+  sampleId      String?                 @unique
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  request       SampleRequest           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  matrix        SampleMatrix?           @relation(fields: [matrixId], references: [id], onDelete: SetNull)
+  sample        Sample?                 @relation(fields: [sampleId], references: [id], onDelete: SetNull)
+  tests         RequestSampleLineTest[]
+
+  @@unique([requestId, lineNo])
+  @@index([requestId])
+  @@index([requestId, matrixId])
+  @@map("request_sample_lines")
+}
+
+model RequestSampleLineTest {
+  id              String            @id @default(cuid())
+  lineId          String
+  testMethodId    String
+  methodId        String?
+  methodVersionId String?
+  priority        RequestPriority   @default(normal)
+  note            String            @default("")
+  line            RequestSampleLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  testMethod      TestMethod        @relation(fields: [testMethodId], references: [id], onDelete: Restrict)
+  method          AnalyticalMethod? @relation(fields: [methodId], references: [id], onDelete: SetNull)
+  methodVersion   MethodVersion?    @relation(fields: [methodVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([lineId, testMethodId])
+  @@index([lineId])
+  @@index([testMethodId])
+  @@map("request_sample_line_tests")
+}
+
 model Sample {
   id                      String                   @id @default(cuid())
   sampleCode              String                   @unique
   customerSampleCode      String                   @default("")
   requestId               String?
+  matrixId                String?
   sampleName              String
   sampleType              String
   receivedAt              DateTime
@@ -1895,10 +2203,14 @@ model Sample {
   primaryMethodId         String?
   primaryMethodVersionId  String?
   needsMethodAssignment   Boolean                  @default(false)
+  barcodePayload          String                   @default("")
+  deletedAt               DateTime?
   createdBy               String                   @default("")
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   request                 SampleRequest?           @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  requestLine             RequestSampleLine?
+  matrix                  SampleMatrix?            @relation(fields: [matrixId], references: [id], onDelete: SetNull)
   chemicalReference       ChemicalReference?       @relation(fields: [chemicalReferenceId], references: [id], onDelete: SetNull)
   primaryMethod           AnalyticalMethod?        @relation("SamplePrimaryMethod", fields: [primaryMethodId], references: [id], onDelete: SetNull)
   primaryMethodVersion    MethodVersion?           @relation("SamplePrimaryMethodVersion", fields: [primaryMethodVersionId], references: [id], onDelete: SetNull)
@@ -1908,12 +2220,17 @@ model Sample {
   testReports             TestReport[]
   storageRecords          SampleStorageRecord[]
   custodyEvents           SampleCustodyEvent[]
+  workflowEvents          WorkflowEvent[]
+  deviations              Deviation[]
+  technicalReviews        TechnicalReview[]
 
   @@index([receivedAt])
   @@index([status])
   @@index([dueDate])
   @@index([sampleType])
   @@index([assignedTo])
+  @@index([matrixId])
+  @@index([requestId])
   @@map("samples")
 }
 
@@ -1926,6 +2243,7 @@ model LabDepartment {
   assignments AnalysisAssignment[]
   tasks       AnalysisTask[]
   worklists   AnalysisWorklist[]
+  testMethods TestMethod[]
 
   @@map("lab_departments")
 }
@@ -1993,6 +2311,7 @@ model AnalysisTask {
   id               String             @id @default(cuid())
   assignmentId     String             @unique
   sampleId         String
+  sampleTestId     String?            @unique
   sampleCode       String
   sampleName       String
   parameterGroup   String
@@ -2012,11 +2331,14 @@ model AnalysisTask {
   updatedAt        DateTime           @updatedAt
   assignment       AnalysisAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   sample           Sample             @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  sampleTest       SampleTest?        @relation(fields: [sampleTestId], references: [id], onDelete: SetNull)
   department       LabDepartment      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   analyst          DepartmentAnalyst? @relation(fields: [analystId], references: [id], onDelete: SetNull)
   worklistLinks    AnalysisWorklistTask[]
   testResults      TestResult[]
   qcChecks         QcCheck[]
+  deviations       Deviation[]
+  technicalReviews TechnicalReview[]
 
   @@index([sampleId])
   @@index([departmentId])
@@ -2038,7 +2360,12 @@ model AnalysisWorklist {
   equipmentName   String                 @default("")
   analystId       String?
   analystName     String                 @default("")
+  matrixId        String?
+  testCategoryId  String?
+  deadline        DateTime?
   status          WorklistStatus         @default(draft)
+  completedAt     DateTime?
+  completedBy     String                 @default("")
   createdBy       String                 @default("")
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
@@ -2048,11 +2375,26 @@ model AnalysisWorklist {
   equipment       Equipment?             @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
   analyst         DepartmentAnalyst?     @relation(fields: [analystId], references: [id], onDelete: SetNull)
   taskLinks       AnalysisWorklistTask[]
+  sampleTestLinks AnalysisWorklistSampleTest[]
   worksheets      AnalysisWorksheet[]
 
   @@index([departmentId])
   @@index([status])
+  @@index([matrixId])
   @@map("analysis_worklists")
+}
+
+model AnalysisWorklistSampleTest {
+  id           String           @id @default(cuid())
+  worklistId   String
+  sampleTestId String
+  worklist     AnalysisWorklist @relation(fields: [worklistId], references: [id], onDelete: Cascade)
+  sampleTest   SampleTest       @relation(fields: [sampleTestId], references: [id], onDelete: Cascade)
+
+  @@unique([worklistId, sampleTestId])
+  @@index([worklistId])
+  @@index([sampleTestId])
+  @@map("analysis_worklist_sample_tests")
 }
 
 model AnalysisWorklistTask {
@@ -2097,10 +2439,25 @@ model AnalysisWorksheet {
   standards       WorksheetStandard[]
   crms            WorksheetCrm[]
   qcChecks        QcCheck[]
+  sampleTestLinks WorksheetSampleTest[]
 
   @@index([worklistId])
   @@index([status])
   @@map("analysis_worksheets")
+}
+
+model WorksheetSampleTest {
+  id           String            @id @default(cuid())
+  worksheetId  String
+  sampleTestId String
+  runOrder     Int               @default(0)
+  worksheet    AnalysisWorksheet @relation(fields: [worksheetId], references: [id], onDelete: Cascade)
+  sampleTest   SampleTest        @relation(fields: [sampleTestId], references: [id], onDelete: Cascade)
+
+  @@unique([worksheetId, sampleTestId])
+  @@index([worksheetId])
+  @@index([sampleTestId])
+  @@map("worksheet_sample_tests")
 }
 
 model WorksheetChemical {
@@ -2140,73 +2497,110 @@ model WorksheetCrm {
 }
 
 model TestResult {
-  id            String            @id @default(cuid())
-  taskId        String
-  sampleId      String
-  sampleCode    String
-  parameterName String
-  resultValue   String            @default("")
-  unit          String            @default("")
-  lod           String            @default("")
-  loq           String            @default("")
-  limitValue    String            @default("")
-  evaluation    ResultEvaluation?
-  analystId     String?
-  analystName   String            @default("")
-  enteredAt     DateTime?
-  status        TestResultStatus  @default(not_entered)
-  note          String            @default("")
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  task          AnalysisTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id                  String            @id @default(cuid())
+  taskId              String
+  sampleTestId        String?           @unique
+  sampleId            String
+  sampleCode          String
+  parameterName       String
+  rawValue            String            @default("")
+  dilution            String            @default("")
+  resultValue         String            @default("")
+  unit                String            @default("")
+  lod                 String            @default("")
+  loq                 String            @default("")
+  limitValue          String            @default("")
+  uncertainty         String            @default("")
+  evaluation          ResultEvaluation?
+  analystId           String?
+  analystName         String            @default("")
+  enteredByUserId     String            @default("")
+  enteredAt           DateTime?
+  rawDataAttachmentId String            @default("")
+  status              TestResultStatus  @default(not_entered)
+  revisionNo          Int               @default(0)
+  modifiedReason      String            @default("")
+  note                String            @default("")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  task                AnalysisTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  sampleTest          SampleTest?       @relation(fields: [sampleTestId], references: [id], onDelete: SetNull)
 
   @@unique([taskId, parameterName])
   @@index([taskId])
   @@index([sampleId])
+  @@index([sampleTestId])
   @@index([status])
   @@map("test_results")
 }
 
 model QcCheck {
-  id          String            @id @default(cuid())
-  worksheetId String?
-  taskId      String?
-  checkType   QcCheckType
-  status      QcCheckStatus
-  note        String            @default("")
-  checkedBy   String            @default("")
-  checkedAt   DateTime          @default(now())
-  worksheet   AnalysisWorksheet? @relation(fields: [worksheetId], references: [id], onDelete: Cascade)
-  task        AnalysisTask?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id               String             @id @default(cuid())
+  worksheetId      String?
+  taskId           String?
+  sampleTestId     String?
+  deviationId      String?
+  checkType        QcCheckType
+  qcSampleType     String             @default("")
+  status           QcCheckStatus
+  expectedValue    String             @default("")
+  measuredValue    String             @default("")
+  recoveryPercent  String             @default("")
+  criteriaJson     String             @default("{}")
+  overrideBy       String             @default("")
+  overrideReason   String             @default("")
+  note             String             @default("")
+  checkedBy        String             @default("")
+  checkedAt        DateTime           @default(now())
+  worksheet        AnalysisWorksheet? @relation(fields: [worksheetId], references: [id], onDelete: Cascade)
+  task             AnalysisTask?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  sampleTest       SampleTest?        @relation(fields: [sampleTestId], references: [id], onDelete: SetNull)
+  deviation        Deviation?         @relation(fields: [deviationId], references: [id], onDelete: SetNull)
 
   @@index([worksheetId])
   @@index([taskId])
+  @@index([sampleTestId])
+  @@index([deviationId])
   @@map("qc_checks")
 }
 
 model SampleTest {
-  id              String           @id @default(cuid())
-  sampleId        String
-  methodId        String?
-  methodVersionId String?
-  parameterName   String
-  equipmentId     String?
-  assignedTo      String           @default("")
-  status          SampleTestStatus @default(Pending)
-  dueDate         DateTime?
-  note            String           @default("")
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  sample          Sample           @relation(fields: [sampleId], references: [id], onDelete: Cascade)
-  method          AnalyticalMethod? @relation(fields: [methodId], references: [id], onDelete: SetNull)
-  methodVersion   MethodVersion?   @relation(fields: [methodVersionId], references: [id], onDelete: SetNull)
-  equipment       Equipment?       @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
-  chemicals       SampleTestChemical[]
-  standards       SampleTestStandard[]
+  id               String           @id @default(cuid())
+  sampleId         String
+  testMethodId     String?
+  methodId         String?
+  methodVersionId  String?
+  parameterName    String
+  equipmentId      String?
+  analystId        String?
+  worksheetId      String?
+  assignedTo       String           @default("")
+  priority         RequestPriority  @default(normal)
+  status           SampleTestStatus @default(Pending)
+  dueDate          DateTime?
+  internalDueDate  DateTime?
+  note             String           @default("")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  sample           Sample           @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  testMethod       TestMethod?      @relation(fields: [testMethodId], references: [id], onDelete: SetNull)
+  method           AnalyticalMethod? @relation(fields: [methodId], references: [id], onDelete: SetNull)
+  methodVersion    MethodVersion?   @relation(fields: [methodVersionId], references: [id], onDelete: SetNull)
+  equipment        Equipment?       @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  analysisTask     AnalysisTask?
+  testResult       TestResult?
+  qcChecks         QcCheck[]
+  chemicals        SampleTestChemical[]
+  standards        SampleTestStandard[]
+  worklistLinks    AnalysisWorklistSampleTest[]
+  worksheetLinks   WorksheetSampleTest[]
 
   @@index([sampleId])
+  @@index([testMethodId])
   @@index([methodId])
   @@index([status])
+  @@index([analystId])
+  @@index([worksheetId])
   @@map("sample_tests")
 }
 
@@ -2284,55 +2678,201 @@ model SampleCustodyEvent {
 }
 
 model TestReport {
-  id               String       @id @default(cuid())
-  reportCode       String       @unique
-  sampleId         String
-  reportVersion    Int          @default(1)
-  issueNumber      Int          @default(1)
-  issueDate        DateTime?
-  issuedBy         String       @default("")
-  approvedBy       String       @default("")
-  qaApprovedBy     String       @default("")
-  analystName      String       @default("")
-  reviewerName     String       @default("")
-  labManagerName   String       @default("")
-  customerName     String       @default("")
-  customerAddress  String       @default("")
-  customerContact  String       @default("")
-  requestCode      String       @default("")
-  receivedAt       DateTime?
-  analysisCompletedAt DateTime?
-  resultsJson      String       @default("[]")
-  signaturesJson   String       @default("{}")
-  documentSnapshotJson String   @default("{}")
-  status           ReportStatus @default(draft)
-  pdfUrl           String       @default("")
-  note             String       @default("")
-  createdBy        String       @default("")
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  sample           Sample       @relation(fields: [sampleId], references: [id], onDelete: Cascade)
-  history          ReportHistory[]
+  id                    String       @id @default(cuid())
+  reportCode            String       @unique
+  sampleId              String?
+  requestId             String?
+  isPartial             Boolean      @default(false)
+  includedSampleIds     String       @default("[]")
+  includedSampleTestIds String       @default("[]")
+  reportVersion         Int          @default(1)
+  issueNumber           Int          @default(1)
+  issueDate             DateTime?
+  issuedBy              String       @default("")
+  approvedBy            String       @default("")
+  qaApprovedBy          String       @default("")
+  analystName           String       @default("")
+  reviewerName          String       @default("")
+  labManagerName        String       @default("")
+  customerName          String       @default("")
+  customerAddress       String       @default("")
+  customerContact       String       @default("")
+  requestCode           String       @default("")
+  receivedAt            DateTime?
+  analysisCompletedAt   DateTime?
+  resultsJson           String       @default("[]")
+  signaturesJson        String       @default("{}")
+  documentSnapshotJson  String       @default("{}")
+  status                ReportStatus @default(draft)
+  pdfUrl                String       @default("")
+  note                  String       @default("")
+  createdBy             String       @default("")
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  sample                Sample?      @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  request               SampleRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  items                 ReportItem[]
+  history               ReportHistory[]
+  deliveryLogs          ReportDeliveryLog[]
 
   @@index([sampleId])
+  @@index([requestId])
   @@index([status])
   @@index([issueDate])
+  @@index([isPartial])
   @@map("test_reports")
 }
 
+model ReportItem {
+  id            String     @id @default(cuid())
+  reportId      String
+  sampleId      String
+  sampleTestId  String?
+  testMethodId  String?
+  parameterName String
+  methodName    String     @default("")
+  resultValue   String     @default("")
+  unit          String     @default("")
+  lod           String     @default("")
+  loq           String     @default("")
+  remark        String     @default("")
+  sortOrder     Int        @default(0)
+  report        TestReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  testMethod    TestMethod? @relation(fields: [testMethodId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([sampleId])
+  @@map("report_items")
+}
+
 model ReportHistory {
-  id          String              @id @default(cuid())
-  reportId    String
-  version     Int
-  issueNumber Int                 @default(1)
-  action      ReportHistoryAction
-  actionBy    String              @default("")
-  actionAt    DateTime            @default(now())
-  reason      String              @default("")
-  pdfUrl      String              @default("")
-  report      TestReport          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  id                   String              @id @default(cuid())
+  reportId             String
+  version              Int
+  issueNumber          Int                 @default(1)
+  action               ReportHistoryAction
+  actionBy             String              @default("")
+  actionAt             DateTime            @default(now())
+  reason               String              @default("")
+  pdfUrl               String              @default("")
+  documentSnapshotJson String              @default("{}")
+  report               TestReport          @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
   @@index([actionAt])
   @@map("report_histories")
+}
+
+model WorkflowEvent {
+  id                  String             @id @default(cuid())
+  sampleId            String?
+  entityType          WorkflowEntityType
+  entityId            String
+  fromStatus          String             @default("")
+  toStatus            String             @default("")
+  action              String
+  performedBy         String             @default("")
+  performedByUserId   String             @default("")
+  performedAt         DateTime           @default(now())
+  reason              String             @default("")
+  beforeJson          String             @default("{}")
+  afterJson           String             @default("{}")
+  ipAddress           String             @default("")
+  userAgent           String             @default("")
+  sample              Sample?            @relation(fields: [sampleId], references: [id], onDelete: SetNull)
+
+  @@index([sampleId, performedAt])
+  @@index([entityType, entityId])
+  @@index([performedAt])
+  @@map("workflow_events")
+}
+
+model Deviation {
+  id          String          @id @default(cuid())
+  sampleId    String
+  taskId      String?
+  qcCheckId   String?
+  type        String          @default("")
+  description String          @default("")
+  detectedAt  DateTime        @default(now())
+  detectedBy  String          @default("")
+  status      DeviationStatus @default(open)
+  rootCause   String          @default("")
+  closedAt    DateTime?
+  closedBy    String          @default("")
+  sample      Sample          @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  task        AnalysisTask?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  qcChecks    QcCheck[]
+  capaActions CapaAction[]
+
+  @@index([sampleId])
+  @@index([taskId])
+  @@index([status])
+  @@map("deviations")
+}
+
+model CapaAction {
+  id          String           @id @default(cuid())
+  deviationId String
+  actionType  String           @default("")
+  description String           @default("")
+  dueDate     DateTime?
+  assignedTo  String           @default("")
+  status      CapaActionStatus @default(pending)
+  completedAt DateTime?
+  verifiedBy  String           @default("")
+  deviation   Deviation        @relation(fields: [deviationId], references: [id], onDelete: Cascade)
+
+  @@index([deviationId])
+  @@index([status])
+  @@map("capa_actions")
+}
+
+model TechnicalReview {
+  id             String                  @id @default(cuid())
+  sampleId       String
+  taskId         String
+  reviewerUserId String                  @default("")
+  reviewerName   String                  @default("")
+  decision       TechnicalReviewDecision
+  comment        String                  @default("")
+  reviewedAt     DateTime                @default(now())
+  signatureJson  String                  @default("{}")
+  sample         Sample                  @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  task           AnalysisTask            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([sampleId])
+  @@index([taskId])
+  @@map("technical_reviews")
+}
+
+model ReportDeliveryLog {
+  id            String                @id @default(cuid())
+  reportId      String
+  channel       ReportDeliveryChannel
+  recipient     String                @default("")
+  sentAt        DateTime              @default(now())
+  sentBy        String                @default("")
+  attachmentUrl String                @default("")
+  status        ReportDeliveryStatus  @default(pending)
+  note          String                @default("")
+  report        TestReport            @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([sentAt])
+  @@map("report_delivery_logs")
+}
+
+model LimsAttachment {
+  id           String   @id @default(cuid())
+  entityType   String
+  entityId     String
+  fileName     String
+  mimeType     String   @default("")
+  storageUrl   String
+  uploadedBy   String   @default("")
+  uploadedAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("lims_attachments")
 }

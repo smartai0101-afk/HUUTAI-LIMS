@@ -3,7 +3,8 @@ import type { MethodSeedDefinition } from "./types";
 export const METHOD_ICP_WATER: MethodSeedDefinition = {
   methodCode: "PP-ICP-WAT-001",
   methodName: "Xác định kim loại nặng trong nước uống bằng ICP-OES",
-  matrix: "Water (Nước uống / nước thải đã qua lọc)",
+  matrixCodes: ["WATER"],
+  testMethodCodes: ["PB", "CD", "E-COLI", "PH"],
   analyte: "Pb, Cd, As, Hg, Cr, Ni, Cu, Zn",
   technique: "ICP-OES",
   standardRef: "Tham chiếu EPA 200.7, SMEWW 3125 B, ISO 11885 (lab adaptation)",

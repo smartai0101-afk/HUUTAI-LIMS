@@ -16,8 +16,8 @@ async function main() {
     `Expected issued status, got ${seedReport?.status}`,
   );
   console.assert(
-    seedReport?.sample.status === "ResultIssued",
-    `Expected sample ResultIssued, got ${seedReport?.sample.status}`,
+    seedReport?.sample?.status === "ResultIssued",
+    `Expected sample ResultIssued, got ${seedReport?.sample?.status}`,
   );
   console.assert(
     (seedReport?.history.length ?? 0) >= 1,

@@ -1,4 +1,6 @@
 import type { MethodVersionStatus } from "@prisma/client";
+import { buildAnalyteCache } from "@/lib/catalog/test-method-label";
+import { matrixDisplayLabel } from "@/lib/catalog/matrix-label";
 import { toDateString } from "@/lib/mappers";
 import type {
   AnalyticalMethodDetail,
@@ -46,11 +48,51 @@ export function mapMethodVersion(row: {
   };
 }
 
+type MethodMatrixSummary = {
+  id: string;
+  code: string;
+  name: string;
+  groupName: string;
+};
+
+function mapMethodMatricesFields(methodMatrices: { matrix: MethodMatrixSummary }[]) {
+  const matrices = methodMatrices.map((link) => link.matrix);
+  const matrixIds = matrices.map((m) => m.id);
+  const matrixName =
+    matrices.length > 0
+      ? matrices.map((m) => matrixDisplayLabel(m)).join(", ")
+      : null;
+  return { matrixIds, matrices, matrixName };
+}
+
+type MethodTestMethodSummary = {
+  id: string;
+  code: string;
+  name: string;
+  category: { name: string };
+};
+
+function mapMethodTestMethodsFields(
+  methodTestMethods: { testMethod: MethodTestMethodSummary }[],
+) {
+  const testMethods = methodTestMethods.map((link) => ({
+    id: link.testMethod.id,
+    code: link.testMethod.code,
+    name: link.testMethod.name,
+    categoryName: link.testMethod.category.name,
+  }));
+  const testMethodIds = testMethods.map((t) => t.id);
+  const analyteName =
+    testMethods.length > 0 ? buildAnalyteCache(testMethods) : null;
+  return { testMethodIds, testMethods, analyteName };
+}
+
 export function mapMethodListItem(row: {
   id: string;
   methodCode: string;
   methodName: string;
-  matrix: string;
+  methodMatrices: { matrix: MethodMatrixSummary }[];
+  methodTestMethods: { testMethod: MethodTestMethodSummary }[];
   analyte: string;
   technique: string;
   standardRef: string;
@@ -64,7 +106,8 @@ export function mapMethodListItem(row: {
     id: row.id,
     methodCode: row.methodCode,
     methodName: row.methodName,
-    matrix: row.matrix,
+    ...mapMethodMatricesFields(row.methodMatrices),
+    ...mapMethodTestMethodsFields(row.methodTestMethods),
     analyte: row.analyte,
     technique: row.technique,
     standardRef: row.standardRef,
@@ -78,7 +121,8 @@ export function mapMethodDetail(row: {
   id: string;
   methodCode: string;
   methodName: string;
-  matrix: string;
+  methodMatrices: { matrix: MethodMatrixSummary }[];
+  methodTestMethods: { testMethod: MethodTestMethodSummary }[];
   analyte: string;
   technique: string;
   standardRef: string;
@@ -92,7 +136,8 @@ export function mapMethodDetail(row: {
     id: row.id,
     methodCode: row.methodCode,
     methodName: row.methodName,
-    matrix: row.matrix,
+    ...mapMethodMatricesFields(row.methodMatrices),
+    ...mapMethodTestMethodsFields(row.methodTestMethods),
     analyte: row.analyte,
     technique: row.technique,
     standardRef: row.standardRef,

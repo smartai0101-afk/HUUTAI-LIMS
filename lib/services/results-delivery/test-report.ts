@@ -13,6 +13,8 @@ import {
   parseReportSignatures,
 } from "@/lib/mappers/result-delivery";
 import { appendSampleAuditLog } from "@/lib/services/samples/sample-audit";
+import { appendWorkflowEvent } from "@/lib/services/workflow-orchestrator";
+import { notifyPendingReportIssue } from "@/lib/services/lims-notification-hooks";
 import type { ReportSignatures } from "@/types/result-delivery";
 import { assertSampleReadyForRelease } from "./report-guards";
 
@@ -56,9 +58,11 @@ async function appendHistory(
     reportId: string;
     version: number;
     issueNumber: number;
-    action: "created" | "approved" | "qa_approved" | "issued" | "reissued" | "updated";
+    action: "created" | "approved" | "qa_approved" | "issued" | "reissued" | "updated" | "cancelled";
     actionBy: string;
     reason?: string;
+    documentSnapshotJson?: string;
+    pdfUrl?: string;
   },
 ) {
   await tx.reportHistory.create({
@@ -69,6 +73,8 @@ async function appendHistory(
       action: data.action,
       actionBy: data.actionBy,
       reason: data.reason ?? "",
+      documentSnapshotJson: data.documentSnapshotJson ?? "{}",
+      pdfUrl: data.pdfUrl ?? "",
     },
   });
 }
@@ -114,6 +120,7 @@ async function snapshotDocumentForReport(
     where: { id: reportId },
     data: { documentSnapshotJson: JSON.stringify(document) },
   });
+  return JSON.stringify(document);
 }
 
 export async function listPendingRelease() {
@@ -167,9 +174,15 @@ export async function listPendingRelease() {
   return rows;
 }
 
-export async function listReports(status?: "draft" | "approved" | "issued" | "reissued") {
+export async function listReports(options?: {
+  status?: "draft" | "approved" | "issued" | "reissued";
+  partialOnly?: boolean;
+}) {
   const rows = await db.testReport.findMany({
-    where: status ? { status } : undefined,
+    where: {
+      ...(options?.status ? { status: options.status } : {}),
+      ...(options?.partialOnly ? { isPartial: true } : {}),
+    },
     include: {
       sample: { select: { sampleCode: true, sampleName: true } },
       history: { select: { action: true, actionAt: true }, orderBy: { actionAt: "asc" } },
@@ -252,14 +265,6 @@ export async function createReport(sampleId: string, createdBy: string) {
       include: { sample: { select: { sampleCode: true, sampleName: true } } },
     });
 
-    await appendHistory(tx, {
-      reportId: report.id,
-      version: report.reportVersion,
-      issueNumber: report.issueNumber,
-      action: "created",
-      actionBy: createdBy,
-    });
-
     await snapshotDocumentForReport(
       tx,
       report.id,
@@ -268,6 +273,19 @@ export async function createReport(sampleId: string, createdBy: string) {
       signatures,
       analysisCompletedAt,
     );
+
+    const snap = await tx.testReport.findUnique({
+      where: { id: report.id },
+      select: { documentSnapshotJson: true },
+    });
+    await appendHistory(tx, {
+      reportId: report.id,
+      version: report.reportVersion,
+      issueNumber: report.issueNumber,
+      action: "created",
+      actionBy: createdBy,
+      documentSnapshotJson: snap?.documentSnapshotJson ?? "{}",
+    });
 
     await appendSampleAuditLog(tx, {
       entityType: "sample",
@@ -286,6 +304,9 @@ export async function createReport(sampleId: string, createdBy: string) {
       },
     });
     return mapTestReportView(full!);
+  }).then(async (view) => {
+    await notifyPendingReportIssue(view.id, view.reportCode, view.sampleCode, createdBy);
+    return view;
   });
 }
 
@@ -294,7 +315,9 @@ export async function approveReport(reportId: string, changedBy: string, labMana
   if (!report) throw new Error("Không tìm thấy phiếu kết quả");
   if (report.status !== "draft") throw new Error("Chỉ duyệt phiếu ở trạng thái nháp");
 
-  await assertSampleReadyForRelease(report.sampleId);
+  if (report.sampleId) {
+    await assertSampleReadyForRelease(report.sampleId);
+  }
 
   const signatures = parseReportSignatures(report.signaturesJson);
   signatures.labManager = labManagerName?.trim() || changedBy;
@@ -319,19 +342,21 @@ export async function approveReport(reportId: string, changedBy: string, labMana
       actionBy: changedBy,
     });
 
-    const sample = await tx.sample.findUnique({
-      where: { id: report.sampleId },
-      include: sampleAnalysisInclude,
-    });
-    if (sample) {
-      await snapshotDocumentForReport(
-        tx,
-        reportId,
-        sample,
-        parseReportResults(report.resultsJson),
-        signatures,
-        report.analysisCompletedAt ?? new Date(),
-      );
+    if (report.sampleId) {
+      const sample = await tx.sample.findUnique({
+        where: { id: report.sampleId },
+        include: sampleAnalysisInclude,
+      });
+      if (sample) {
+        await snapshotDocumentForReport(
+          tx,
+          reportId,
+          sample,
+          parseReportResults(report.resultsJson),
+          signatures,
+          report.analysisCompletedAt ?? new Date(),
+        );
+      }
     }
     return row;
   });
@@ -365,19 +390,21 @@ export async function qaApproveReport(reportId: string, changedBy: string, qaNam
       actionBy: changedBy,
     });
 
-    const sample = await tx.sample.findUnique({
-      where: { id: report.sampleId },
-      include: sampleAnalysisInclude,
-    });
-    if (sample) {
-      await snapshotDocumentForReport(
-        tx,
-        reportId,
-        sample,
-        parseReportResults(report.resultsJson),
-        signatures,
-        report.analysisCompletedAt ?? new Date(),
-      );
+    if (report.sampleId) {
+      const sample = await tx.sample.findUnique({
+        where: { id: report.sampleId },
+        include: sampleAnalysisInclude,
+      });
+      if (sample) {
+        await snapshotDocumentForReport(
+          tx,
+          reportId,
+          sample,
+          parseReportResults(report.resultsJson),
+          signatures,
+          report.analysisCompletedAt ?? new Date(),
+        );
+      }
     }
     return row;
   });
@@ -391,7 +418,9 @@ export async function issueReport(reportId: string, issuedBy: string, note?: str
   if (report.status !== "approved") throw new Error("Phiếu chưa được duyệt");
   if (!report.qaApprovedBy.trim()) throw new Error("QA chưa phê duyệt cuối");
 
-  await assertSampleReadyForRelease(report.sampleId);
+  if (report.sampleId) {
+    await assertSampleReadyForRelease(report.sampleId);
+  }
 
   const issueDate = new Date();
   const signatures = parseReportSignatures(report.signaturesJson);
@@ -403,6 +432,7 @@ export async function issueReport(reportId: string, issuedBy: string, note?: str
         status: "issued",
         issueDate,
         issuedBy,
+        pdfUrl: `/results-delivery/reports/${reportId}/print`,
         note: note?.trim() ?? report.note,
       },
       include: { sample: { select: { sampleCode: true, sampleName: true } } },
@@ -417,35 +447,37 @@ export async function issueReport(reportId: string, issuedBy: string, note?: str
       reason: note?.trim() ?? "Phát hành lần đầu",
     });
 
-    const sample = await tx.sample.findUnique({
-      where: { id: report.sampleId },
-      include: sampleAnalysisInclude,
-    });
-    if (sample) {
-      await snapshotDocumentForReport(
-        tx,
-        reportId,
-        sample,
-        parseReportResults(report.resultsJson),
-        signatures,
-        report.analysisCompletedAt ?? issueDate,
-        issueDate,
-      );
+    if (report.sampleId) {
+      const sample = await tx.sample.findUnique({
+        where: { id: report.sampleId },
+        include: sampleAnalysisInclude,
+      });
+      if (sample) {
+        await snapshotDocumentForReport(
+          tx,
+          reportId,
+          sample,
+          parseReportResults(report.resultsJson),
+          signatures,
+          report.analysisCompletedAt ?? issueDate,
+          issueDate,
+        );
+      }
+
+      await tx.sample.update({
+        where: { id: report.sampleId },
+        data: { status: "ResultIssued" },
+      });
+
+      await appendSampleAuditLog(tx, {
+        entityType: "sample",
+        entityId: report.sampleId,
+        action: "ResultIssued",
+        before: { status: "Completed" },
+        after: { status: "ResultIssued", reportCode: row.reportCode },
+        changedBy: issuedBy,
+      });
     }
-
-    await tx.sample.update({
-      where: { id: report.sampleId },
-      data: { status: "ResultIssued" },
-    });
-
-    await appendSampleAuditLog(tx, {
-      entityType: "sample",
-      entityId: report.sampleId,
-      action: "ResultIssued",
-      before: { status: "Completed" },
-      after: { status: "ResultIssued", reportCode: row.reportCode },
-      changedBy: issuedBy,
-    });
 
     return row;
   });
@@ -460,6 +492,7 @@ export async function reissueReport(reportId: string, issuedBy: string, reason: 
     throw new Error("Chỉ phát hành lại phiếu đã phát hành");
   }
 
+  if (!report.sampleId) throw new Error("Phát hành lại chỉ hỗ trợ phiếu theo mẫu");
   const sample = await loadSampleAnalysisContext(report.sampleId);
   const results = buildResultsSnapshot(sample.analysisTasks);
   const signatures = parseReportSignatures(report.signaturesJson);
@@ -476,6 +509,7 @@ export async function reissueReport(reportId: string, issuedBy: string, reason: 
         issueNumber: nextIssue,
         issueDate,
         issuedBy,
+        pdfUrl: `/results-delivery/reports/${reportId}/print`,
         resultsJson: JSON.stringify(results),
         note: reason.trim(),
       },
@@ -568,6 +602,174 @@ export function exportReportCsv(report: NonNullable<Awaited<ReturnType<typeof ge
       .join(","),
   );
   return [header, ...lines].join("\n");
+}
+
+export async function listReportsForReview() {
+  return db.testReport.findMany({
+    where: { status: { in: ["draft", "approved"] } },
+    include: {
+      sample: { select: { sampleCode: true, sampleName: true } },
+      history: { orderBy: { actionAt: "desc" }, take: 5 },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 100,
+  });
+}
+
+export async function listReportRevisions() {
+  return db.reportHistory.findMany({
+    where: { action: { in: ["issued", "reissued"] } },
+    include: {
+      report: {
+        include: { sample: { select: { sampleCode: true } } },
+      },
+    },
+    orderBy: { actionAt: "desc" },
+    take: 200,
+  });
+}
+
+export async function cancelReport(reportId: string, reason: string, cancelledBy: string) {
+  const report = await db.testReport.findUnique({ where: { id: reportId } });
+  if (!report) throw new Error("Không tìm thấy phiếu kết quả");
+  if (report.status === "issued") {
+    throw new Error("Không thể hủy phiếu đã phát hành — dùng hiệu chỉnh");
+  }
+  if (!reason.trim()) throw new Error("Cần lý do hủy");
+
+  return db.$transaction(async (tx) => {
+    const row = await tx.testReport.update({
+      where: { id: reportId },
+      data: { status: "cancelled", note: reason.trim() },
+    });
+    await appendHistory(tx, {
+      reportId,
+      version: row.reportVersion,
+      issueNumber: row.issueNumber,
+      action: "cancelled",
+      actionBy: cancelledBy,
+      reason: reason.trim(),
+      documentSnapshotJson: row.documentSnapshotJson,
+    });
+    await appendWorkflowEvent(tx, {
+      sampleId: row.sampleId,
+      entityType: "test_report",
+      entityId: reportId,
+      fromStatus: report.status,
+      toStatus: "cancelled",
+      action: "ReportCancelled",
+      performedBy: cancelledBy,
+      reason: reason.trim(),
+    });
+    return row;
+  });
+}
+
+export async function storeReportPdfUrl(reportId: string, pdfUrl: string) {
+  return db.testReport.update({
+    where: { id: reportId },
+    data: { pdfUrl },
+  });
+}
+
+export async function createRequestReport(requestId: string, createdBy: string) {
+  const request = await db.sampleRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      samples: {
+        include: {
+          analysisTasks: { include: { testResults: true } },
+          tests: { include: { testMethod: true } },
+        },
+      },
+    },
+  });
+  if (!request) throw new Error("Không tìm thấy phiếu yêu cầu");
+
+  const results = request.samples.flatMap((s) =>
+    s.analysisTasks.flatMap((t) =>
+      t.testResults
+        .filter((r) => r.status === "approved" || r.status === "qc_passed")
+        .map((r) => ({
+          sampleId: s.id,
+          sampleCode: s.sampleCode,
+          sampleName: s.sampleName,
+          parameterName: r.parameterName,
+          resultValue: r.resultValue,
+          unit: r.unit,
+          lod: r.lod,
+          loq: r.loq,
+          note: r.note,
+        })),
+    ),
+  );
+
+  if (results.length === 0) throw new Error("Chưa có kết quả đủ điều kiện phát hành");
+
+  return db.$transaction(async (tx) => {
+    const reportCode = await generateReportCode(tx);
+    const includedSampleIds = JSON.stringify(request.samples.map((s) => s.id));
+    const report = await tx.testReport.create({
+      data: {
+        reportCode,
+        requestId,
+        sampleId: request.samples[0]?.id ?? null,
+        isPartial: request.samples.some((s) =>
+          s.tests.some((t) => !["TechApproved", "Reported", "Reviewed", "Done"].includes(t.status)),
+        ),
+        includedSampleIds,
+        customerName: request.customerName,
+        requestCode: request.requestCode,
+        resultsJson: JSON.stringify(results),
+        status: "draft",
+        createdBy,
+      },
+    });
+
+    let sortOrder = 0;
+    for (const r of results) {
+      await tx.reportItem.create({
+        data: {
+          reportId: report.id,
+          sampleId: r.sampleId,
+          parameterName: r.parameterName,
+          resultValue: r.resultValue,
+          unit: r.unit,
+          lod: r.lod,
+          loq: r.loq,
+          remark: r.note,
+          sortOrder: sortOrder++,
+        },
+      });
+    }
+
+    await appendHistory(tx, {
+      reportId: report.id,
+      version: 1,
+      issueNumber: 1,
+      action: "created",
+      actionBy: createdBy,
+      documentSnapshotJson: "{}",
+    });
+
+    return report;
+  });
+}
+
+export async function createPartialReport(
+  requestId: string,
+  sampleIds: string[],
+  createdBy: string,
+) {
+  const report = await createRequestReport(requestId, createdBy);
+  await db.testReport.update({
+    where: { id: report.id },
+    data: {
+      isPartial: true,
+      includedSampleIds: JSON.stringify(sampleIds),
+    },
+  });
+  return report;
 }
 
 export { parseReportResults };

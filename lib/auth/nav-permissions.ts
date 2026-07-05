@@ -11,11 +11,31 @@ export const NAV_PERMISSION_GROUPS = [
     label: SAMPLES_NAV.group,
     items: [
       { key: "samples_requests" as const, label: SAMPLES_NAV.requests, href: "/samples/requests" },
+      {
+        key: "samples_requests_new" as const,
+        label: SAMPLES_NAV.requestsNew,
+        href: "/samples/requests/new",
+      },
+      {
+        key: "samples_request_review" as const,
+        label: SAMPLES_NAV.requestReview,
+        href: "/samples/requests/review",
+      },
       { key: "samples_list" as const, label: SAMPLES_NAV.list, href: "/samples" },
+      {
+        key: "samples_request_matrix" as const,
+        label: SAMPLES_NAV.requestMatrix,
+        href: "/samples/requests/matrix",
+      },
       { key: "samples_receive" as const, label: SAMPLES_NAV.receive, href: "/samples/receive" },
       { key: "samples_assign" as const, label: SAMPLES_NAV.assign, href: "/samples/assign" },
       { key: "samples_tracking" as const, label: SAMPLES_NAV.tracking, href: "/samples/tracking" },
       { key: "samples_storage" as const, label: SAMPLES_NAV.storage, href: "/samples/storage" },
+      {
+        key: "samples_reception_log" as const,
+        label: SAMPLES_NAV.receptionLog,
+        href: "/samples/reception-log",
+      },
     ],
   },
   {
@@ -34,8 +54,23 @@ export const NAV_PERMISSION_GROUPS = [
         label: ANALYSIS_NAV.worksheet,
         href: "/analysis/worksheets",
       },
+      {
+        key: "analysis_sample_prep" as const,
+        label: ANALYSIS_NAV.samplePrep,
+        href: "/analysis/sample-prep",
+      },
       { key: "analysis_results" as const, label: ANALYSIS_NAV.results, href: "/analysis/results" },
+      {
+        key: "analysis_results_by_sample" as const,
+        label: ANALYSIS_NAV.resultsBySample,
+        href: "/analysis/results/by-sample",
+      },
       { key: "analysis_qc" as const, label: ANALYSIS_NAV.qc, href: "/analysis/qc" },
+      {
+        key: "analysis_deviation" as const,
+        label: ANALYSIS_NAV.deviation,
+        href: "/analysis/deviations",
+      },
       { key: "analysis_review" as const, label: ANALYSIS_NAV.review, href: "/analysis/review" },
     ],
   },
@@ -49,9 +84,19 @@ export const NAV_PERMISSION_GROUPS = [
         href: "/results-delivery/pending",
       },
       {
+        key: "delivery_review" as const,
+        label: RESULTS_DELIVERY_NAV.review,
+        href: "/results-delivery/review",
+      },
+      {
         key: "delivery_reports" as const,
         label: RESULTS_DELIVERY_NAV.reports,
         href: "/results-delivery/reports",
+      },
+      {
+        key: "delivery_partial" as const,
+        label: RESULTS_DELIVERY_NAV.partial,
+        href: "/results-delivery/reports?partial=1",
       },
       {
         key: "delivery_history" as const,
@@ -62,6 +107,11 @@ export const NAV_PERMISSION_GROUPS = [
         key: "delivery_issued" as const,
         label: RESULTS_DELIVERY_NAV.issued,
         href: "/results-delivery/issued",
+      },
+      {
+        key: "delivery_revision" as const,
+        label: RESULTS_DELIVERY_NAV.revisions,
+        href: "/results-delivery/revisions",
       },
     ],
   },
@@ -145,6 +195,18 @@ export const NAV_PERMISSION_GROUPS = [
       { key: "admin_people" as const, label: "Nhân sự", href: "/admin/people" },
       { key: "admin_permissions" as const, label: "Phân quyền", href: "/admin/permissions" },
       { key: "admin_tasks" as const, label: "Giao việc", href: "/admin/tasks" },
+      { key: "catalog_matrices" as const, label: "Nhóm nền mẫu", href: "/admin/catalog/matrix-groups" },
+      { key: "catalog_matrices" as const, label: "Nền mẫu", href: "/admin/catalog/matrices" },
+      {
+        key: "catalog_test_methods" as const,
+        label: "Danh mục chỉ tiêu",
+        href: "/admin/catalog/test-methods",
+      },
+      {
+        key: "catalog_mappings" as const,
+        label: "Mapping nền–chỉ tiêu",
+        href: "/admin/catalog/mappings",
+      },
     ],
   },
 ] as const;
@@ -175,7 +237,12 @@ export function routePermission(pathname: string): PermissionKey | null {
   if (pathname === "/account" || pathname.startsWith("/account/")) return null;
   if (pathname === "/notifications" || pathname.startsWith("/notifications/")) return null;
   if (pathname.startsWith("/api/notifications")) return null;
+  if (pathname.startsWith("/customer/")) return "delivery_issued";
   if (pathname === "/admin/users" || pathname === "/admin/staff") return "admin_people";
+  if (pathname.startsWith("/admin/catalog/matrix-groups")) return "catalog_matrices";
+  if (pathname.startsWith("/admin/catalog/matrices")) return "catalog_matrices";
+  if (pathname.startsWith("/admin/catalog/test-methods")) return "catalog_test_methods";
+  if (pathname.startsWith("/admin/catalog/mappings")) return "catalog_mappings";
 
   for (const item of ROUTE_ENTRIES) {
     if (item.href === "/") {
@@ -202,7 +269,7 @@ export function routePermission(pathname: string): PermissionKey | null {
       if (pathname.startsWith("/samples/") && !pathname.startsWith("/samples/requests") &&
         !pathname.startsWith("/samples/receive") && !pathname.startsWith("/samples/assign") &&
         !pathname.startsWith("/samples/tracking") && !pathname.startsWith("/samples/storage") &&
-        !pathname.startsWith("/samples/reports")) {
+        !pathname.startsWith("/samples/reports") && !pathname.startsWith("/samples/reception-log")) {
         return "samples_list";
       }
       continue;

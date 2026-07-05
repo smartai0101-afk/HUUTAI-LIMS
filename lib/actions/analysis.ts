@@ -11,14 +11,17 @@ import {
   rejectAssignment,
 } from "@/lib/services/analysis/analysis-inbox";
 import { assignAnalystToTask } from "@/lib/services/analysis/analyst-assignment";
-import { createWorklist, startWorklist } from "@/lib/services/analysis/worklist";
+import { createWorklist, completeWorklist, startWorklist } from "@/lib/services/analysis/worklist";
+import { closeDeviation, createCapaAction, verifyCapaAction } from "@/lib/services/analysis/deviation";
+import { listSamplePrepTasks, getSamplePrepChecklist } from "@/lib/services/analysis/sample-prep";
+import { uploadLimsAttachment, linkRawDataToResult } from "@/lib/services/lims-attachment";
 import {
   completeWorksheet,
   createWorksheet,
   startWorksheet,
 } from "@/lib/services/analysis/worksheet";
 import { saveTestResult, submitResultsForQc } from "@/lib/services/analysis/test-results";
-import { saveQcCheck } from "@/lib/services/analysis/qc-check";
+import { saveQcCheck, overrideQcFail } from "@/lib/services/analysis/qc-check";
 import {
   approveTask,
   rejectTask,
@@ -39,8 +42,10 @@ const ANALYSIS_PATHS = [
   "/analysis/assign-analyst",
   "/analysis/worklists",
   "/analysis/worksheets",
+  "/analysis/sample-prep",
   "/analysis/results",
   "/analysis/qc",
+  "/analysis/deviations",
   "/analysis/review",
 ];
 
@@ -159,11 +164,24 @@ export async function startWorklistAction(id: string) {
   if ("error" in auth) return { error: auth.error };
 
   try {
-    await startWorklist(id);
+    await startWorklist(id, auth.user.name);
     revalidateAnalysis();
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Không thể chạy worklist" };
+  }
+}
+
+export async function completeWorklistAction(id: string) {
+  const auth = await requirePermission("analysis_worklist", "write");
+  if ("error" in auth) return { error: auth.error };
+
+  try {
+    await completeWorklist(id, auth.user.name);
+    revalidateAnalysis();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể hoàn thành worklist" };
   }
 }
 
@@ -246,6 +264,98 @@ export async function saveTestResultAction(fd: FormData) {
   }
 }
 
+export async function submitResultsForQcAction(taskId: string) {
+  const auth = await requirePermission("analysis_results", "write");
+  if ("error" in auth) return { error: auth.error };
+
+  try {
+    await submitResultsForQc(taskId);
+    revalidateAnalysis();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể gửi QC" };
+  }
+}
+
+export async function uploadRawDataAction(resultId: string, fd: FormData) {
+  const auth = await requirePermission("analysis_results", "write");
+  if ("error" in auth) return { error: auth.error };
+
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Vui lòng chọn file raw data" };
+  }
+
+  try {
+    const attachment = await uploadLimsAttachment("test_result", resultId, file, auth.user.name);
+    await linkRawDataToResult(resultId, attachment.id, auth.user.name);
+    revalidateAnalysis();
+    return { success: true, attachmentId: attachment.id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể upload raw data" };
+  }
+}
+
+export async function closeDeviationAction(deviationId: string, rootCause: string) {
+  const auth = await requirePermission("analysis_deviation", "write");
+  if ("error" in auth) return { error: auth.error };
+
+  try {
+    await closeDeviation(deviationId, rootCause, auth.user.name);
+    revalidateAnalysis();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể đóng sai lệch" };
+  }
+}
+
+export async function createCapaActionAction(
+  deviationId: string,
+  actionType: string,
+  description: string,
+  assignedTo: string,
+  dueDate?: string,
+) {
+  const auth = await requirePermission("analysis_deviation", "write");
+  if ("error" in auth) return { error: auth.error };
+
+  try {
+    await createCapaAction(
+      deviationId,
+      { actionType, description, assignedTo, dueDate },
+      auth.user.name,
+    );
+    revalidateAnalysis();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể tạo CAPA" };
+  }
+}
+
+export async function verifyCapaActionAction(capaId: string) {
+  const auth = await requirePermission("analysis_deviation", "write");
+  if ("error" in auth) return { error: auth.error };
+  const approve = await requireSessionCanApprove();
+  if ("error" in approve) return { error: approve.error };
+
+  try {
+    await verifyCapaAction(capaId, auth.user.name);
+    revalidateAnalysis();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể xác nhận CAPA" };
+  }
+}
+
+export async function fetchSamplePrepChecklistAction(taskId: string) {
+  const auth = await requirePermission("analysis_sample_prep", "read");
+  if ("error" in auth) return { error: auth.error };
+
+  const checklist = await getSamplePrepChecklist(taskId);
+  if (!checklist) return { error: "Không tìm thấy task" };
+  return { checklist };
+}
+
 export async function saveQcCheckAction(fd: FormData) {
   const auth = await requirePermission("analysis_qc", "write");
   if ("error" in auth) return { error: auth.error };
@@ -255,6 +365,10 @@ export async function saveQcCheckAction(fd: FormData) {
     worksheetId: str(fd, "worksheetId") || undefined,
     checkType: str(fd, "checkType"),
     status: str(fd, "status"),
+    expectedValue: str(fd, "expectedValue") || undefined,
+    measuredValue: str(fd, "measuredValue") || undefined,
+    recoveryPercent: str(fd, "recoveryPercent") || undefined,
+    overrideReason: str(fd, "overrideReason") || undefined,
     note: str(fd, "note"),
   });
   if (!parsed.success) {
@@ -267,6 +381,21 @@ export async function saveQcCheckAction(fd: FormData) {
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Không thể lưu QC" };
+  }
+}
+
+export async function overrideQcFailAction(taskId: string, overrideReason: string) {
+  const auth = await requirePermission("analysis_qc", "write");
+  if ("error" in auth) return { error: auth.error };
+  const approve = await requireSessionCanApprove();
+  if ("error" in approve) return { error: approve.error };
+
+  try {
+    await overrideQcFail(taskId, overrideReason, auth.user.name, auth.user.id);
+    revalidateAnalysis();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể override QC" };
   }
 }
 
@@ -294,8 +423,9 @@ export async function approveTaskAction(taskId: string) {
   if ("error" in approve) return { error: approve.error };
 
   try {
-    await approveTask(taskId, auth.user.name);
+    await approveTask(taskId, auth.user.name, auth.user.id);
     revalidateAnalysis();
+    revalidatePath("/results-delivery/pending");
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Không thể duyệt" };

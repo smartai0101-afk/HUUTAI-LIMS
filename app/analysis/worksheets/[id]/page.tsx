@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { WORKSHEET_STATUS_LABELS } from "@/lib/analysis-labels";
+import { WorksheetDetailClient } from "@/components/analysis/WorksheetDetailClient";
 import { getWorksheet } from "@/lib/services/analysis/worksheet";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -10,21 +10,38 @@ export default async function WorksheetDetailPage({ params }: { params: Promise<
   const ws = await getWorksheet(id);
   if (!ws) notFound();
 
+  const [sampleTestLinks, qcChecks] = await Promise.all([
+    db.worksheetSampleTest.findMany({
+      where: { worksheetId: id },
+      include: {
+        sampleTest: {
+          include: { sample: { select: { sampleCode: true, sampleName: true } } },
+        },
+      },
+      orderBy: { runOrder: "asc" },
+    }),
+    db.qcCheck.findMany({ where: { worksheetId: id }, orderBy: { checkedAt: "desc" } }),
+  ]);
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">{ws.worksheetCode}</h1>
-      <p className="text-sm text-slate-500">{WORKSHEET_STATUS_LABELS[ws.status]}</p>
-      <section className="rounded-2xl border bg-white p-4 text-sm shadow-sm">
-        <p>Worklist: {ws.worklistCode}</p>
-        <p>PP: {ws.methodName || "—"}</p>
-        <p>TB: {ws.equipmentName || "—"}</p>
-        <p>Analyst: {ws.analystName}</p>
-        <p>Điều kiện: {ws.conditionNote || "—"}</p>
-        <p>HC: {ws.chemicalIds.length} · Chuẩn: {ws.standardIds.length} · CRM: {ws.crmIds.length}</p>
-      </section>
-      <Link href="/analysis/worksheets" className="text-sm text-cyan-700 hover:underline">
-        ← Quay lại
-      </Link>
-    </div>
+    <WorksheetDetailClient
+      worksheet={ws}
+      sampleTests={sampleTestLinks.map((l) => ({
+        id: l.sampleTestId,
+        sampleCode: l.sampleTest.sample.sampleCode,
+        sampleName: l.sampleTest.sample.sampleName,
+        parameterName: l.sampleTest.parameterName,
+        runOrder: l.runOrder,
+      }))}
+      qcChecks={qcChecks.map((q) => ({
+        id: q.id,
+        checkType: q.checkType,
+        status: q.status,
+        expectedValue: q.expectedValue,
+        measuredValue: q.measuredValue,
+        recoveryPercent: q.recoveryPercent,
+        note: q.note,
+      }))}
+    />
   );
 }

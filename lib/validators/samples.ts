@@ -56,6 +56,7 @@ export const sampleRequestSchema = z.object({
   purpose: z.string().optional(),
   dueDate: z.string().optional(),
   note: z.string().optional(),
+  priority: z.enum(["normal", "high", "urgent"]).optional(),
   requestedTests: z.array(z.string()).optional(),
   methodIds: z.array(z.string()).optional(),
 });

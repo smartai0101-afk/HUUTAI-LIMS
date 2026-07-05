@@ -320,7 +320,7 @@ export function buildDocumentSnapshot(input: {
 }
 
 export function buildLegacyDocumentSnapshot(
-  report: TestReport & { sample?: { sampleCode: string; sampleName: string } },
+  report: TestReport & { sample?: { sampleCode: string; sampleName: string } | null },
   results: ReportResultRow[],
   signatures: ReportSignatures,
 ): TestReportDocumentSnapshot {

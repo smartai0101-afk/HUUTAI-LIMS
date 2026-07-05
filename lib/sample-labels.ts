@@ -9,11 +9,16 @@ import type {
 export const SAMPLES_NAV = {
   group: "Tiếp nhận mẫu",
   requests: "Phiếu yêu cầu",
+  requestsNew: "Tạo phiếu mới",
+  requestReview: "Kiểm tra yêu cầu",
+  requestMatrix: "Ma trận mẫu - chỉ tiêu",
   list: "Danh sách mẫu",
   receive: "Tiếp nhận mẫu mới",
   assign: "Phân công phân tích",
   tracking: "Theo dõi trạng thái",
   storage: "Lưu mẫu / Hủy mẫu",
+  receptionLog: "Nhật ký tiếp nhận",
+  reports: "Báo cáo tiếp nhận",
 } as const;
 
 export const SAMPLE_REQUEST_STATUS_LABELS: Record<SampleRequestStatus, string> = {
@@ -21,8 +26,12 @@ export const SAMPLE_REQUEST_STATUS_LABELS: Record<SampleRequestStatus, string> =
   Submitted: "Đã gửi",
   Received: "Đã tiếp nhận",
   Processing: "Đang xử lý",
+  PartiallyCompleted: "Hoàn thành một phần",
   Completed: "Hoàn thành",
+  PartiallyIssued: "Phát hành một phần",
+  Issued: "Đã phát hành",
   Cancelled: "Đã hủy",
+  Archived: "Lưu trữ",
 };
 
 export const SAMPLE_STATUS_LABELS: Record<SampleStatus, string> = {
@@ -49,8 +58,20 @@ export const SAMPLE_TEST_STATUS_LABELS: Record<SampleTestStatus, string> = {
   Pending: "Chờ xử lý",
   Assigned: "Đã phân công",
   InProgress: "Đang thực hiện",
+  InWorklist: "Trong worklist",
+  InWorksheet: "Trong worksheet",
+  Analyzing: "Đang phân tích",
+  ResultEntered: "Đã nhập KQ",
+  QcPending: "Chờ QC",
+  QcFailed: "QC không đạt",
+  QcPassed: "QC đạt",
+  TechReviewPending: "Chờ duyệt kỹ thuật",
+  TechApproved: "Đã duyệt kỹ thuật",
+  ReportPending: "Chờ phát hành",
+  Reported: "Đã báo cáo",
   Done: "Hoàn thành",
   Reviewed: "Đã duyệt",
+  Cancelled: "Đã hủy",
 };
 
 export const ANALYSIS_ASSIGNMENT_STATUS_LABELS: Record<AnalysisAssignmentStatus, string> = {

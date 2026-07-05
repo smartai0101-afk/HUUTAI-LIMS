@@ -8,11 +8,15 @@ import {
 } from "@/lib/auth/guards";
 import {
   approveReport,
+  cancelReport,
+  createPartialReport,
   createReport,
+  createRequestReport,
   issueReport,
   qaApproveReport,
   reissueReport,
 } from "@/lib/services/results-delivery/test-report";
+import { deliverReportByEmail } from "@/lib/services/lims-email-delivery";
 import {
   approveReportSchema,
   createReportSchema,
@@ -23,9 +27,11 @@ import {
 
 const DELIVERY_PATHS = [
   "/results-delivery/pending",
+  "/results-delivery/review",
   "/results-delivery/reports",
   "/results-delivery/history",
   "/results-delivery/issued",
+  "/results-delivery/revisions",
 ];
 
 function revalidateDelivery() {
@@ -51,6 +57,36 @@ export async function createReportAction(sampleId: string) {
     return { success: true, reportId: report.id };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Không thể tạo phiếu kết quả" };
+  }
+}
+
+export async function createRequestReportAction(requestId: string) {
+  const auth = await requirePermission("delivery_reports", "write");
+  if ("error" in auth) return { error: auth.error };
+  const manage = await requireSessionCanManage();
+  if ("error" in manage) return { error: manage.error };
+
+  try {
+    const report = await createRequestReport(requestId, auth.user.name);
+    revalidateDelivery();
+    return { success: true, reportId: report.id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể tạo phiếu kết quả theo request" };
+  }
+}
+
+export async function createPartialReportAction(requestId: string, sampleIds: string[]) {
+  const auth = await requirePermission("delivery_partial", "write");
+  if ("error" in auth) return { error: auth.error };
+  const manage = await requireSessionCanManage();
+  if ("error" in manage) return { error: manage.error };
+
+  try {
+    const report = await createPartialReport(requestId, sampleIds, auth.user.name);
+    revalidateDelivery();
+    return { success: true, reportId: report.id, isPartial: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể tạo báo cáo một phần" };
   }
 }
 
@@ -123,5 +159,33 @@ export async function reissueReportAction(reportId: string, reason: string) {
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Không thể phát hành lại" };
+  }
+}
+
+export async function cancelReportAction(reportId: string, reason: string) {
+  const auth = await requirePermission("delivery_reports", "write");
+  if ("error" in auth) return { error: auth.error };
+  const manage = await requireSessionCanManage();
+  if ("error" in manage) return { error: manage.error };
+
+  try {
+    await cancelReport(reportId, reason, auth.user.name);
+    revalidateDelivery();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể hủy phiếu" };
+  }
+}
+
+export async function deliverReportAction(reportId: string, recipient: string, note?: string) {
+  const auth = await requirePermission("delivery_issued", "write");
+  if ("error" in auth) return { error: auth.error };
+
+  try {
+    await deliverReportByEmail(reportId, recipient, auth.user.name, note);
+    revalidateDelivery();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể gửi kết quả" };
   }
 }

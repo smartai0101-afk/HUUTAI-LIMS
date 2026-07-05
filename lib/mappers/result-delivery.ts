@@ -50,7 +50,7 @@ export function parseDocumentSnapshot(json: string): TestReportDocumentSnapshot 
 }
 
 function resolveDocument(
-  report: TestReport & { sample?: { sampleCode: string; sampleName: string } },
+  report: TestReport & { sample?: { sampleCode: string; sampleName: string } | null },
   results: ReportResultRow[],
   signatures: ReportSignatures,
   history: Pick<ReportHistory, "action" | "actionAt">[] = [],
@@ -67,7 +67,7 @@ function resolveDocument(
 
 export function mapTestReportView(
   report: TestReport & {
-    sample?: { sampleCode: string; sampleName: string };
+    sample?: { sampleCode: string; sampleName: string } | null;
     history?: Pick<ReportHistory, "action" | "actionAt">[];
   },
 ): TestReportView {
@@ -77,6 +77,8 @@ export function mapTestReportView(
     id: report.id,
     reportCode: report.reportCode,
     sampleId: report.sampleId,
+    requestId: report.requestId,
+    isPartial: report.isPartial,
     sampleCode: report.sample?.sampleCode ?? "",
     sampleName: report.sample?.sampleName ?? "",
     reportVersion: report.reportVersion,
@@ -147,14 +149,14 @@ export function mapReportHistoryView(
     actionBy: string;
     actionAt: Date;
     reason: string;
-    report: { reportCode: string; sample: { sampleCode: string } };
+    report: { reportCode: string; sample: { sampleCode: string } | null };
   },
 ): ReportHistoryView {
   return {
     id: row.id,
     reportId: row.reportId,
     reportCode: row.report.reportCode,
-    sampleCode: row.report.sample.sampleCode,
+    sampleCode: row.report.sample?.sampleCode ?? "",
     version: row.version,
     issueNumber: row.issueNumber,
     action: row.action,
@@ -165,13 +167,13 @@ export function mapReportHistoryView(
 }
 
 export function mapIssuedReportRow(
-  report: TestReport & { sample: { sampleCode: string } },
+  report: TestReport & { sample: { sampleCode: string } | null },
 ): IssuedReportRow {
   return {
     id: report.id,
     reportCode: report.reportCode,
-    sampleId: report.sampleId,
-    sampleCode: report.sample.sampleCode,
+    sampleId: report.sampleId ?? "",
+    sampleCode: report.sample?.sampleCode ?? report.requestCode ?? "",
     customerName: report.customerName,
     issueDate: report.issueDate?.toISOString() ?? null,
     issuedBy: report.issuedBy,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { createWorklistAction, startWorklistAction } from "@/lib/actions/analysis";
+import { createWorklistAction, completeWorklistAction, startWorklistAction } from "@/lib/actions/analysis";
 import { WORKLIST_STATUS_LABELS } from "@/lib/analysis-labels";
 import type { AnalysisTaskView, WorklistView } from "@/types/analysis";
 
@@ -71,6 +71,14 @@ export function WorklistsClient({
   function handleStart(id: string) {
     startTransition(async () => {
       const result = await startWorklistAction(id);
+      if (result.error) setError(result.error);
+      else router.refresh();
+    });
+  }
+
+  function handleComplete(id: string) {
+    startTransition(async () => {
+      const result = await completeWorklistAction(id);
       if (result.error) setError(result.error);
       else router.refresh();
     });
@@ -178,6 +186,16 @@ export function WorklistsClient({
                   className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs text-white"
                 >
                   Bắt đầu chạy
+                </button>
+              ) : null}
+              {wl.status === "running" ? (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => handleComplete(wl.id)}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs text-white"
+                >
+                  Hoàn thành
                 </button>
               ) : null}
               <Link href={`/analysis/worklists/${wl.id}`} className="rounded-lg border px-3 py-1.5 text-xs">

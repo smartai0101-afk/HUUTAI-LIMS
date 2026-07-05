@@ -19,6 +19,7 @@ import type {
   AnalyticalMethodListItem,
   MethodDashboardStats,
 } from "@/types/analytical-methods";
+import { buildAnalyteCache } from "@/lib/catalog/test-method-label";
 
 export const METHOD_SORT_ALLOWLIST = [
   "methodCode",
@@ -33,12 +34,37 @@ export const METHOD_SORT_ALLOWLIST = [
 const METHOD_SORT_MAP: SortFieldMap = {
   methodCode: "methodCode",
   methodName: "methodName",
-  matrix: "matrix",
   analyte: "analyte",
   technique: "technique",
   standardRef: "standardRef",
   updatedAt: "updatedAt",
 };
+
+const methodMatricesInclude = {
+  include: { matrix: { select: { id: true, code: true, name: true, groupName: true } } },
+  orderBy: { matrix: { name: "asc" as const } },
+} as const;
+
+const methodTestMethodsInclude = {
+  include: {
+    testMethod: {
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        category: { select: { name: true } },
+      },
+    },
+  },
+  orderBy: { testMethod: { name: "asc" as const } },
+} as const;
+
+function buildMethodOrderBy(sortBy: string, sortOrder: "asc" | "desc") {
+  if (sortBy === "matrix") {
+    return { methodMatrices: { _count: sortOrder } };
+  }
+  return buildPrismaOrderBy(sortBy, sortOrder, METHOD_SORT_MAP, DEFAULT_METHOD_ORDER);
+}
 
 const DEFAULT_METHOD_ORDER = [{ updatedAt: "desc" as const }];
 
@@ -82,7 +108,32 @@ function buildMethodWhere(q: string, status: MethodListParams["status"]): Prisma
     where.OR = [
       { methodCode: { contains: q } },
       { methodName: { contains: q } },
-      { matrix: { contains: q } },
+      {
+        methodMatrices: {
+          some: {
+            matrix: {
+              OR: [
+                { name: { contains: q } },
+                { code: { contains: q } },
+                { groupName: { contains: q } },
+              ],
+            },
+          },
+        },
+      },
+      {
+        methodTestMethods: {
+          some: {
+            testMethod: {
+              OR: [
+                { name: { contains: q } },
+                { code: { contains: q } },
+                { category: { name: { contains: q } } },
+              ],
+            },
+          },
+        },
+      },
       { analyte: { contains: q } },
       { technique: { contains: q } },
       { standardRef: { contains: q } },
@@ -98,7 +149,7 @@ export async function listAnalyticalMethods(
   params: MethodListParams,
 ): Promise<PaginatedResult<AnalyticalMethodListItem>> {
   const where = buildMethodWhere(params.q, params.status);
-  const orderBy = buildPrismaOrderBy(params.sortBy, params.sortOrder, METHOD_SORT_MAP, DEFAULT_METHOD_ORDER);
+  const orderBy = buildMethodOrderBy(params.sortBy, params.sortOrder);
   const { skip, take } = getSkipTake(params.page, params.limit);
 
   const [total, rows] = await Promise.all([
@@ -108,7 +159,11 @@ export async function listAnalyticalMethods(
       orderBy,
       skip,
       take,
-      include: { currentVersion: { select: { version: true, status: true } } },
+      include: {
+        methodMatrices: methodMatricesInclude,
+        methodTestMethods: methodTestMethodsInclude,
+        currentVersion: { select: { version: true, status: true } },
+      },
     }),
   ]);
 
@@ -125,6 +180,8 @@ export async function getAnalyticalMethodDetail(id: string): Promise<AnalyticalM
   const row = await db.analyticalMethod.findUnique({
     where: { id },
     include: {
+      methodMatrices: methodMatricesInclude,
+      methodTestMethods: methodTestMethodsInclude,
       currentVersion: { select: versionInclude.select },
       versions: versionInclude,
     },
@@ -168,15 +225,107 @@ export async function getMethodDashboardStats(): Promise<MethodDashboardStats> {
   };
 }
 
+export async function resolveAnalyticalMethodMatrixIds(ids: string[]): Promise<string[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const rows = await db.sampleMatrix.findMany({
+    where: { id: { in: unique }, active: true, deletedAt: null },
+    select: { id: true },
+  });
+  if (rows.length !== unique.length) {
+    throw new Error("Một hoặc nhiều nền mẫu không hợp lệ hoặc đã bị ẩn");
+  }
+  return unique;
+}
+
+async function syncMethodMatrices(
+  tx: Prisma.TransactionClient,
+  methodId: string,
+  matrixIds: string[],
+) {
+  await tx.analyticalMethodMatrix.deleteMany({ where: { methodId } });
+  if (matrixIds.length === 0) return;
+  await tx.analyticalMethodMatrix.createMany({
+    data: matrixIds.map((matrixId) => ({
+      id: randomUUID(),
+      methodId,
+      matrixId,
+    })),
+  });
+}
+
+export async function resolveAnalyticalMethodTestMethodIds(ids: string[]): Promise<string[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const rows = await db.testMethod.findMany({
+    where: { id: { in: unique }, active: true, deletedAt: null },
+    select: { id: true },
+  });
+  if (rows.length !== unique.length) {
+    throw new Error("Một hoặc nhiều chỉ tiêu không hợp lệ hoặc đã bị ẩn");
+  }
+  return unique;
+}
+
+async function loadTestMethodSummaries(ids: string[]) {
+  if (ids.length === 0) return [];
+  return db.testMethod.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, code: true, name: true, category: { select: { name: true } } },
+    orderBy: { name: "asc" },
+  });
+}
+
+async function syncMethodTestMethods(
+  tx: Prisma.TransactionClient,
+  methodId: string,
+  testMethodIds: string[],
+) {
+  const existing = await tx.analyticalMethodTestMethod.findMany({ where: { methodId } });
+  const existingByTest = new Map(existing.map((e) => [e.testMethodId, e]));
+  const nextSet = new Set(testMethodIds);
+
+  for (const row of existing) {
+    if (!nextSet.has(row.testMethodId)) {
+      await tx.analyticalMethodTestMethod.delete({ where: { id: row.id } });
+    }
+  }
+
+  for (const testMethodId of testMethodIds) {
+    if (existingByTest.has(testMethodId)) continue;
+    const tm = await tx.testMethod.findUnique({
+      where: { id: testMethodId },
+      select: { defaultUnit: true, lod: true, loq: true },
+    });
+    await tx.analyticalMethodTestMethod.create({
+      data: {
+        id: randomUUID(),
+        methodId,
+        testMethodId,
+        unit: tm?.defaultUnit ?? "",
+        lod: tm?.lod ?? "",
+        loq: tm?.loq ?? "",
+        isPrimary: false,
+      },
+    });
+  }
+}
+
 export async function createAnalyticalMethodWithVersion(data: {
   methodCode: string;
   methodName: string;
-  matrix: string;
-  analyte: string;
+  matrixIds: string[];
+  testMethodIds: string[];
   technique: string;
   standardRef: string;
   createdBy: string;
 }) {
+  const matrixIds = await resolveAnalyticalMethodMatrixIds(data.matrixIds);
+  const testMethodIds = await resolveAnalyticalMethodTestMethodIds(data.testMethodIds);
+  const testMethodRows = await loadTestMethodSummaries(testMethodIds);
+  const analyteCache = buildAnalyteCache(
+    testMethodRows.map((t) => ({ ...t, categoryName: t.category.name })),
+  );
   const methodId = randomUUID();
   const versionId = randomUUID();
   const workflowId = randomUUID();
@@ -185,9 +334,17 @@ export async function createAnalyticalMethodWithVersion(data: {
     await tx.analyticalMethod.create({
       data: {
         id: methodId,
-        ...data,
+        methodCode: data.methodCode,
+        methodName: data.methodName,
+        analyte: analyteCache,
+        technique: data.technique,
+        standardRef: data.standardRef,
+        createdBy: data.createdBy,
       },
     });
+
+    await syncMethodMatrices(tx, methodId, matrixIds);
+    await syncMethodTestMethods(tx, methodId, testMethodIds);
 
     await tx.methodVersion.create({
       data: {
@@ -247,13 +404,33 @@ export async function updateAnalyticalMethodMetadata(
   data: {
     methodCode: string;
     methodName: string;
-    matrix: string;
-    analyte: string;
+    matrixIds: string[];
+    testMethodIds: string[];
     technique: string;
     standardRef: string;
   },
 ) {
-  return db.analyticalMethod.update({ where: { id }, data });
+  const matrixIds = await resolveAnalyticalMethodMatrixIds(data.matrixIds);
+  const testMethodIds = await resolveAnalyticalMethodTestMethodIds(data.testMethodIds);
+  const testMethodRows = await loadTestMethodSummaries(testMethodIds);
+  const analyteCache = buildAnalyteCache(
+    testMethodRows.map((t) => ({ ...t, categoryName: t.category.name })),
+  );
+  return db.$transaction(async (tx) => {
+    const method = await tx.analyticalMethod.update({
+      where: { id },
+      data: {
+        methodCode: data.methodCode,
+        methodName: data.methodName,
+        analyte: analyteCache,
+        technique: data.technique,
+        standardRef: data.standardRef,
+      },
+    });
+    await syncMethodMatrices(tx, id, matrixIds);
+    await syncMethodTestMethods(tx, id, testMethodIds);
+    return method;
+  });
 }
 
 export async function getCurrentMethodVersionId(methodId: string): Promise<string | null> {

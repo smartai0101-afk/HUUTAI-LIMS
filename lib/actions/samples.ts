@@ -20,7 +20,9 @@ import {
   updateSampleCode,
 } from "@/lib/services/samples/sample-receive";
 import {
+  cancelSampleRequest,
   createSampleRequest,
+  reviewSampleRequest,
   submitSampleRequest,
   updateSampleRequest,
 } from "@/lib/services/samples/sample-requests";
@@ -41,6 +43,8 @@ const SAMPLE_PATHS = [
   "/samples/tracking",
   "/samples/storage",
   "/samples/requests",
+  "/samples/requests/review",
+  "/samples/reception-log",
 ];
 
 function revalidateSamples() {
@@ -224,6 +228,7 @@ function requestInputFromForm(fd: FormData) {
     purpose: str(fd, "purpose"),
     dueDate: str(fd, "dueDate"),
     note: str(fd, "note"),
+    priority: str(fd, "priority") || "normal",
     requestedTests: parseStringArray(fd, "requestedTests"),
     methodIds: parseStringArray(fd, "methodIds"),
   };
@@ -272,11 +277,39 @@ export async function submitSampleRequestAction(id: string) {
 
   try {
     await submitSampleRequest(id, auth.user.name);
-    revalidatePath("/samples/requests");
-    revalidatePath(`/samples/requests/${id}`);
+    revalidateSamples();
+    revalidatePath("/samples/requests/review");
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Không thể gửi phiếu yêu cầu" };
+  }
+}
+
+export async function reviewSampleRequestAction(id: string) {
+  const auth = await requirePermission("samples_request_review", "write");
+  if ("error" in auth) return { error: auth.error };
+
+  try {
+    await reviewSampleRequest(id, auth.user.name);
+    revalidateSamples();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể kiểm tra phiếu" };
+  }
+}
+
+export async function cancelSampleRequestAction(id: string, reason: string) {
+  const auth = await requirePermission("samples_requests", "write");
+  if ("error" in auth) return { error: auth.error };
+  const manage = await requireSessionCanManage();
+  if ("error" in manage) return { error: manage.error };
+
+  try {
+    await cancelSampleRequest(id, reason, auth.user.name);
+    revalidateSamples();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Không thể hủy phiếu" };
   }
 }
 

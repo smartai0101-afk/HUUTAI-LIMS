@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Edit, Plus, Trash2 } from "lucide-react";
-import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { ModalShell } from "@/components/ModalShell";
@@ -133,8 +132,7 @@ export function AdminPeopleClient({
   const showLoginSection = canManageLogin && (form.hasLogin || isUserOnly);
 
   return (
-    <AppShell>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-slate-500">Administration</p>
@@ -183,7 +181,6 @@ export function AdminPeopleClient({
             </div>
           )}
         />
-      </div>
 
       <ModalShell open={open} onClose={() => setOpen(false)} className="max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
         <h2 className="mb-4 text-lg font-semibold text-slate-900">{title}</h2>
@@ -288,6 +285,6 @@ export function AdminPeopleClient({
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-    </AppShell>
+    </div>
   );
 }

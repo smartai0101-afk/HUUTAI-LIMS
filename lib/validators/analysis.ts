@@ -34,6 +34,10 @@ export const createWorksheetSchema = z.object({
 export const saveTestResultSchema = z.object({
   resultId: z.string().min(1),
   resultValue: z.string().trim().min(1, "Kết quả là bắt buộc"),
+  rawValue: z.string().optional(),
+  dilution: z.string().optional(),
+  uncertainty: z.string().optional(),
+  modifiedReason: z.string().optional(),
   unit: z.string().optional(),
   lod: z.string().optional(),
   loq: z.string().optional(),
@@ -56,6 +60,10 @@ export const qcCheckSchema = z.object({
     "control_chart",
   ]),
   status: z.enum(["pass", "fail", "rerun", "investigate"]),
+  expectedValue: z.string().optional(),
+  measuredValue: z.string().optional(),
+  recoveryPercent: z.string().optional(),
+  overrideReason: z.string().optional(),
   note: z.string().optional(),
 });
 

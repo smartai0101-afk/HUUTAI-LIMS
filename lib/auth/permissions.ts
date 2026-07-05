@@ -49,11 +49,15 @@ const METHODS_KEYS: PermissionKey[] = ["methods_dashboard", "methods_list"];
 
 const SAMPLES_KEYS: PermissionKey[] = [
   "samples_requests",
+  "samples_requests_new",
+  "samples_request_review",
+  "samples_request_matrix",
   "samples_list",
   "samples_receive",
   "samples_assign",
   "samples_tracking",
   "samples_storage",
+  "samples_reception_log",
 ];
 
 const ANALYSIS_KEYS: PermissionKey[] = [
@@ -61,16 +65,28 @@ const ANALYSIS_KEYS: PermissionKey[] = [
   "analysis_assign_analyst",
   "analysis_worklist",
   "analysis_worksheet",
+  "analysis_sample_prep",
   "analysis_results",
+  "analysis_results_by_sample",
   "analysis_qc",
+  "analysis_deviation",
   "analysis_review",
 ];
 
 const DELIVERY_KEYS: PermissionKey[] = [
   "delivery_pending",
+  "delivery_review",
   "delivery_reports",
+  "delivery_partial",
   "delivery_history",
   "delivery_issued",
+  "delivery_revision",
+];
+
+const CATALOG_KEYS: PermissionKey[] = [
+  "catalog_matrices",
+  "catalog_test_methods",
+  "catalog_mappings",
 ];
 
 function writeSome(keys: PermissionKey[]): Partial<Record<PermissionKey, AccessLevel>> {
@@ -101,6 +117,7 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     ...writeAll(SAMPLES_KEYS),
     ...writeAll(ANALYSIS_KEYS),
     ...writeAll(DELIVERY_KEYS),
+    ...writeAll(CATALOG_KEYS),
     admin_tasks: "write",
     admin_people: "write",
   },
@@ -111,11 +128,15 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     ...writeAll(METHODS_KEYS),
     ...writeSome(["samples_list", "samples_receive", "samples_tracking"]),
     samples_requests: "read",
+    samples_request_review: "read",
+    samples_reception_log: "read",
     samples_assign: "read",
     samples_storage: "read",
     analysis_inbox: "read",
     analysis_assign_analyst: "read",
-    ...writeSome(["analysis_worklist", "analysis_worksheet", "analysis_results"]),
+    analysis_sample_prep: "read",
+    analysis_deviation: "read",
+    ...writeSome(["analysis_worklist", "analysis_worksheet", "analysis_results", "analysis_results_by_sample"]),
     analysis_qc: "read",
     analysis_review: "read",
     ...readAll(DELIVERY_KEYS),
@@ -134,12 +155,19 @@ const ROLE_DEFAULTS: Record<UserRole, Partial<Record<PermissionKey, AccessLevel>
     samples_storage: "write",
     ...readAll(ANALYSIS_KEYS),
     analysis_qc: "write",
+    analysis_deviation: "write",
     analysis_review: "write",
     ...readAll(DELIVERY_KEYS),
     delivery_pending: "write",
+    delivery_review: "write",
     delivery_reports: "write",
     delivery_history: "write",
     delivery_issued: "write",
+    delivery_revision: "write",
+    delivery_partial: "write",
+  },
+  CustomerViewer: {
+    ...readAll(DELIVERY_KEYS.filter((k) => k === "delivery_issued" || k === "delivery_reports")),
   },
   Viewer: {
     dashboard: "write",
