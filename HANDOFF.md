@@ -55,6 +55,7 @@
   npx tsx scripts/apply-migration-turso.ts prisma/migrations/20260718_analytical_method_matrices/migration.sql
   npx tsx scripts/apply-migration-turso.ts prisma/migrations/20260719_analytical_method_test_methods/migration.sql
   npx tsx scripts/apply-migration-turso.ts prisma/migrations/20260720_method_test_method_params/migration.sql
+  npx tsx scripts/apply-migration-turso.ts prisma/migrations/20260721_request_sample_lines/migration.sql
   npx tsx scripts/seed-module-permissions-prod.ts
   npx tsx -e "import { db } from './lib/db'; import { seedLimsCatalog } from './prisma/seed-data/catalog/seed-catalog'; seedLimsCatalog(db).finally(() => db.$disconnect())"
   npx tsx scripts/backfill-analytical-method-matrix.ts
@@ -296,7 +297,8 @@ npm run dev
   - **`20260717_analytical_method_matrix_fk`** ← `AnalyticalMethod.matrixId` FK (**local applied** · superseded bởi junction)
   - **`20260718_analytical_method_matrices`** ← **`AnalyticalMethodMatrix`** M:N PP ↔ nền mẫu (**local applied** · **Turso prod pending**)
   - **`20260719_analytical_method_test_methods`** ← **`AnalyticalMethodTestMethod`** M:N PP ↔ chỉ tiêu (**local applied** · **Turso prod pending**)
-  - **`20260720_method_test_method_params`** ← `unit` · `lod` · `loq` · `isPrimary` · `sortOrder` trên junction (**local applied** · **Turso prod pending**)
+  - **`20260720_method_test_method_params`** ← `unit` · `lod` · `loq` · `isPrimary` · `sortOrder` trên junction (**Turso prod applied** 2026-07-05)
+  - **`20260721_request_sample_lines`** ← `priority`/`contact*` trên `sample_requests` · `request_sample_lines` · `request_sample_line_tests` · mở rộng `samples`/`sample_tests` (**Turso prod applied** 2026-07-05)
 - **Dev note:** `migrate deploy` có thể báo P3005 — dùng `db execute --schema prisma/schema.prisma --file …` · parent batch: thêm cột → backfill → unique index · **kill port 3000 trước `prisma generate`** nếu EPERM
 
 ### Trạng thái Database
